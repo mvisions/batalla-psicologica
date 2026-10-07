@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="sea" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1177c4"/><stop offset="1" stop-color="#06182b"/></linearGradient>
+    <linearGradient id="hull" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#b9c4cc"/><stop offset="1" stop-color="#5d6b76"/></linearGradient>
+  </defs>
+  <rect width="512" height="512" fill="url(#sea)"/>
+  <path d="M70 330 Q256 360 442 330" stroke="#fff" stroke-opacity=".35" stroke-width="6" fill="none"/>
+  <path d="M60 300 L452 300 L420 360 Q256 380 92 360 Z" fill="url(#hull)" stroke="#1c2428" stroke-width="6"/>
+  <rect x="210" y="250" width="92" height="50" rx="8" fill="#9aa5ac" stroke="#1c2428" stroke-width="5"/>
+  <rect x="240" y="215" width="32" height="40" rx="6" fill="#8a959c" stroke="#1c2428" stroke-width="5"/>
+  <g stroke="#1c2428" stroke-width="5" stroke-linecap="round"><path d="M130 296 L130 220"/><path d="M160 296 L160 220"/><path d="M352 296 L352 220"/><path d="M382 296 L382 220"/></g>
+  <circle cx="145" cy="300" r="22" fill="#a4afb6" stroke="#1c2428" stroke-width="5"/>
+  <circle cx="367" cy="300" r="22" fill="#a4afb6" stroke="#1c2428" stroke-width="5"/>
+  <path d="M170 440 C200 410 230 370 250 330 C255 380 275 420 300 440 Q235 430 170 440Z" fill="#56626e" stroke="#0b1114" stroke-width="5"/>
+</svg>

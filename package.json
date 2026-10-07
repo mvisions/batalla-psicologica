@@ -1,0 +1,14 @@
+{
+  "name": "batalla-psicologica",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "start": "node --env-file-if-exists=.env server.js",
+    "test": "node --test tests/*.test.mjs"
+  },
+  "dependencies": {
+    "flag-icons": "^7.5.0",
+    "qrcode": "^1.5.4",
+    "three": "^0.186.1"
+  }
+}

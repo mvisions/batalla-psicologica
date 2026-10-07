@@ -1,0 +1,1123 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Batalla Psicológica · 2 jugadores</title>
+<meta name="theme-color" content="#06182b">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<script type="importmap">{ "imports": { "three": "/vendor/three.module.js" } }</script>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: system-ui, sans-serif; background: #06182b; color: #fff; display: flex; justify-content: center; }
+  #app { width: 100%; max-width: 560px; padding: 10px; }
+  .panel { background: #0b2a4a; border-radius: 10px; padding: 14px; margin-bottom: 10px; }
+  input, button { font-size: 16px; padding: 10px; border-radius: 8px; border: 0; width: 100%; margin-top: 8px; }
+  button { background: #1e88e5; color: #fff; cursor: pointer; }
+  button:disabled { background: #456; }
+  .hidden { display: none !important; }
+  .row { display: flex; gap: 8px; }
+  .bar { background: #123; border-radius: 6px; height: 14px; overflow: hidden; margin-top: 3px; }
+  .bar > i { display: block; height: 100%; transition: width .4s; }
+  .ship-bar > i { background: #43a047; } .shark-bar > i { background: #fb8c00; }
+  .hudin { position: absolute; left: 8px; right: 8px; z-index: 6; background: #06182bcc; border-radius: 8px; padding: 4px 8px; font-size: 12px; }
+  #hudOp { top: 6px; } #hudMe { bottom: 6px; }
+  .hudtop { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .hudtop b { font-size: 13px; max-width: 38%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .flag { height: 14px; width: auto; border-radius: 2px; vertical-align: middle; margin-right: 6px; box-shadow: 0 0 0 1px #fff4; cursor: help; }
+  #tip { position: absolute; z-index: 12; transform: translateX(-50%); background: #000d; border: 1px solid #fff5; border-radius: 8px;
+    padding: 4px 10px; font-size: 13px; pointer-events: none; white-space: nowrap; }
+  .bars { display: flex; gap: 6px; margin: 3px 0; }
+  .bars .bar { flex: 1; margin-top: 0; height: 10px; }
+  .arrow { position: absolute; z-index: 7; width: 50px; height: 50px; margin: 0; padding: 0; border-radius: 50%; font-size: 22px;
+    background: #1e88e5dd; border: 2px solid #fff; box-shadow: 0 2px 8px #0008; }
+  .arrow:disabled { opacity: .35; }
+  .cans { display: flex; gap: 4px; margin-top: 2px; }
+  .can { flex: 1; text-align: center; border-radius: 4px; font-size: 11px; padding: 1px 0; }
+  .can b { color: #ffd54f; margin-right: 3px; }
+  .can.dead { background: #6b1d1d !important; text-decoration: line-through; }
+  #waveCtl { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
+  #waveCtl span { flex: 1; }
+  #waveCtl button { width: auto; margin: 0; padding: 4px 10px; font-size: 12px; }
+  .hud { font-size: 13px; }
+  .hud b { font-size: 15px; }
+  #user { display: flex; align-items: center; gap: 10px; margin: 8px 0; }
+  #user img { width: 36px; height: 36px; border-radius: 50%; }
+  #user a { margin-left: auto; color: #90caf9; font-size: 13px; }
+  #gbtn { margin-top: 8px; min-height: 44px; }
+  #arena { position: relative; height: calc(100dvh - 130px); min-height: 480px; max-height: 980px; border-radius: 12px; overflow: hidden; margin-bottom: 8px; background: #0b3a66;
+    box-shadow: 0 4px 18px #0008; }
+  .overlayc { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 9; width: min(86%, 360px); margin: 0; }
+  #endBox { pointer-events: none; display: flex; flex-direction: column; gap: 8px; }
+  #endBox button { pointer-events: auto; margin: 0; }
+  #inputs { margin-bottom: 4px; }
+  .seqrow { display: flex; justify-content: space-between; gap: 6px; font-size: 12px; }
+  .cbtn { position: absolute; z-index: 7; width: 46px; height: 46px; margin: 0; padding: 0; border-radius: 50%; background: #081018cc; border: 2px solid #ffd54f;
+    color: #fff; font-size: 20px; font-weight: 900; box-shadow: 0 0 10px #000a; }
+  .cbtn:active { transform: translate(-50%, -50%) scale(.9); }
+  .cbtn:disabled { border-color: #ff5252; opacity: .5; background: #2a0c0c; }
+  .wbtn { position: absolute; z-index: 7; width: 54px; height: 54px; margin: 0; padding: 0; border-radius: 50%; color: #fff; font-weight: 900; font-size: 16px;
+    text-shadow: 0 0 4px #000; border: 2px solid #ffffffcc; box-shadow: 0 0 0 4px #ffffff33, 0 0 12px #29b6f6;
+    background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cg fill='%23fff' fill-opacity='.85'%3E%3Cpath d='M8 22c8-9 20-9 26 0-6 9-18 9-26 0zM34 22l9-7v14z'/%3E%3Cpath d='M24 44c6-6 14-6 18 0-4 6-12 6-18 0zM42 44l7-5v10z'/%3E%3C/g%3E%3Ccircle cx='15' cy='21' r='1.6' fill='%23063'/%3E%3C/svg%3E") center/72% no-repeat,
+      radial-gradient(circle at 50% 40%, #4fc3f7aa, #0277bdcc 70%); }
+  .wbtn:active { transform: translate(-50%, -50%) scale(.92); }
+  .wbtn:disabled { opacity: .45; }
+  .wbtn .num { position: absolute; top: -2px; left: 50%; transform: translateX(-50%); }
+  .cbtn i, .wbtn i { position: absolute; bottom: -15px; left: 50%; transform: translateX(-50%); font-style: normal; font-size: 11px; background: #000a;
+    border-radius: 6px; padding: 0 5px; white-space: nowrap; color: #ffd54f; font-weight: bold; }
+  .cbtn i:empty, .wbtn i:empty { display: none; }
+  #msg { text-align: center; min-height: 22px; }
+  .dmg { position: absolute; z-index: 9; transform: translate(-50%, -50%); text-align: center; font-weight: 900; line-height: 1; pointer-events: none;
+    text-shadow: 0 0 6px #000, 0 0 12px #000; animation: dmgblink .45s steps(2, start) 6, dmgfloat 2.8s ease-out forwards; }
+  .dmg small { display: block; font-size: 15px; color: #ff5252; }
+  .dmg span { font-size: 28px; color: #fff; }
+  @keyframes dmgblink { 50% { opacity: 0; } }
+  @keyframes dmgfloat { to { margin-top: -26px; } }
+  #x2 { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 4; pointer-events: none; display: none;
+    font-size: 34px; font-weight: bold; color: #ff5252; text-shadow: 0 0 12px #000, 0 0 20px #ff1744; animation: blink .7s steps(2, start) infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+  #win { position: fixed; inset: 0; z-index: 50; pointer-events: none; display: none; }
+  #win canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+  #win h1 { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); margin: 0; font-size: 56px; text-align: center;
+    color: #ffd54f; text-shadow: 0 0 20px #ff9800, 0 4px 8px #000; animation: pop 1s ease-out; }
+  @keyframes pop { from { transform: translate(-50%, -50%) scale(.1); } to { transform: translate(-50%, -50%) scale(1); } }
+  select { font-size: 16px; padding: 10px; border-radius: 8px; border: 0; width: 100%; margin-top: 6px; background: #fff; color: #111; }
+  #topbar { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+  #topbar button { width: auto; margin: 0; padding: 6px 12px; font-size: 13px; background: #2a4a6e; }
+  #topbar input { margin: 0; padding: 0; flex: 1; }
+  .modal { position: fixed; inset: 0; z-index: 60; background: #000b; overflow: auto; display: flex; justify-content: center; padding: 14px; }
+  .modal .panel { max-width: 460px; height: fit-content; }
+  .modal table { width: 100%; border-collapse: collapse; font-size: 13px; margin: 8px 0; }
+  .modal td { padding: 4px 6px; border-bottom: 1px solid #ffffff22; vertical-align: top; }
+  .modal td:first-child { white-space: nowrap; color: #ffd54f; font-weight: bold; }
+  .tutorial-guide { position: absolute; z-index: 18; top: 88px; left: 50%; transform: translateX(-50%); display: grid; grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center; gap: 8px; width: min(92%, 390px); padding: 9px 10px; border: 1px solid #ffd54f; border-radius: 8px;
+    background: #06182ef2; box-shadow: 0 4px 18px #000a; pointer-events: none; }
+  .tutorial-guide strong { display: block; color: #ffd54f; font-size: 13px; }
+  .tutorial-guide p { margin: 3px 0 0; font-size: 12px; line-height: 1.35; }
+  .tutorial-guide button { width: auto; margin: 0; padding: 6px 8px; font-size: 12px; pointer-events: auto; }
+  .tutorial-target { animation: tutorialGlow .8s ease-in-out infinite alternate; }
+  @keyframes tutorialGlow { to { filter: brightness(1.35); box-shadow: 0 0 0 5px #ffd54f66, 0 0 18px #ffd54f; } }
+  .invite-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .invite-actions a { display: flex; align-items: center; justify-content: center; min-height: 44px; margin-top: 8px; padding: 8px;
+    border-radius: 8px; background: #128c7e; color: #fff; text-align: center; text-decoration: none; font-size: 13px; }
+  .invite-actions #waWeb { background: #2a4a6e; }
+  #inviteQr { display: block; width: 180px; height: 180px; margin: 10px auto; padding: 6px; border-radius: 4px; background: #fff; }
+  .invite-link { display: flex; align-items: center; gap: 6px; }
+  .invite-link input { min-width: 0; flex: 1; margin: 0; padding: 8px; font-size: 12px; }
+  #copyInvite { width: auto; flex: none; margin: 0; padding: 8px 10px; font-size: 13px; }
+  #activeLeagues { margin: 12px 0; }
+  .mode-menu { display: grid; gap: 7px; margin-top: 8px; }
+  .mode-menu > h3 { margin: 0 0 2px; font-size: 16px; }
+  .mode-menu > button { min-height: 46px; margin: 0; text-align: left; }
+  #vsBot { background: #187f67; }
+  #create { background: #216da8; }
+  #leagueCreate { background: #b87819; }
+  .league-setup { display: grid; gap: 6px; margin-top: 4px; padding-top: 8px; border-top: 1px solid #ffffff33; }
+  .league-setup input, .league-setup button { margin-top: 0; }
+  .league-setup button { min-height: 42px; }
+  #leagueCancel { background: #2a4a6e; }
+  #tutorialBtn { margin: 0; background: #2a4a6e; }
+  #matchmakingWait { margin: 10px 0; padding: 10px; border: 1px solid #ffffff33; border-radius: 8px; background: #06182b; }
+  #matchmakingWait p { margin: 0; }
+  #matchmakingCancel { background: #6b3030; }
+  .league-entry { border-top: 1px solid #ffffff33; padding: 8px 0; }
+  .league-entry h4 { margin: 0 0 3px; }
+  .league-entry p { margin: 3px 0; font-size: 13px; }
+  .league-entry button { margin-top: 4px; padding: 7px; font-size: 13px; }
+  #leagueBoard h3 { margin: 0 0 4px; }
+  #leagueBoard p { margin: 3px 0; }
+  #leaguePlayers { margin: 6px 0; padding-left: 20px; columns: 2; }
+  #leagueRounds { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 8px; }
+  .league-round { min-width: 0; border-top: 1px solid #ffffff33; padding-top: 5px; }
+  .league-round h4 { margin: 0; color: #ffd54f; }
+  .league-round ol { margin: 4px 0; padding-left: 18px; }
+  .league-round li { margin: 3px 0; overflow-wrap: anywhere; }
+  #spectatorBack { margin-top: 6px; }
+  @media (max-width: 460px) { #leagueRounds { grid-template-columns: 1fr; gap: 4px; } #leaguePlayers { columns: 1; } }
+  .tabs { display: flex; gap: 6px; }
+  .tabs button { margin: 0; padding: 6px; font-size: 13px; background: #2a4a6e; }
+  .tabs button.on { background: #1e88e5; }
+  #emotes { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+  #emotes button { width: auto; margin: 0; padding: 6px 10px; font-size: 13px; background: #2a4a6e; }
+  #emoteMsg { position: absolute; top: 96px; left: 50%; transform: translateX(-50%); z-index: 8; background: #000c; border: 1px solid #ffd54f;
+    border-radius: 14px; padding: 6px 14px; font-size: 14px; pointer-events: none; }
+  #lastRound { font-size: 13px; }
+  #lastRound button { margin-top: 6px; padding: 6px; font-size: 13px; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="topbar">
+    <button id="rankingBtn" type="button">Ranking</button>
+    <button id="helpBtn" type="button">Ayuda</button>
+    <button id="muteBtn" type="button">Sonido: sí</button>
+    <span id="profileStats" class="hidden"></span>
+    <input id="vol" type="range" min="0" max="100" value="80" title="Volumen">
+  </div>
+  <div id="help" class="modal hidden">
+    <div class="panel">
+      <h3>Cómo se juega</h3>
+      <p>Cada ronda eliges el orden de tus 4 cañones (ataque) y dónde pones tu tiburón en cada disparo (defensa). Hay 4 disparos de 5 segundos. Barco: 100 de vida. Tiburón: 50. Cada cañón: 25.</p>
+      <ul>
+        <li>Si los dos disparan por el mismo sitio, las balas chocan y no hay daño.</li>
+        <li>Una bala da al primer tiburón que encuentra en su camino; si no, da al barco.</li>
+        <li>Cada impacto en el barco también daña el cañón más cercano. Un cañón sin vida queda roto, no dispara y vuelve con 15 en la siguiente ronda.</li>
+        <li>Si rompes un cañón rival, recuperas 5 de vida.</li>
+      </ul>
+      <table>
+        <tr><td>Cada 4</td><td>Ronda doble: el daño es x2.</td></tr>
+        <tr><td>Cada 5</td><td>Lluvia: los tiburones se van con paraguas, no hay defensa y aparecen dos icebergs a la deriva. La primera bala que da a un iceberg lo destruye.</td></tr>
+        <tr><td>Cada 6</td><td>Oleaje: mueves tu barco con las flechas del mar (hasta 4 movimientos). Si el rival se mueve, tu bala puede fallar.</td></tr>
+        <tr><td>Cada 7</td><td>Llega una orca al centro del mar en un sitio al azar. Rebota las balas contra el barco que disparó.</td></tr>
+        <tr><td>Cada 3</td><td>Un submarino cruza el centro y dispara a un lado al azar en los 3 primeros disparos. Si tu bala le da, recuperas 5 de vida y el cañón que disparó repara 5, hasta 25.</td></tr>
+      </table>
+      <button id="helpClose" type="button">Cerrar</button>
+    </div>
+  </div>
+  <div id="rankingModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="rankingTitle">
+    <div class="panel">
+      <div class="league-board-head"><h3 id="rankingTitle">Ranking: más rivales eliminados seguidos</h3><button id="rankingClose" type="button">Cerrar</button></div>
+      <div class="tabs"><button id="rkAll" type="button" class="on">Siempre</button><button id="rkWeek" type="button">Esta semana</button></div>
+      <ol id="rank"></ol>
+    </div>
+  </div>
+  <div id="lobby" class="panel">
+    <h2>Batalla Psicológica</h2>
+    <label for="country">País (la bandera de tu barco)</label>
+    <select id="country"></select>
+    <div id="auth">
+      <div id="gbtn"></div>
+    </div>
+    <div id="user" class="hidden"><img id="avatar" alt="" referrerpolicy="no-referrer"><b id="uname"></b><a id="logout" href="#">Salir</a></div>
+    <div id="menuBtns" class="hidden">
+      <label for="level">Dificultad de la máquina</label>
+      <select id="level"><option value="easy">Fácil</option><option value="normal" selected>Normal</option><option value="hard">Difícil</option></select>
+      <div class="mode-menu">
+        <h3>Modos de juego</h3>
+        <button id="tutorialBtn" type="button">Tutorial de batalla</button>
+        <button id="vsBot" type="button">1 jugador · Contra la máquina</button>
+        <button id="create" type="button">2 jugadores · Invitar a un rival</button>
+        <button id="joinRandom" type="button">Unirme a partida</button>
+        <button id="leagueCreate" type="button">Liga · 8 jugadores</button>
+        <div id="leagueSetup" class="league-setup hidden">
+          <label for="leagueName">Nombre de la liga</label>
+          <input id="leagueName" maxlength="48" placeholder="Champions League">
+          <button id="leagueConfirm" type="button">Crear torneo</button>
+          <button id="leagueCancel" type="button">Cancelar</button>
+        </div>
+      </div>
+    </div>
+    <button id="join" class="hidden">Unirme a la partida</button>
+    <div id="matchmakingWait" class="hidden" role="status" aria-live="polite">
+      <p id="matchmakingMessage">Buscando rival...</p>
+      <button id="matchmakingCancel" type="button">Cancelar búsqueda</button>
+    </div>
+    <p id="lobbyMsg"></p>
+    <section id="activeLeagues">
+      <h3>Torneos en juego</h3>
+      <div id="activeLeaguesList"><p>No hay torneos en juego</p></div>
+    </section>
+    <h3>Últimas partidas</h3>
+    <ul id="games"></ul>
+  </div>
+
+  <div id="game" class="hidden">
+    <div id="arena">
+      <div class="hudin" id="hudOp">
+        <div class="hudtop"><b><img id="opFlag" class="flag" alt=""><span id="opName"></span></b><span id="opTxt"></span><span>Ronda <span id="round">1</span></span></div>
+        <div class="bars"><div class="bar ship-bar"><i id="opShip"></i></div><div class="bar shark-bar"><i id="opShark"></i></div></div>
+        <div class="cans" id="opCan"></div>
+      </div>
+      <div id="x2"></div>
+      <div id="emoteMsg" class="hidden"></div>
+      <div id="tutorialGuide" class="tutorial-guide hidden" role="status" aria-live="polite">
+        <div><strong id="tutorialTitle"></strong><p id="tutorialText"></p></div>
+        <button id="tutorialClose" type="button">Saltar tutorial</button>
+      </div>
+      <div id="tip" class="hidden"></div>
+      <div id="invite" class="panel hidden overlayc">
+        <div class="invite-actions">
+          <a id="wa" target="_blank" rel="noopener">WhatsApp · app o web</a>
+          <a id="waWeb" target="_blank" rel="noopener">WhatsApp Web</a>
+        </div>
+        <img id="inviteQr" width="180" height="180" alt="Código QR para unirse a la partida">
+        <label for="link">Enlace de invitación</label>
+        <div class="invite-link"><input id="link" readonly><button id="copyInvite" type="button">Copiar</button></div>
+      </div>
+      <div id="endBox" class="overlayc">
+        <button id="rematch" class="hidden" type="button">Revancha</button>
+        <button id="menu" class="hidden" type="button">Volver al menú</button>
+      </div>
+      <button id="moveL" class="arrow hidden" type="button" title="Mover el barco a la izquierda">◀</button>
+      <button id="moveR" class="arrow hidden" type="button" title="Mover el barco a la derecha">▶</button>
+      <div class="hudin" id="hudMe">
+        <div id="inputs" class="hidden">
+          <div class="seqrow"><b id="timer"></b><span id="seqTxt"></span></div>
+        </div>
+        <div id="waveCtl" class="hidden"><span id="waveTxt"></span><button id="waveStay" type="button">Quieto</button></div>
+        <div class="bars"><div class="bar ship-bar"><i id="meShip"></i></div><div class="bar shark-bar"><i id="meShark"></i></div></div>
+        <div class="cans" id="meCan"></div>
+        <div class="hudtop"><b><img id="meFlag" class="flag" alt=""><span id="meName"></span></b><span id="meTxt"></span></div>
+      </div>
+    </div>
+    <div id="msg"></div>
+    <div id="leagueBoard" class="panel hidden" aria-live="polite">
+      <h3 id="leagueTitle"></h3>
+      <p id="leagueCreator"></p>
+      <p id="leagueStatus"></p>
+      <p id="leagueCount"></p>
+      <ol id="leaguePlayers"></ol>
+      <div id="leagueRounds"></div>
+    </div>
+    <button id="spectatorBack" class="hidden" type="button">Volver a torneos</button>
+    <div id="emotes" class="hidden"></div>
+    <div id="lastRound" class="panel hidden"><b>Última ronda</b><div id="lrTxt"></div><button id="replay" type="button">Ver repetición</button></div>
+  </div>
+</div>
+<div id="win"><canvas></canvas><h1>¡VICTORIA!</h1></div>
+<script type="module">
+import { createScene } from '/scene3d.js';
+
+const $ = (id) => document.getElementById(id);
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+const SHOT_MS = 5000; // 4 disparos x 5 s = 20 s por tanda
+let room, pid, key, isBot = false, names = ['', ''], playing = false, lastHp = null, curRound = 1;
+let lastRound = null, endAt = 0, queue = Promise.resolve();
+let tutorialMode = false, tutorialStep = null, tutorialUnlimited = false;
+let isLeague = false, leagueCode = null, leaguePid = null, leagueKey = null, leaguePollTimer = null;
+let activeEvents = null, spectatorAbort = null, spectatorMode = false, spectatorLeague = null, watchedRoom = null;
+let matchmaking = null, matchmakingPollTimer = null;
+const isRain = () => curRound % 5 === 0;
+const isSwell = () => curRound % 6 === 0;
+navigator.serviceWorker?.register('/sw.js').catch(() => {});
+
+const scene = createScene($('arena'));
+scene.onThunder = () => sfx('thunder');
+scene.onBounce = () => sfx('clash');
+scene.trackPoint($('moveL'), -6.3, 0.4, scene.SHIP_Z - 2);
+scene.trackPoint($('moveR'), 6.3, 0.4, scene.SHIP_Z - 2);
+
+// ---------- Efectos de sonido sintetizados ----------
+let sfxCtx, master;
+let volume = Number(localStorage.getItem('vol') ?? 80) / 100, muted = localStorage.getItem('muted') === '1';
+const applyVol = () => { if (master) master.gain.value = muted ? 0 : volume; };
+function unlockAudio() {
+  try {
+    if (!sfxCtx) { sfxCtx = new (window.AudioContext || window.webkitAudioContext)(); master = sfxCtx.createGain(); master.connect(sfxCtx.destination); }
+    sfxCtx.resume(); applyVol();
+  } catch { /* sin audio */ }
+}
+document.addEventListener('pointerdown', unlockAudio, { once: true });
+$('vol').value = Math.round(volume * 100);
+$('muteBtn').textContent = muted ? 'Sonido: no' : 'Sonido: sí';
+$('vol').oninput = () => { volume = $('vol').value / 100; localStorage.setItem('vol', $('vol').value); applyVol(); };
+$('muteBtn').onclick = () => {
+  muted = !muted; localStorage.setItem('muted', muted ? '1' : '0');
+  $('muteBtn').textContent = muted ? 'Sonido: no' : 'Sonido: sí'; applyVol();
+};
+$('helpBtn').onclick = () => $('help').classList.remove('hidden');
+$('helpClose').onclick = () => $('help').classList.add('hidden');
+$('help').onclick = (e) => { if (e.target === $('help')) $('help').classList.add('hidden'); };
+function sfx(kind) {
+  if (!sfxCtx) return;
+  const ac = sfxCtx, t = ac.currentTime;
+  const out = ac.createDynamicsCompressor(); out.connect(master);
+  const noise = (dur, power = 2) => {
+    const buf = ac.createBuffer(1, Math.ceil(ac.sampleRate * dur), ac.sampleRate), d = buf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / d.length) ** power;
+    const s = ac.createBufferSource(); s.buffer = buf; return s;
+  };
+  const tone = (f0, f1, dur, vol, at = 0) => {
+    const o = ac.createOscillator(), g = ac.createGain();
+    o.frequency.setValueAtTime(f0, t + at); o.frequency.exponentialRampToValueAtTime(f1, t + at + dur);
+    g.gain.setValueAtTime(vol, t + at); g.gain.exponentialRampToValueAtTime(0.001, t + at + dur);
+    o.connect(g); g.connect(out); o.start(t + at); o.stop(t + at + dur);
+  };
+  const filtered = (type, f0, f1, dur, vol, at = 0, power = 2) => {
+    const n = noise(dur, power), f = ac.createBiquadFilter(), g = ac.createGain();
+    f.type = type; f.frequency.setValueAtTime(f0, t + at); f.frequency.exponentialRampToValueAtTime(f1, t + at + dur);
+    g.gain.value = vol; n.connect(f); f.connect(g); g.connect(out); n.start(t + at);
+  };
+  if (kind === 'shot') {
+    filtered('lowpass', 2500, 120, 0.45, 0.5); tone(160, 30, 0.45, 0.6);
+  } else if (kind === 'bomb') {
+    // Bomba de guerra: chasquido, onda grave, retumbar largo y eco
+    filtered('highpass', 3000, 1000, 0.12, 0.9, 0, 3);
+    filtered('lowpass', 3500, 50, 2.4, 1.0, 0, 1.5);
+    filtered('lowpass', 900, 40, 2.0, 0.8, 0.15, 1.5);
+    tone(75, 18, 1.8, 1.4); tone(45, 15, 2.2, 1.2, 0.05);
+    const delay = ac.createDelay(), fb = ac.createGain(), echo = ac.createGain();
+    delay.delayTime.value = 0.22; fb.gain.value = 0.4; echo.gain.value = 0.5;
+    delay.connect(fb); fb.connect(delay); out.connect(echo); echo.connect(delay); delay.connect(master);
+  } else if (kind === 'dud') {
+    tone(320, 90, 0.18, 0.35); filtered('lowpass', 1500, 100, 0.25, 0.3);
+  } else if (kind === 'thunder') {
+    filtered('lowpass', 700, 50, 3.2, 0.9, 0, 1); filtered('lowpass', 300, 40, 2.6, 0.7, 0.3, 1); tone(55, 25, 2.6, 0.7);
+  } else if (kind === 'splash') {
+    filtered('bandpass', 1800, 400, 0.7, 0.45, 0, 1.5); tone(220, 70, 0.3, 0.3);
+  } else {
+    filtered('lowpass', 1400, 120, 1.1, 0.9); tone(90, 30, 1.1, 1);
+  }
+}
+
+// ---------- Red y acceso ----------
+async function post(url, data) {
+  const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+  const j = await r.json();
+  if (!r.ok) throw new Error(j.error || 'Error');
+  return j;
+}
+const esc = (s) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+const inviteToken = new URLSearchParams(location.search).get('j');
+let session = localStorage.getItem('session'), googleOn = false;
+
+// Ranking: de siempre o de esta semana
+async function loadRank(period) {
+  $('rkAll').classList.toggle('on', period !== 'week'); $('rkWeek').classList.toggle('on', period === 'week');
+  const list = await (await fetch('/api/ranking?period=' + period)).json();
+  $('rank').innerHTML = list.length ? list.map((r) => `<li>${esc(r.name)} — ${r.best} seguidos</li>`).join('') : '<li>Sin datos todavía</li>';
+}
+$('rkAll').onclick = () => loadRank('all');
+$('rkWeek').onclick = () => loadRank('week');
+loadRank('all');
+$('rankingBtn').onclick = () => {
+  $('rankingModal').classList.remove('hidden');
+  loadRank('all');
+};
+function closeRanking() { $('rankingModal').classList.add('hidden'); }
+$('rankingClose').onclick = closeRanking;
+$('rankingModal').onclick = (event) => { if (event.target === $('rankingModal')) closeRanking(); };
+document.addEventListener('keydown', (event) => { if (event.key === 'Escape') closeRanking(); });
+const fmt = (ms) => { const t = Math.round(ms / 1000), p = (n) => String(n).padStart(2, '0'); return `${Math.floor(t / 3600)}:${p(Math.floor(t / 60) % 60)}:${p(t % 60)}`; };
+fetch('/api/games').then((r) => r.json()).then((list) => {
+  $('games').innerHTML = list.length ? list.map((g) => `<li>${esc(g.a)} vs ${esc(g.b)} — ganador ${g.winner ? esc(g.winner) : 'empate'} — ${fmt(g.ms)}</li>`).join('') : '<li>Sin partidas todavía</li>';
+});
+function renderLeagueState(state) {
+  $('leagueBoard').classList.remove('hidden');
+  $('leagueTitle').textContent = state.name;
+  $('leagueCreator').textContent = `Creado por ${state.createdBy}`;
+  $('leagueCount').textContent = `${state.players.length}/8 jugadores`;
+  $('leaguePlayers').innerHTML = state.players.map((name) => `<li>${esc(name)}</li>`).join('');
+  $('leagueRounds').innerHTML = state.rounds.map((round) => `<section class="league-round"><h4>${esc(round.name)}</h4><ol>${round.matches.map((match) =>
+    `<li>${esc(match.players[0])} vs ${esc(match.players[1])}${match.winner ? ` · ${esc(match.winner)}` : ''}</li>`).join('')}</ol></section>`).join('');
+  const status = state.status === 'registration' ? `Inscripciones: ${state.players.length}/8`
+    : state.status === 'playing' ? `${state.match.roundName} · contra ${state.match.opponent}`
+      : state.status === 'waiting' ? 'Clasificado, esperando al siguiente duelo'
+        : state.status === 'champion' ? `Campeón: ${state.champion}` : 'Eliminado del torneo';
+  $('leagueStatus').textContent = status;
+}
+async function pollLeague() {
+  clearTimeout(leaguePollTimer);
+  if (!isLeague || !leagueCode) return;
+  try {
+    const query = new URLSearchParams({ code: leagueCode, pid: leaguePid, key: leagueKey });
+    const response = await fetch(`/api/league/state?${query}`);
+    if (!response.ok) throw new Error('No se pudo actualizar el torneo');
+    const state = await response.json();
+    renderLeagueState(state);
+    if (state.status === 'registration') {
+      $('msg').textContent = `Esperando jugadores (${state.players.length}/8)`;
+    } else if (state.match) {
+      $('invite').classList.add('hidden');
+      if (room !== state.match.room && !playing) {
+        activeEvents?.close();
+        room = state.match.room; pid = state.match.pid; key = state.match.key; isBot = false;
+        saveGame({ room, pid, key });
+        $('msg').textContent = `${state.match.roundName} · contra ${state.match.opponent}`;
+        connect();
+      }
+    } else {
+      activeEvents?.close(); activeEvents = null;
+      room = null; pid = null; key = null;
+      $('msg').textContent = state.status === 'champion' ? `¡Ganaste ${state.name}!` : state.status === 'eliminated' ? 'Terminó tu participación en la liga' : 'Esperando al siguiente duelo';
+      if (state.status === 'champion' || state.status === 'eliminated') localStorage.removeItem('game');
+    }
+  } catch (error) { $('lobbyMsg').textContent = error.message; }
+  leaguePollTimer = setTimeout(pollLeague, 2000);
+}
+async function loadActiveLeagues() {
+  try {
+    const response = await fetch('/api/leagues');
+    const active = await response.json();
+    const host = $('activeLeaguesList');
+    if (!active.length) { host.innerHTML = '<p>No hay torneos en juego</p>'; return; }
+    host.innerHTML = active.map((league) => `<article class="league-entry"><h4>${esc(league.name)}</h4>
+      <p>Creado por ${esc(league.createdBy)} · ${league.players.length}/8 jugadores</p>
+      ${league.matches.map((match) => `<p>${esc(match.roundName)}: ${esc(match.players[0])} vs ${esc(match.players[1])}
+        <button type="button" data-watch="${esc(match.room)}" data-league="${esc(league.code)}" data-name="${esc(league.name)}">Ver como espectador (${match.spectators}/2)</button></p>`).join('')}</article>`).join('');
+    host.querySelectorAll('[data-watch]').forEach((button) => {
+      button.disabled = Number(button.textContent.match(/\((\d+)\/2\)/)?.[1]) >= 2;
+      button.onclick = () => watchLeagueMatch(button.dataset.watch, button.dataset.league, button.dataset.name);
+    });
+  } catch { $('activeLeaguesList').innerHTML = '<p>No se pudo cargar la lista de torneos</p>'; }
+}
+loadActiveLeagues();
+setInterval(loadActiveLeagues, 8000);
+
+function showLoggedIn(u) {
+  $('gbtn').classList.add('hidden');
+  $('uname').textContent = u.name;
+  if (u.picture) $('avatar').src = u.picture; else $('avatar').classList.add('hidden');
+  $('user').classList.remove('hidden');
+  $('profileStats').classList.remove('hidden');
+  loadProfile();
+  $('menuBtns').classList.toggle('hidden', !!inviteToken);
+  $('join').classList.toggle('hidden', !inviteToken);
+}
+function showLoggedOut() {
+  $('user').classList.add('hidden'); $('menuBtns').classList.add('hidden'); $('join').classList.add('hidden');
+  $('profileStats').classList.add('hidden'); $('profileStats').textContent = '';
+  $('gbtn').classList.remove('hidden');
+}
+async function loadProfile() {
+  if (!session) return;
+  try {
+    const profile = await post('/api/profile', { session });
+    $('profileStats').textContent = `Nivel ${profile.level} · ${profile.points} pts`;
+  } catch { $('profileStats').textContent = ''; }
+}
+$('logout').onclick = (e) => {
+  e.preventDefault(); localStorage.removeItem('session'); session = null;
+  window.google?.accounts.id.disableAutoSelect(); showLoggedOut();
+};
+async function onGoogle(resp) {
+  try {
+    const r = await post('/api/login', { credential: resp.credential });
+    session = r.session; localStorage.setItem('session', session);
+    $('lobbyMsg').textContent = ''; showLoggedIn(r);
+  } catch (e) { $('lobbyMsg').textContent = e.message; }
+}
+async function initAuth() {
+  const { clientId } = await (await fetch('/api/config')).json();
+  if (!clientId) {
+    $('gbtn').classList.add('hidden'); $('menuBtns').classList.add('hidden'); $('join').classList.add('hidden');
+    $('lobbyMsg').textContent = 'Para jugar se requiere Google. Configura GOOGLE_CLIENT_ID en el servidor.';
+    return;
+  }
+  googleOn = true;
+  if (session) {
+    try { showLoggedIn(await post('/api/session', { session })); } catch { localStorage.removeItem('session'); session = null; }
+  }
+  const s = document.createElement('script');
+  s.src = 'https://accounts.google.com/gsi/client'; s.async = true;
+  s.onload = () => {
+    google.accounts.id.initialize({ client_id: clientId, ux_mode: 'redirect', login_uri: `${location.origin}/auth/google/callback` });
+    google.accounts.id.renderButton($('gbtn'), { theme: 'filled_blue', size: 'large', text: 'signin_with', locale: 'es' });
+  };
+  document.head.appendChild(s);
+}
+initAuth();
+
+// Guarda la partida para poder volver si se recarga la página o se corta la conexión
+function saveGame(extra = {}) {
+  const prev = JSON.parse(localStorage.getItem('game') || '{}');
+  localStorage.setItem('game', JSON.stringify({ ...prev, room, pid, key, isBot, tutorial: tutorialMode, isLeague, leagueCode, leaguePid, leagueKey, ...extra }));
+}
+function showInvite(link) {
+  $('link').value = link;
+  const message = encodeURIComponent('Te reto a una Batalla Psicológica: ' + link);
+  $('wa').href = `https://wa.me/?text=${message}`;
+  $('waWeb').href = `https://web.whatsapp.com/send?text=${message}`;
+  $('inviteQr').src = `/api/qr?url=${encodeURIComponent(link)}`;
+  $('invite').classList.remove('hidden');
+}
+async function resume() {
+  const saved = JSON.parse(localStorage.getItem('game') || 'null');
+  if (!saved || inviteToken) {
+    const queued = JSON.parse(localStorage.getItem('matchmaking') || 'null');
+    if (queued && !inviteToken) { matchmaking = queued; showMatchmakingWait(); pollMatchmaking(); }
+    return;
+  }
+  try {
+    if (saved.isLeague && saved.leagueCode) {
+      ({ room, pid, key, leagueCode, leaguePid, leagueKey } = saved);
+      isLeague = true;
+      $('lobby').classList.add('hidden'); $('game').classList.remove('hidden'); $('leagueBoard').classList.remove('hidden');
+      if (saved.link && leaguePid === 0) showInvite(saved.link);
+      if (room && key) connect();
+      pollLeague();
+      return;
+    }
+    const r = await (await fetch(`/api/room?room=${saved.room}&pid=${saved.pid}&key=${saved.key}`)).json();
+    if (!r.ok) throw new Error('sala');
+    ({ room, pid, key, isBot } = saved);
+    tutorialMode = !!saved.tutorial;
+    $('lobby').classList.add('hidden'); $('game').classList.remove('hidden');
+    $('emotes').classList.toggle('hidden', isBot);
+    if (saved.link) showInvite(saved.link);
+    $('msg').textContent = 'Reconectando...';
+    connect();
+  } catch { localStorage.removeItem('game'); }
+}
+resume();
+
+async function enter(fn) {
+  try {
+    const r = await fn({ session });
+    if (r.league) { await enterLeague(r); return; }
+    isLeague = false; leagueCode = null; leaguePid = null; leagueKey = null;
+    room = r.room; pid = r.pid; key = r.key; isBot = !r.token;
+    saveGame({ link: '' });
+    $('emotes').classList.toggle('hidden', isBot);
+    $('lobby').classList.add('hidden'); $('game').classList.remove('hidden');
+    if (r.token) {
+      const cfg = await (await fetch('/api/config')).json();
+      const local = ['localhost', '127.0.0.1'].includes(location.hostname);
+      const base = cfg.explicit || local ? cfg.publicUrl : location.origin;
+      const link = `${base}/?j=${r.token}`;
+      saveGame({ link });
+      showInvite(link);
+      $('msg').textContent = 'Esperando al rival...';
+    }
+    connect();
+  } catch (e) {
+    if (tutorialMode) { tutorialMode = false; tutorialUnlimited = false; setTutorialStep(null); }
+    $('lobbyMsg').textContent = e.message;
+  }
+}
+async function enterLeague(r) {
+  isLeague = true; leagueCode = r.league; leaguePid = r.leaguePid; leagueKey = r.leagueKey;
+  room = null; pid = null; key = null; isBot = false;
+  $('lobby').classList.add('hidden'); $('game').classList.remove('hidden'); $('leagueBoard').classList.remove('hidden');
+  $('emotes').classList.add('hidden'); $('spectatorBack').classList.add('hidden');
+  const cfg = await (await fetch('/api/config')).json();
+  const local = ['localhost', '127.0.0.1'].includes(location.hostname);
+  const base = cfg.explicit || local ? cfg.publicUrl : location.origin;
+  const link = `${base}/?j=${r.token}`;
+  saveGame({ link });
+  if (leaguePid === 0) showInvite(link);
+  pollLeague();
+}
+$('vsBot').onclick = () => enter((auth) => post('/api/create', { ...auth, mode: 'bot', level: $('level').value, country: $('country').value }));
+$('tutorialBtn').onclick = () => {
+  tutorialMode = true;
+  tutorialUnlimited = true;
+  setTutorialStep('attack');
+  enter((auth) => post('/api/create', { ...auth, mode: 'bot', level: 'easy', tutorial: true, country: $('country').value }));
+};
+$('create').onclick = () => enter((auth) => post('/api/create', { ...auth, mode: 'pvp', country: $('country').value }));
+$('leagueCreate').onclick = () => {
+  $('leagueSetup').classList.remove('hidden'); $('leagueCreate').classList.add('hidden'); $('lobbyMsg').textContent = '';
+  $('leagueName').focus();
+};
+$('leagueCancel').onclick = () => { $('leagueSetup').classList.add('hidden'); $('leagueCreate').classList.remove('hidden'); };
+$('leagueConfirm').onclick = () => {
+  if (!$('leagueName').value.trim()) { $('lobbyMsg').textContent = 'Escribe el nombre de la liga'; $('leagueName').focus(); return; }
+  enter((auth) => post('/api/create', { ...auth, mode: 'league', leagueName: $('leagueName').value, country: $('country').value }));
+};
+$('join').onclick = () => enter((auth) => post('/api/join', { ...auth, token: inviteToken, country: $('country').value }));
+function showMatchmakingWait() {
+  $('matchmakingWait').classList.remove('hidden');
+  $('menuBtns').classList.add('hidden');
+  $('matchmakingMessage').textContent = 'Buscando rival... El primero en unirse espera al siguiente jugador.';
+}
+async function pollMatchmaking() {
+  clearTimeout(matchmakingPollTimer);
+  if (!matchmaking) return;
+  try {
+    const query = new URLSearchParams({ ticket: matchmaking.ticket, key: matchmaking.ticketKey });
+    const response = await fetch(`/api/matchmaking/status?${query}`);
+    if (response.status === 404) {
+      matchmaking = null; localStorage.removeItem('matchmaking');
+      $('matchmakingMessage').textContent = 'La búsqueda ya no existe. Vuelve a intentarlo.';
+      return;
+    }
+    if (!response.ok) throw new Error('No se pudo consultar la búsqueda');
+    const result = await response.json();
+    if (result.status !== 'matched') {
+      matchmakingPollTimer = setTimeout(pollMatchmaking, 1200);
+      return;
+    }
+    activeEvents?.close();
+    matchmaking = null; localStorage.removeItem('matchmaking'); localStorage.removeItem('game');
+    isLeague = false; leagueCode = null; leaguePid = null; leagueKey = null;
+    tutorialMode = false; tutorialUnlimited = false;
+    room = result.room; pid = result.pid; key = result.key; isBot = false;
+    saveGame({ link: '' });
+    $('matchmakingWait').classList.add('hidden'); $('leagueBoard').classList.add('hidden'); $('spectatorBack').classList.add('hidden');
+    $('invite').classList.add('hidden'); $('emotes').classList.remove('hidden');
+    $('lobby').classList.add('hidden'); $('game').classList.remove('hidden');
+    $('msg').textContent = 'Rival encontrado. La partida va a comenzar.';
+    connect();
+  } catch {
+    $('matchmakingMessage').textContent = 'Reconectando con la búsqueda...';
+    matchmakingPollTimer = setTimeout(pollMatchmaking, 2000);
+  }
+}
+$('joinRandom').onclick = async () => {
+  $('lobbyMsg').textContent = '';
+  $('joinRandom').disabled = true;
+  try {
+    const result = await post('/api/matchmaking/join', { session, country: $('country').value });
+    matchmaking = { ticket: result.ticket, ticketKey: result.ticketKey };
+    localStorage.removeItem('game'); localStorage.setItem('matchmaking', JSON.stringify(matchmaking));
+    showMatchmakingWait();
+    await pollMatchmaking();
+  } catch (error) {
+    $('lobbyMsg').textContent = error.message;
+    $('joinRandom').disabled = false;
+  }
+};
+$('matchmakingCancel').onclick = async () => {
+  clearTimeout(matchmakingPollTimer);
+  if (matchmaking) {
+    try { await post('/api/matchmaking/cancel', { ticket: matchmaking.ticket, key: matchmaking.ticketKey }); }
+    catch { await pollMatchmaking(); return; }
+  }
+  matchmaking = null; localStorage.removeItem('matchmaking');
+  $('matchmakingWait').classList.add('hidden'); $('menuBtns').classList.remove('hidden'); $('joinRandom').disabled = false;
+};
+
+// País del jugador: se detecta por el idioma del navegador y se puede cambiar; se recuerda
+async function initCountries() {
+  const codes = await (await fetch('/flags/index.json')).json();
+  let names;
+  try { names = new Intl.DisplayNames(['es'], { type: 'region' }); } catch { names = null; }
+  const label = (c) => { try { return names?.of(c.toUpperCase()) || c.toUpperCase(); } catch { return c.toUpperCase(); } };
+  const opts = codes.map((c) => ({ c, n: label(c) })).sort((a, b) => a.n.localeCompare(b.n, 'es'));
+  $('country').innerHTML = opts.map((o) => `<option value="${o.c}">${esc(o.n)}</option>`).join('');
+  const detected = (navigator.languages || [navigator.language]).map((l) => l?.split('-')[1]?.toLowerCase()).find((r) => r && codes.includes(r));
+  $('country').value = localStorage.getItem('country') || detected || 'un';
+  $('country').onchange = () => localStorage.setItem('country', $('country').value);
+}
+initCountries().catch(() => {});
+
+// ---------- Partida ----------
+let cd, inputMs = 30000;
+const tutorialCopy = {
+  attack: ['1 · Ataque', 'Pulsa cuatro cañones resaltados sobre tu barco. El orden indica cuándo dispara cada uno; puedes repetirlos.'],
+  defense: ['2 · Defensa', 'Ahora pulsa cuatro posiciones resaltadas en el agua para mover tu tiburón y tratar de bloquear los disparos.'],
+  wave: ['Oleaje', 'Pulsa las flechas resaltadas para mover el barco, o «Quieto». Elige cuatro movimientos.'],
+  watch: ['3 · Batalla', 'Secuencia enviada. Observa los disparos y sus impactos; al terminar podrás jugar otra ronda.'],
+  complete: ['Tutorial completado', 'Ya sabes dónde pulsar: cañones para atacar y agua para defender. La partida contra la máquina continúa.'],
+};
+function setTutorialStep(step) {
+  tutorialStep = step;
+  const copy = tutorialCopy[step];
+  $('tutorialGuide').classList.toggle('hidden', !tutorialMode || !copy);
+  document.querySelectorAll('.cbtn, .wbtn, .arrow, #waveStay').forEach((button) => {
+    const target = step === 'attack' ? button.matches('.cbtn')
+      : step === 'defense' ? button.matches('.wbtn')
+        : step === 'wave' ? button.matches('.arrow, #waveStay') : false;
+    button.classList.toggle('tutorial-target', tutorialMode && target);
+  });
+  if (!copy) return;
+  $('tutorialTitle').textContent = copy[0];
+  $('tutorialText').textContent = copy[1];
+  $('tutorialClose').textContent = step === 'complete' ? 'Seguir jugando' : 'Saltar tutorial';
+}
+$('tutorialClose').onclick = () => {
+  tutorialMode = false;
+  setTutorialStep(null);
+  saveGame();
+};
+function badge(n) {
+  const el = $('x2');
+  const lines = [];
+  if (n % 4 === 0) lines.push(`RONDA ${n} x2`);
+  if (n % 5 === 0) lines.push('LLUVIA · ICEBERGS');
+  if (n % 6 === 0) lines.push('OLEAJE');
+  if (n % 7 === 0) lines.push('BALLENA EXTRA');
+  if (n % 3 === 0) lines.push('SUBMARINO');
+  el.style.display = lines.length ? 'block' : 'none';
+  el.style.textAlign = 'center';
+  el.innerHTML = lines.join('<br>');
+}
+const promptMsg = () => {
+  const notes = [];
+  if (isRain()) notes.push('Llueve: los tiburones se han ido y aparecen icebergs; cada bala que da a uno lo destruye');
+  if (isSwell()) notes.push('Mar agitado: elige también el oleaje de tu barco');
+  if (curRound % 7 === 0) notes.push('La orca extra rebota las balas contra tu propio barco');
+  if (curRound % 3 === 0) notes.push('Un submarino cruza el mar: si tu bala le da, recuperas 5 y repara 5 el cañón que disparó');
+  return notes.length ? notes.join(' · ') : 'Toca los cañones (ataque) y los círculos de agua (defensa)';
+};
+// Prepara los controles para una nueva ronda
+function setupForm() {
+  atkSeq = []; defSeq = [];
+  moves = []; submitted = false; scene.moveShip('me', 0); renderControls();
+}
+
+// Ataque = toques en los cañones; defensa = toques en los círculos de agua con peces (orden de posición del tiburón)
+let atkSeq = [], defSeq = [], inputsOn = false, sending = false;
+const LANES = [-4.5, -1.5, 1.5, 4.5];
+function showInputs(on) {
+  inputsOn = on;
+  $('inputs').classList.toggle('hidden', !on);
+  scene.setCannonLabels(on); // al ejecutarse la secuencia los números se vuelven transparentes y se ve el cañón
+  renderControls();
+}
+const stepsOf = (seq, l) => seq.map((v, i) => (v === l ? i + 1 : 0)).filter(Boolean).join('·');
+function renderControls() {
+  const brokenAll = myCan.every((h) => h <= 0);
+  document.querySelectorAll('.cbtn').forEach((b) => {
+    const l = Number(b.dataset.l);
+    b.classList.toggle('hidden', !inputsOn);
+    b.disabled = myCan[l - 1] <= 0 || atkSeq.length >= 4;
+    b.querySelector('i').textContent = stepsOf(atkSeq, l);
+  });
+  document.querySelectorAll('.wbtn').forEach((b) => {
+    const l = Number(b.dataset.l);
+    b.classList.toggle('hidden', !inputsOn || isRain());
+    b.disabled = defSeq.length >= 4;
+    b.querySelector('i').textContent = stepsOf(defSeq, l);
+  });
+  const fmtSeq = (s) => [0, 1, 2, 3].map((i) => s[i] ?? '–').join(' ');
+  $('seqTxt').textContent = `Ataque ${brokenAll ? 'sin cañones' : fmtSeq(atkSeq)}${isRain() ? '' : ` · Defensa ${fmtSeq(defSeq)}`}`;
+  const done = (atkSeq.length === 4 || brokenAll) && (isRain() || defSeq.length === 4) && (!isSwell() || moves.length === 4);
+  if (tutorialMode && tutorialStep === 'attack' && (atkSeq.length === 4 || brokenAll)) setTutorialStep(isRain() ? 'watch' : 'defense');
+  else if (tutorialMode && tutorialStep === 'defense' && defSeq.length === 4) setTutorialStep(isSwell() ? 'wave' : 'watch');
+  else if (tutorialMode && tutorialStep === 'wave' && moves.length === 4) setTutorialStep('watch');
+  renderWave();
+  // al completar la última pulsación se envía solo; no hay marcha atrás
+  if (done && inputsOn && !submitted && !sending) submitSeq();
+}
+function pressCannon(l) {
+  if (atkSeq.length >= 4 || myCan[l - 1] <= 0) return;
+  atkSeq.push(l); renderControls();
+}
+function pressWater(l) {
+  if (defSeq.length >= 4) return;
+  defSeq.push(l); scene.moveFin('me', l); renderControls();
+}
+for (let l = 1; l <= 4; l++) {
+  const c = document.createElement('button');
+  c.type = 'button'; c.className = 'cbtn hidden'; c.dataset.l = l; c.innerHTML = `${l}<i></i>`; c.title = `Cañón ${l}`;
+  c.onclick = () => pressCannon(l);
+  $('arena').appendChild(c); scene.trackShip(c, 'me', LANES[l - 1], 1.9, scene.SHIP_Z);
+  const w = document.createElement('button');
+  w.type = 'button'; w.className = 'wbtn hidden'; w.dataset.l = l; w.innerHTML = `<span class="num">${l}</span><i></i>`; w.title = `Poner el tiburón en el carril ${l}`;
+  w.onclick = () => pressWater(l);
+  $('arena').appendChild(w); scene.trackPoint(w, LANES[l - 1], 0.1, scene.SHIP_Z - 4.2);
+}
+
+// Oleaje: las flechas del mar mueven el barco y cada pulsación queda como un movimiento de la secuencia
+let moves = [], submitted = false;
+const clampOff = (o) => Math.max(-2, Math.min(2, o));
+const offsetOf = (list) => list.reduce((o, m) => clampOff(o + (m === 1 ? 1 : m === 2 ? -1 : 0)), 0);
+function renderWave() {
+  const on = isSwell() && inputsOn;
+  const off = offsetOf(moves), full = moves.length >= 4;
+  for (const id of ['moveL', 'moveR', 'waveCtl']) $(id).classList.toggle('hidden', !on);
+  $('moveL').disabled = full || off <= -2; $('moveR').disabled = full || off >= 2;
+  $('waveStay').disabled = full;
+  $('waveTxt').textContent = `Movimientos ${moves.length}/4: ` + (moves.map((m) => (m === 1 ? '▶' : m === 2 ? '◀' : '●')).join(' ') || '—');
+}
+function addMove(m) {
+  if (moves.length >= 4) return;
+  moves.push(m); scene.moveShip('me', offsetOf(moves)); renderControls();
+}
+$('moveL').onclick = () => addMove(2);
+$('moveR').onclick = () => addMove(1);
+$('waveStay').onclick = () => addMove(0);
+function countdown() {
+  clearInterval(cd);
+  if (tutorialUnlimited) { endAt = 0; $('timer').textContent = 'Sin límite'; return; }
+  endAt = Date.now() + inputMs;
+  const end = endAt;
+  const tick = () => { const s = Math.max(0, Math.ceil((end - Date.now()) / 1000)); $('timer').textContent = `Tiempo: ${s}s`; if (!s) clearInterval(cd); };
+  tick(); cd = setInterval(tick, 250);
+}
+
+function connect() {
+  const es = new EventSource(`/api/events?room=${room}&pid=${pid}&key=${key}`);
+  es.onerror = async () => { // solo se olvida la partida si el servidor confirma que ya no existe
+    if (es.readyState !== EventSource.CLOSED) return;
+    try {
+      const r = await fetch(`/api/room?room=${room}&pid=${pid}&key=${key}`);
+      if (r.status === 404) { localStorage.removeItem('game'); $('msg').textContent = 'La partida ya no existe'; $('menu').classList.remove('hidden'); }
+    } catch { /* sin conexi\u00f3n: se reintentar\u00e1 */ }
+  };
+  es.addEventListener('state', (e) => {
+    const s = JSON.parse(e.data);
+    if (playing) return; // una reconexión durante la animación no debe romperla
+    tutorialUnlimited = !!s.tutorial;
+    if (tutorialMode && !tutorialStep) setTutorialStep(s.submitted ? 'watch' : 'attack');
+    inputMs = s.inputMs; curRound = s.round; $('round').textContent = s.round; badge(s.round); setNames(s.names, s.countries); setHp(s.hp); setCannons(s.cannons); scene.setWeather(s.round); setupForm();
+    $('invite').classList.add('hidden');
+    if (s.over) {
+      document.body.dataset.over = 1; showInputs(false);
+      $('menu').classList.remove('hidden'); $('rematch').classList.remove('hidden'); $('msg').textContent = 'La partida terminó';
+      return;
+    }
+    delete document.body.dataset.over; $('menu').classList.add('hidden'); $('rematch').classList.add('hidden');
+    if (s.submitted) { submitted = true; renderWave(); showInputs(false); $('msg').textContent = 'Esperando al rival...'; return; }
+    $('msg').textContent = promptMsg(); showInputs(true); countdown();
+  });
+  es.addEventListener('rematch', () => {
+    lastRound = null; $('lastRound').classList.add('hidden'); $('rematch').disabled = false;
+    $('menu').classList.add('hidden'); $('rematch').classList.add('hidden');
+  });
+  es.addEventListener('rematchWait', (e) => { if (JSON.parse(e.data).pid !== pid) $('msg').textContent = 'El rival quiere la revancha'; });
+  es.addEventListener('emote', (e) => {
+    const m = JSON.parse(e.data), box = $('emoteMsg');
+    box.textContent = `${names[m.pid]}: ${m.text}`; box.classList.remove('hidden');
+    clearTimeout(box.t); box.t = setTimeout(() => box.classList.add('hidden'), 3000);
+  });
+  es.addEventListener('ready', (e) => { if (JSON.parse(e.data).pid !== pid) $('msg').textContent = 'El rival ya envió su secuencia'; });
+  es.addEventListener('left', () => { if (!document.body.dataset.over) $('msg').textContent = 'Un jugador se desconectó'; });
+  es.addEventListener('round', (e) => {
+    const data = JSON.parse(e.data);
+    queue = queue.then(() => playRound(data)).catch(console.error); // las rondas se animan de una en una
+  });
+}
+
+// Botones: revancha, volver al menú, frases rápidas y repetición de la última ronda
+$('menu').onclick = () => { localStorage.removeItem('game'); location.href = '/'; };
+$('rematch').onclick = async () => {
+  try { await post('/api/rematch', { room, pid, key }); $('rematch').disabled = true; $('msg').textContent = 'Esperando la revancha...'; }
+  catch (e) { $('msg').textContent = e.message; }
+};
+['¡Buen tiro!', '¡Cuidado!', 'Gracias', '¡GG!', '¡Vamos!', 'Uy...'].forEach((text, i) => {
+  const b = document.createElement('button');
+  b.type = 'button'; b.textContent = text;
+  b.onclick = () => post('/api/emote', { room, pid, key, i }).catch(() => {});
+  $('emotes').appendChild(b);
+});
+$('replay').onclick = () => { if (lastRound && !playing) queue = queue.then(() => playRound(lastRound.r, true)).catch(console.error); };
+function showLastRound(r, me, op) {
+  const f = (s) => `ataque ${s.attack.join('')} · defensa ${s.defense.join('')}` + (s.wave ? ` · oleaje ${s.wave.map((m) => (m === 1 ? '▶' : m === 2 ? '◀' : '●')).join(' ')}` : '');
+  $('lrTxt').innerHTML = `Tú: ${f(r.seqs[me])}<br>Rival: ${f(r.seqs[op])}`;
+  $('lastRound').classList.remove('hidden');
+}
+function setNames(n, countries = ['un', 'un']) {
+  names = n; const o = 1 - pid;
+  $('meName').textContent = n[pid];
+  $('opName').textContent = n[o];
+  for (const [who, idx] of [['me', pid], ['op', o]]) {
+    flagCodes[who] = countries[idx];
+    $(who + 'Flag').src = `/flags/${countries[idx]}.svg`;
+    $(who + 'Flag').title = countryName(countries[idx]);
+    scene.setFlag(who, countries[idx]);
+  }
+}
+
+// Nombre del país al pasar el ratón o tocar una bandera (en el panel o en el mástil del barco)
+const flagCodes = { me: 'un', op: 'un' };
+let displayNames = null;
+try { displayNames = new Intl.DisplayNames(['es'], { type: 'region' }); } catch { /* sin Intl */ }
+function countryName(c) {
+  if (c === 'un') return 'Internacional (Naciones Unidas)';
+  try { return displayNames?.of(c.toUpperCase()) || c.toUpperCase(); } catch { return c.toUpperCase(); }
+}
+let tipTimer;
+function showTip(text, x, y) {
+  const t = $('tip');
+  t.textContent = text; t.style.left = Math.min(Math.max(x, 70), $('arena').clientWidth - 70) + 'px'; t.style.top = y + 'px';
+  t.classList.remove('hidden');
+  clearTimeout(tipTimer); tipTimer = setTimeout(() => t.classList.add('hidden'), 2500);
+}
+for (const who of ['me', 'op']) {
+  const img = $(who + 'Flag');
+  const show = () => {
+    const r = img.getBoundingClientRect(), a = $('arena').getBoundingClientRect();
+    showTip(countryName(flagCodes[who]), r.left - a.left + r.width / 2, r.bottom - a.top + 8);
+  };
+  img.addEventListener('pointerenter', show);
+  img.addEventListener('pointerdown', show);
+}
+function flagAt(e) {
+  const who = scene.pickFlag(e.clientX, e.clientY);
+  if (who) showTip(countryName(flagCodes[who]), e.clientX - $('arena').getBoundingClientRect().left, e.clientY - $('arena').getBoundingClientRect().top - 30);
+}
+$('arena').addEventListener('pointermove', flagAt);
+$('arena').addEventListener('pointerdown', flagAt);
+function setHp(hp) {
+  lastHp = hp;
+  const m = hp[pid], o = hp[1 - pid];
+  $('meShip').style.width = m.ship + '%'; $('opShip').style.width = o.ship + '%';
+  $('meShark').style.width = m.shark * 2 + '%'; $('opShark').style.width = o.shark * 2 + '%';
+  $('meTxt').textContent = `Barco ${m.ship} · Tiburón ${m.shark}`;
+  $('opTxt').textContent = `Barco ${o.ship} · Tiburón ${o.shark}`;
+  scene.setHealth({ me: { ship: m.ship / 100, shark: m.shark / 50 }, op: { ship: o.ship / 100, shark: o.shark / 50 } });
+}
+function showDamage(prev, next, me, op, heal = [0, 0]) {
+  const spots = [
+    ['ship', 'me', prev[me].ship, next[me].ship, heal[me]], ['ship', 'op', prev[op].ship, next[op].ship, heal[op]],
+    ['shark', 'me', prev[me].shark, next[me].shark, 0], ['shark', 'op', prev[op].shark, next[op].shark, 0],
+  ];
+  for (const [kind, who, a, b, h] of spots) {
+    const lost = a - b + h; // daño bruto, aunque se haya curado en el mismo disparo
+    if (lost > 0) scene.label(kind, who, `<small>-${lost}</small><span>${b}</span>`);
+    if (h > 0) scene.label(kind, who, `<small style="color:#69f0ae">+${h}</small><span>${b}</span>`, 2900, true);
+  }
+}
+
+// Vida de cada cañón (25): se pintan en el panel y se desactivan los rotos en el formulario
+let lastCan = null, myCan = [25, 25, 25, 25];
+function setCannons(c) {
+  lastCan = c; myCan = c[pid];
+  scene.setCannons({ me: c[pid], op: c[1 - pid] });
+  for (const [who, idx] of [['me', pid], ['op', 1 - pid]]) {
+    $(who + 'Can').innerHTML = c[idx].map((hp, i) =>
+      `<span class="can${hp <= 0 ? ' dead' : ''}" style="background:linear-gradient(90deg,#2e7d32 ${hp * 4}%,#1b3a5c ${hp * 4}%)"><b>${i + 1}</b>${hp}</span>`).join('');
+  }
+  renderControls();
+}
+function showCannonRepair(prev, next, me, op) {
+  for (const [who, idx] of [['me', me], ['op', op]]) {
+    next[idx].forEach((hp, l) => {
+      const d = hp - prev[idx][l];
+      if (d > 0) scene.labelCannon(who, l + 1, `<small style="color:#69f0ae">+${d}</small><span>${hp}</span>`);
+    });
+  }
+}
+function showCannonDamage(prev, next, me, op) {
+  for (const [who, idx] of [['me', me], ['op', op]]) {
+    next[idx].forEach((hp, l) => {
+      const d = prev[idx][l] - hp;
+      if (d > 0) scene.labelCannon(who, l + 1, `<small>-${d}</small><span>${hp}</span>`);
+    });
+  }
+}
+
+// Envío automático de las secuencias elegidas
+async function submitSeq() {
+  sending = true;
+  unlockAudio();
+  const broken = myCan.every((h) => h <= 0); // sin cañones no se dispara
+  const attack = broken ? [1, 1, 1, 1] : atkSeq, defense = isRain() ? [1, 1, 1, 1] : defSeq;
+  const wave = isSwell() ? [...moves, 0, 0, 0, 0].slice(0, 4) : undefined;
+  try {
+    await post('/api/submit', { room, pid, key, attack, defense, wave });
+    submitted = true;
+    showInputs(false); clearInterval(cd); if (!playing) $('msg').textContent = 'Esperando al rival...';
+  } catch (e) { $('msg').textContent = e.message; }
+  sending = false;
+}
+
+function celebrate() {
+  const win = $('win'), cv = win.querySelector('canvas'), ctx = cv.getContext('2d');
+  cv.width = innerWidth; cv.height = innerHeight; win.style.display = 'block';
+  // Fanfarria: arpegio ascendente y acorde final
+  const ac = new (window.AudioContext || window.webkitAudioContext)();
+  const note = (f, t, d) => {
+    const o = ac.createOscillator(), g = ac.createGain();
+    o.type = 'square'; o.frequency.value = f; o.connect(g); g.connect(ac.destination);
+    g.gain.setValueAtTime(0.0001, ac.currentTime + t);
+    g.gain.exponentialRampToValueAtTime(muted ? 0.0002 : Math.max(0.0002, 0.15 * volume), ac.currentTime + t + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime + t + d);
+    o.start(ac.currentTime + t); o.stop(ac.currentTime + t + d + 0.05);
+  };
+  [[523, 0], [659, .18], [784, .36], [1047, .54], [784, .78], [1047, .96]].forEach(([f, t]) => note(f, t, .22));
+  [523, 659, 784, 1047].forEach((f) => note(f, 1.2, 1.2));
+  // Fuegos artificiales
+  let parts = [];
+  const burst = () => {
+    const x = innerWidth * (.15 + Math.random() * .7), y = innerHeight * (.15 + Math.random() * .5), hue = Math.random() * 360;
+    for (let i = 0; i < 60; i++) {
+      const a = Math.random() * 6.283, v = 1 + Math.random() * 5;
+      parts.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: 1, hue });
+    }
+  };
+  const start = Date.now();
+  const timer = setInterval(burst, 350);
+  burst();
+  (function frame() {
+    ctx.globalCompositeOperation = 'destination-out';
+    ctx.fillStyle = 'rgba(0,0,0,0.18)'; ctx.fillRect(0, 0, cv.width, cv.height);
+    ctx.globalCompositeOperation = 'source-over';
+    parts = parts.filter((p) => p.life > 0);
+    for (const p of parts) {
+      p.x += p.vx; p.y += p.vy; p.vy += 0.06; p.life -= 0.012;
+      ctx.fillStyle = `hsla(${p.hue},100%,60%,${p.life})`;
+      ctx.fillRect(p.x, p.y, 3, 3);
+    }
+    if (Date.now() - start < 8000) requestAnimationFrame(frame);
+    else { clearInterval(timer); win.style.display = 'none'; ac.close(); }
+  })();
+}
+
+async function playRound(r, replay = false) {
+  playing = true;
+  tutorialUnlimited = !!r.tutorial;
+  renderWave();
+  badge(r.round - 1);
+  clearInterval(cd);
+  showInputs(false); $('lastRound').classList.add('hidden');
+  const me = pid, op = 1 - pid;
+  const pre = replay ? lastRound : { hp: lastHp, can: lastCan };
+  if (replay) { setHp(pre.hp); setCannons(pre.can); scene.setWeather(r.round - 1); }
+  const side = (n) => (n === me ? 'me' : 'op');
+  const impactSfx = (t) => (t === 'ship' || t === 'whale' ? 'bomb' : t === 'shark' ? 'splash' : 'clash');
+  let subOn = false;
+  for (const ev of r.events) {
+    const slotEnd = Date.now() + SHOT_MS;
+    $('msg').textContent = `Disparo ${ev.step + 1}/4`;
+    // Las aletas, el submarino y los icebergs se colocan antes de disparar
+    await Promise.all([
+      scene.moveFin('me', ev.def[me]), scene.moveFin('op', ev.def[op]),
+      ...(ev.swell ? [scene.moveShip('me', ev.pos[me]), scene.moveShip('op', ev.pos[op])] : []),
+      ...(ev.whale != null ? [scene.moveFin('mid', (ev.whale + 5) / 2)] : []),
+      ...(ev.sub ? [scene.subMove(ev.sub.x * 1.5)] : subOn ? [scene.subLeave()] : []),
+      ...(ev.ice ? ev.ice.map((x, id) => (x === null ? Promise.resolve() : scene.iceShow(id, x * 1.5))) : []),
+    ]);
+    subOn = !!ev.sub;
+    const impacts = ev.shots.map((s) => {
+      if (s.target === 'broken') { scene.dud(side(s.from), s.lane); sfx('dud'); return Promise.resolve(); }
+      const f = scene.fire({ from: side(s.from), x: s.x, lane: s.lane, target: s.target, ice: s.ice, owner: s.owner === undefined ? null : side(s.owner) });
+      sfx('shot');
+      f.done.then(() => { if (s.target !== 'miss') sfx(impactSfx(s.target)); });
+      return f.done;
+    });
+    if (ev.sub) { // el submarino dispara hacia uno de los dos lados
+      const sf = scene.fire({ sub: true, toward: side(ev.sub.toward), x: ev.sub.x, target: ev.sub.target, owner: side(ev.sub.owner) });
+      sfx('shot');
+      sf.done.then(() => { if (ev.sub.target !== 'miss') sfx(impactSfx(ev.sub.target)); });
+      impacts.push(sf.done);
+    }
+    await Promise.all(impacts);
+    await wait(60);
+    const prev = lastHp, prevC = lastCan;
+    setHp(ev.hp); setCannons(ev.cannons);
+    showDamage(prev, ev.hp, me, op, ev.heal);
+    showCannonDamage(prevC, ev.cannons, me, op);
+    showCannonRepair(prevC, ev.cannons, me, op);
+    await wait(Math.max(0, slotEnd - Date.now()));
+  }
+  scene.subLeave(); scene.iceClear();
+  setHp(r.hp);
+  { const before = lastCan; setCannons(r.cannons); showCannonRepair(before, r.cannons, me, op); }
+  playing = false;
+  scene.moveShip('me', 0); scene.moveShip('op', 0);
+  if (replay) { // la repetición no cambia el estado de la partida
+    scene.setWeather(curRound); badge(curRound); $('msg').textContent = promptMsg();
+    $('lastRound').classList.remove('hidden');
+    if (submitted) $('msg').textContent = 'Esperando al rival...';
+    else { showInputs(true); inputMs = Math.max(3000, endAt - Date.now()); countdown(); }
+    renderWave();
+    return;
+  }
+  curRound = r.round;
+  $('round').textContent = r.round;
+  badge(r.winner !== null ? 1 : r.round);
+  lastRound = { r, hp: pre.hp, can: pre.can };
+  if (spectatorMode) {
+    setupForm(); showInputs(false);
+    $('leagueStatus').textContent = r.winner === null ? `Espectando · ronda ${r.round}` : 'Partida terminada';
+    $('msg').textContent = r.winner === null ? 'Esperando la siguiente secuencia' : r.winner === 'draw' ? 'La partida terminó en empate' : `Ganó ${names[r.winner]}`;
+    return;
+  }
+  if (tutorialMode) setTutorialStep('complete');
+  if (r.winner !== null) {
+    document.body.dataset.over = 1;
+    if (googleOn && !spectatorMode) loadProfile();
+    if (isLeague) {
+      $('menu').classList.add('hidden'); $('rematch').classList.add('hidden');
+      $('msg').textContent = r.winner === me ? 'Ganaste el duelo; actualizando el cuadro...' : `Perdiste el duelo. Ganó ${names[op]}`;
+      return;
+    }
+    $('menu').classList.remove('hidden'); $('rematch').classList.remove('hidden'); $('rematch').disabled = false;
+    if (r.winner === me) celebrate();
+    $('msg').textContent = r.winner === 'draw' ? 'Empate' : r.winner === me ? `¡Ganaste, ${names[me]}!` : `Perdiste. Ganó ${names[op]}`;
+  } else {
+    $('msg').textContent = promptMsg();
+    setupForm(); scene.setWeather(r.round); showLastRound(r, me, op);
+    showInputs(true);
+    countdown();
+  }
+}
+</script>
+</body>
+</html>
