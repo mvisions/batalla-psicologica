@@ -5,9 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Batalla Psicológica · 2 jugadores</title>
 <meta name="theme-color" content="#06182b">
-<link rel="manifest" href="/manifest.webmanifest">
-<link rel="icon" href="/icon.svg" type="image/svg+xml">
-<script type="importmap">{ "imports": { "three": "/vendor/three.module.js" } }</script>
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="icon" href="./icon.svg" type="image/svg+xml">
+<script type="importmap">{ "imports": { "three": "./vendor/three.module.js" } }</script>
+<script src="./app-config.js"></script>
 <style>
   * { box-sizing: border-box; }
   body { margin: 0; font-family: system-ui, sans-serif; background: #06182b; color: #fff; display: flex; justify-content: center; }
@@ -278,9 +279,12 @@
 </div>
 <div id="win"><canvas></canvas><h1>¡VICTORIA!</h1></div>
 <script type="module">
-import { createScene } from '/scene3d.js';
+import { createScene } from './scene3d.js';
 
 const $ = (id) => document.getElementById(id);
+const APP_CONFIG = window.BATALLA_CONFIG || {};
+const API_BASE_URL = String(APP_CONFIG.apiBaseUrl || '').replace(/\/+$/, '');
+const apiUrl = (route) => `${API_BASE_URL}${route.startsWith('/') ? route : `/${route}`}`;
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 const SHOT_MS = 5000; // 4 disparos x 5 s = 20 s por tanda
 let room, pid, key, isBot = false, names = ['', ''], playing = false, lastHp = null, curRound = 1;
@@ -291,7 +295,7 @@ let activeEvents = null, spectatorAbort = null, spectatorMode = false, spectator
 let matchmaking = null, matchmakingPollTimer = null;
 const isRain = () => curRound % 5 === 0;
 const isSwell = () => curRound % 6 === 0;
-navigator.serviceWorker?.register('/sw.js').catch(() => {});
+navigator.serviceWorker?.register('./sw.js').catch(() => {});
 
 const scene = createScene($('arena'));
 scene.onThunder = () => sfx('thunder');
@@ -364,7 +368,7 @@ function sfx(kind) {
 
 // ---------- Red y acceso ----------
 async function post(url, data) {
-  const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+  const r = await fetch(apiUrl(url), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
   const j = await r.json();
   if (!r.ok) throw new Error(j.error || 'Error');
   return j;
@@ -376,7 +380,7 @@ let session = localStorage.getItem('session'), googleOn = false;
 // Ranking: de siempre o de esta semana
 async function loadRank(period) {
   $('rkAll').classList.toggle('on', period !== 'week'); $('rkWeek').classList.toggle('on', period === 'week');
-  const list = await (await fetch('/api/ranking?period=' + period)).json();
+  const list = await (await fetch(apiUrl('/api/ranking?period=' + period))).json();
   $('rank').innerHTML = list.length ? list.map((r) => `<li>${esc(r.name)} — ${r.best} seguidos</li>`).join('') : '<li>Sin datos todavía</li>';
 }
 $('rkAll').onclick = () => loadRank('all');
@@ -391,7 +395,7 @@ $('rankingClose').onclick = closeRanking;
 $('rankingModal').onclick = (event) => { if (event.target === $('rankingModal')) closeRanking(); };
 document.addEventListener('keydown', (event) => { if (event.key === 'Escape') closeRanking(); });
 const fmt = (ms) => { const t = Math.round(ms / 1000), p = (n) => String(n).padStart(2, '0'); return `${Math.floor(t / 3600)}:${p(Math.floor(t / 60) % 60)}:${p(t % 60)}`; };
-fetch('/api/games').then((r) => r.json()).then((list) => {
+fetch(apiUrl('/api/games')).then((r) => r.json()).then((list) => {
   $('games').innerHTML = list.length ? list.map((g) => `<li>${esc(g.a)} vs ${esc(g.b)} — ganador ${g.winner ? esc(g.winner) : 'empate'} — ${fmt(g.ms)}</li>`).join('') : '<li>Sin partidas todavía</li>';
 });
 function renderLeagueState(state) {
@@ -413,7 +417,7 @@ async function pollLeague() {
   if (!isLeague || !leagueCode) return;
   try {
     const query = new URLSearchParams({ code: leagueCode, pid: leaguePid, key: leagueKey });
-    const response = await fetch(`/api/league/state?${query}`);
+    const response = await fetch(apiUrl(`/api/league/state?${query}`));
     if (!response.ok) throw new Error('No se pudo actualizar el torneo');
     const state = await response.json();
     renderLeagueState(state);
@@ -439,7 +443,7 @@ async function pollLeague() {
 }
 async function loadActiveLeagues() {
   try {
-    const response = await fetch('/api/leagues');
+    const response = await fetch(apiUrl('/api/leagues'));
     const active = await response.json();
     const host = $('activeLeaguesList');
     if (!active.length) { host.innerHTML = '<p>No hay torneos en juego</p>'; return; }
@@ -490,7 +494,7 @@ async function onGoogle(resp) {
   } catch (e) { $('lobbyMsg').textContent = e.message; }
 }
 async function initAuth() {
-  const { clientId } = await (await fetch('/api/config')).json();
+  const { clientId } = await (await fetch(apiUrl('/api/config'))).json();
   if (!clientId) {
     $('gbtn').classList.add('hidden'); $('menuBtns').classList.add('hidden'); $('join').classList.add('hidden');
     $('lobbyMsg').textContent = 'Para jugar se requiere Google. Configura GOOGLE_CLIENT_ID en el servidor.';
@@ -506,7 +510,7 @@ async function initAuth() {
     button.onclick = async () => {
       button.disabled = true; $('lobbyMsg').textContent = '';
       try {
-        const { signInWithGoogle } = await import('/vendor/native-google-auth.js');
+        const { signInWithGoogle } = await import('./vendor/native-google-auth.js');
         await onGoogle({ credential: await signInWithGoogle(clientId) });
       } catch (error) { $('lobbyMsg').textContent = error.message || 'No se pudo iniciar sesión con Google'; }
       finally { button.disabled = false; }
@@ -518,7 +522,7 @@ async function initAuth() {
   const s = document.createElement('script');
   s.src = 'https://accounts.google.com/gsi/client'; s.async = true;
   s.onload = () => {
-    google.accounts.id.initialize({ client_id: clientId, ux_mode: 'redirect', login_uri: `${location.origin}/auth/google/callback` });
+    google.accounts.id.initialize({ client_id: clientId, ux_mode: 'redirect', login_uri: `${API_BASE_URL || location.origin}/auth/google/callback` });
     google.accounts.id.renderButton($('gbtn'), { theme: 'filled_blue', size: 'large', text: 'signin_with', locale: 'es' });
   };
   document.head.appendChild(s);
@@ -535,7 +539,7 @@ function showInvite(link) {
   const message = encodeURIComponent('Te reto a una Batalla Psicológica: ' + link);
   $('wa').href = `https://wa.me/?text=${message}`;
   $('waWeb').href = `https://web.whatsapp.com/send?text=${message}`;
-  $('inviteQr').src = `/api/qr?url=${encodeURIComponent(link)}`;
+  $('inviteQr').src = apiUrl(`/api/qr?url=${encodeURIComponent(link)}`);
   $('invite').classList.remove('hidden');
 }
 async function resume() {
@@ -555,7 +559,7 @@ async function resume() {
       pollLeague();
       return;
     }
-    const r = await (await fetch(`/api/room?room=${saved.room}&pid=${saved.pid}&key=${saved.key}`)).json();
+    const r = await (await fetch(apiUrl(`/api/room?room=${saved.room}&pid=${saved.pid}&key=${saved.key}`))).json();
     if (!r.ok) throw new Error('sala');
     ({ room, pid, key, isBot } = saved);
     tutorialMode = !!saved.tutorial;
@@ -578,7 +582,7 @@ async function enter(fn) {
     $('emotes').classList.toggle('hidden', isBot);
     $('lobby').classList.add('hidden'); $('game').classList.remove('hidden');
     if (r.token) {
-      const cfg = await (await fetch('/api/config')).json();
+      const cfg = await (await fetch(apiUrl('/api/config'))).json();
       const local = ['localhost', '127.0.0.1'].includes(location.hostname);
       const base = cfg.explicit || local ? cfg.publicUrl : location.origin;
       const link = `${base}/?j=${r.token}`;
@@ -597,7 +601,7 @@ async function enterLeague(r) {
   room = null; pid = null; key = null; isBot = false;
   $('lobby').classList.add('hidden'); $('game').classList.remove('hidden'); $('leagueBoard').classList.remove('hidden');
   $('emotes').classList.add('hidden'); $('spectatorBack').classList.add('hidden');
-  const cfg = await (await fetch('/api/config')).json();
+  const cfg = await (await fetch(apiUrl('/api/config'))).json();
   const local = ['localhost', '127.0.0.1'].includes(location.hostname);
   const base = cfg.explicit || local ? cfg.publicUrl : location.origin;
   const link = `${base}/?j=${r.token}`;
@@ -633,7 +637,7 @@ async function pollMatchmaking() {
   if (!matchmaking) return;
   try {
     const query = new URLSearchParams({ ticket: matchmaking.ticket, key: matchmaking.ticketKey });
-    const response = await fetch(`/api/matchmaking/status?${query}`);
+    const response = await fetch(apiUrl(`/api/matchmaking/status?${query}`));
     if (response.status === 404) {
       matchmaking = null; localStorage.removeItem('matchmaking');
       $('matchmakingMessage').textContent = 'La búsqueda ya no existe. Vuelve a intentarlo.';
@@ -687,7 +691,7 @@ $('matchmakingCancel').onclick = async () => {
 
 // País del jugador: se detecta por el idioma del navegador y se puede cambiar; se recuerda
 async function initCountries() {
-  const codes = await (await fetch('/flags/index.json')).json();
+  const codes = await (await fetch('./flags/index.json')).json();
   let names;
   try { names = new Intl.DisplayNames(['es'], { type: 'region' }); } catch { names = null; }
   const label = (c) => { try { return names?.of(c.toUpperCase()) || c.toUpperCase(); } catch { return c.toUpperCase(); } };
@@ -836,11 +840,11 @@ function countdown() {
 }
 
 function connect() {
-  const es = new EventSource(`/api/events?room=${room}&pid=${pid}&key=${key}`);
+  const es = new EventSource(apiUrl(`/api/events?room=${room}&pid=${pid}&key=${key}`));
   es.onerror = async () => { // solo se olvida la partida si el servidor confirma que ya no existe
     if (es.readyState !== EventSource.CLOSED) return;
     try {
-      const r = await fetch(`/api/room?room=${room}&pid=${pid}&key=${key}`);
+      const r = await fetch(apiUrl(`/api/room?room=${room}&pid=${pid}&key=${key}`));
       if (r.status === 404) { localStorage.removeItem('game'); $('msg').textContent = 'La partida ya no existe'; $('menu').classList.remove('hidden'); }
     } catch { /* sin conexi\u00f3n: se reintentar\u00e1 */ }
   };
@@ -902,7 +906,7 @@ function setNames(n, countries = ['un', 'un']) {
   $('opName').textContent = n[o];
   for (const [who, idx] of [['me', pid], ['op', o]]) {
     flagCodes[who] = countries[idx];
-    $(who + 'Flag').src = `/flags/${countries[idx]}.svg`;
+    $(who + 'Flag').src = `./flags/${countries[idx]}.svg`;
     $(who + 'Flag').title = countryName(countries[idx]);
     scene.setFlag(who, countries[idx]);
   }

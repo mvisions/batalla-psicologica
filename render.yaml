@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: batalla-psicologica-api
+    runtime: node
+    plan: free
+    region: oregon
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: 22.22.1
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: API_BASE_URL
+        value: https://batalla-psicologica-api.onrender.com
+      - key: PUBLIC_URL
+        value: https://mvisions.github.io/batalla-psicologica/
+      - key: ALLOWED_ORIGINS
+        value: https://mvisions.github.io

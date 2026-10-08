@@ -11,10 +11,14 @@ const DIR = path.join(ROOT, 'public');
 const DATA = path.join(ROOT, 'data');
 fs.mkdirSync(DATA, { recursive: true });
 
-// Clave persistente para cifrar los códigos de invitación
+// En hosting, una variable estable conserva sesiones e invitaciones entre reinicios.
 const KEY_FILE = path.join(DATA, 'secret.key');
-if (!fs.existsSync(KEY_FILE)) fs.writeFileSync(KEY_FILE, crypto.randomBytes(32).toString('hex'), { mode: 0o600 });
-const KEY = Buffer.from(fs.readFileSync(KEY_FILE, 'utf8').trim(), 'hex');
+const KEY = process.env.SESSION_SECRET
+  ? crypto.createHash('sha256').update(process.env.SESSION_SECRET).digest()
+  : (() => {
+    if (!fs.existsSync(KEY_FILE)) fs.writeFileSync(KEY_FILE, crypto.randomBytes(32).toString('hex'), { mode: 0o600 });
+    return Buffer.from(fs.readFileSync(KEY_FILE, 'utf8').trim(), 'hex');
+  })();
 
 function encryptCode(code) {
   const iv = crypto.randomBytes(12);
@@ -86,6 +90,11 @@ const ALLOW_DEVELOPMENT_LOGIN = process.env.ALLOW_DEVELOPMENT_LOGIN === 'true';
 
 // Dirección con la que otros jugadores pueden entrar: PUBLIC_URL, o la IP de la red local si no se define
 const EXPLICIT_URL = (process.env.PUBLIC_URL || '').replace(/\/+$/, '');
+const API_BASE_URL = (process.env.API_BASE_URL || '').replace(/\/+$/, '');
+const allowedOrigins = new Set((process.env.ALLOWED_ORIGINS || '').split(',').map((origin) => origin.trim()).filter(Boolean));
+if (EXPLICIT_URL) {
+  try { allowedOrigins.add(new URL(EXPLICIT_URL).origin); } catch { /* invalid public URL is rejected by deployment checks */ }
+}
 function lanUrl() {
   for (const list of Object.values(os.networkInterfaces())) {
     for (const i of list || []) if (i.family === 'IPv4' && !i.internal) return `http://${i.address}:${PORT}`;
@@ -471,6 +480,20 @@ const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x');
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'DENY');
+  if (url.pathname.startsWith('/api/')) {
+    const origin = req.headers.origin;
+    const forwardedProto = String(req.headers['x-forwarded-proto'] || '').split(',')[0].trim();
+    const sameOrigin = `${forwardedProto || 'http'}://${req.headers.host}`;
+    if (origin && origin !== sameOrigin && !allowedOrigins.has(origin)) return json(res, 403, { error: 'Origen no autorizado' });
+    if (origin) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+      res.setHeader('Access-Control-Max-Age', '600');
+      res.setHeader('Vary', 'Origin');
+    }
+    if (req.method === 'OPTIONS') { res.writeHead(204); return res.end(); }
+  }
   if (req.method === 'POST') {
     const ip = req.socket.remoteAddress, now = Date.now();
     const h = hits.get(ip);
@@ -514,7 +537,8 @@ const server = http.createServer(async (req, res) => {
     rooms.set(code, room);
     return json(res, 200, { room: code, pid: 0, key: room.players[0].key, token: bot ? null : encryptCode(code) });
   }
-  if (req.method === 'GET' && url.pathname === '/api/config') return json(res, 200, { clientId: CLIENT_ID, publicUrl: EXPLICIT_URL || lanUrl(), explicit: !!EXPLICIT_URL });
+  if (req.method === 'GET' && url.pathname === '/api/config') return json(res, 200, { clientId: CLIENT_ID, apiBaseUrl: API_BASE_URL, publicUrl: EXPLICIT_URL || lanUrl(), explicit: !!EXPLICIT_URL });
+  if (req.method === 'GET' && url.pathname === '/api/health') return json(res, 200, { ok: true });
   if (req.method === 'POST' && url.pathname === '/auth/google/callback') {
     const form = await formBody(req);
     if (!form.g_csrf_token || form.g_csrf_token !== cookie(req, 'g_csrf_token')) {
