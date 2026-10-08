@@ -136,6 +136,9 @@ function ensureCurrentWeek() {
   persistRanking([winner.sub, loser.sub]);
 }
 
+const MAX_LEVEL = 15;
+const levelForPoints = (points) => Math.min(MAX_LEVEL, Math.floor(points / 100) + 1);
+const pointsPerWin = (level) => (level >= MAX_LEVEL ? 10 : 50);
 function recordResult(winner, loser) {
   ensureCurrentWeek();
   const key = leaderboard.weekKey;
@@ -148,7 +151,7 @@ function recordResult(winner, loser) {
   };
   const w = get(winner), l = get(loser);
   w.streak++; w.wStreak++;
-  w.points += 10; w.wins++; w.level = Math.floor(w.points / 100) + 1;
+  w.points += pointsPerWin(w.level); w.wins++; w.level = levelForPoints(w.points);
   l.streak = 0; l.wStreak = 0;
   leaderboard.allTime = upsertLeaderboard(leaderboard.allTime, { id: winner.sub, name: w.name, best: w.streak });
   leaderboard.weekly = upsertLeaderboard(leaderboard.weekly, { id: winner.sub, name: w.name, best: w.wStreak });
@@ -158,9 +161,9 @@ function recordBotWin(winner) {
   ensureCurrentWeek();
   const entry = (ranking[winner.sub] ||= { name: winner.name, streak: 0, points: 0, wins: 0, level: 1 });
   entry.name = winner.name;
-  entry.points = (entry.points || 0) + 10;
+  entry.points = (entry.points || 0) + pointsPerWin(entry.level);
   entry.wins = (entry.wins || 0) + 1;
-  entry.level = Math.floor(entry.points / 100) + 1;
+  entry.level = levelForPoints(entry.points);
   persistRanking();
 }
 const GAMES_FILE = path.join(DATA, 'games.json');
@@ -724,7 +727,7 @@ const server = http.createServer(async (req, res) => {
     if (!user) return json(res, 401, { error: 'Inicia sesión con Google' });
     const entry = ranking[user.sub] || {};
     const points = Number(entry.points) || 0;
-    return json(res, 200, { points, wins: Number(entry.wins) || 0, level: Number(entry.level) || Math.floor(points / 100) + 1 });
+    return json(res, 200, { points, wins: Number(entry.wins) || 0, level: Math.min(MAX_LEVEL, Number(entry.level) || Math.floor(points / 100) + 1) });
   }
   if (req.method === 'GET' && url.pathname === '/api/ranking') return json(res, 200, topRanking(url.searchParams.get('period')));
   if (req.method === 'GET' && url.pathname === '/api/games') return json(res, 200, games);

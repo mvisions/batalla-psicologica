@@ -648,8 +648,9 @@ async function enter(fn) {
     const r = await fn({ session });
     if (r.league) { await enterLeague(r); return; }
     isLeague = false; leagueCode = null; leaguePid = null; leagueKey = null;
-    room = r.room; pid = r.pid; key = r.key; isBot = !r.token;
+    room = r.room; pid = r.pid; key = r.key; isBot = r.pid === 0 && !r.token;
     saveGame({ link: '' });
+    $('invite').classList.add('hidden');
     $('emotes').classList.toggle('hidden', isBot);
     $('lobby').classList.add('hidden'); $('game').classList.remove('hidden');
     if (r.token) {
@@ -1218,6 +1219,7 @@ async function playRound(r, replay = false) {
     return;
   }
   curRound = r.round;
+  blockRound = r.round % 10 === 0;
   $('round').textContent = r.round;
   badge(r.winner !== null ? 1 : r.round);
   lastRound = { r, hp: pre.hp, can: pre.can, maxShipHp: pre.maxShipHp };
