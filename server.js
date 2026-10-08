@@ -263,6 +263,13 @@ function resolveRound(room) {
   const events = [];
   const cann = room.cannons, mult = room.round % 4 === 0 ? 2 : 1;
   const iceAlive = [true, true]; // icebergs de la ronda de lluvia
+  const wild = room.wildlife !== false;
+  let gullAlive = wild; // la gaviota cruza de izquierda a derecha, una posición por disparo
+  const squidRound = wild && room.round % 2 === 1; // el calamar sale una ronda sí y otra no
+  const hpRatio = (k) => room.hp[k].ship / room.maxShipHp[k];
+  const squidOwner = !squidRound ? null : hpRatio(0) === hpRatio(1) ? Math.floor(Math.random() * 2) : hpRatio(0) < hpRatio(1) ? 0 : 1; // protege al más perjudicado
+  let squidAlive = squidRound;
+  const heliFor = [0, 1].map((k) => room.hp[k].ship > 0 && room.hp[k].ship <= 5 && Boolean(P[k].heli || P[k].bot));
   // cañón del barco k más cercano al punto de impacto x
   const nearestCannon = (k, x) => {
     let best = 0;
@@ -279,16 +286,26 @@ function resolveRound(room) {
     const subX = subRound ? [-3, -1, 1, 3][Math.floor(Math.random() * 4)] : null;
     const octopusX = room.round === 2 && !room.octopusUsed ? 2 * room.octopusLane - 5 : null;
     const medkitX = medkitRound && !medkitCollected ? medkitPosts[i] : null;
+    const gullX = gullAlive ? medkitPosts[i] : null;
+    const squidX = squidAlive ? medkitPosts[Math.floor(Math.random() * 4)] : null;
+    const squidUp = squidAlive && Math.random() < 0.5; // bajo el agua no detiene el disparo
     // icebergs (lluvia): dos, derivan a carriles al azar en cada disparo; la primera bala que da a uno lo destruye
     const lanePool = [-3, -1, 1, 3].sort(() => Math.random() - 0.5);
     const iceX = rain ? [iceAlive[0] ? lanePool[0] : null, iceAlive[1] ? lanePool[1] : null] : null;
     const iceAt = (x) => (iceX ? iceX.findIndex((v) => v !== null && v === x) : -1);
-    const ev = { step: i, atk, def, pos: [...pos], swell, whale: whaleX, ice: iceX, sub: subRound ? { x: subX, toward: Math.floor(Math.random() * 2) } : null, octopus: octopusX === null ? null : { x: octopusX, release: null }, medkit: medkitX === null ? null : { x: medkitX }, shots: [] };
+    const ev = { step: i, atk, def, pos: [...pos], swell, whale: whaleX, ice: iceX, sub: subRound ? { x: subX, toward: Math.floor(Math.random() * 2) } : null, octopus: octopusX === null ? null : { x: octopusX, release: null }, medkit: medkitX === null ? null : { x: medkitX }, gull: gullX === null ? null : { x: gullX }, squid: squidX === null ? null : { x: squidX, up: squidUp, owner: squidOwner }, shots: [] };
+    const heal = [0, 0], heliHeal = [0, 0];
+    if (i === 0) {
+      for (const k of [0, 1]) if (heliFor[k]) {
+        room.hp[k].ship = Math.min(room.maxShipHp[k], room.hp[k].ship + 15);
+        heliHeal[k] = 15;
+        (ev.heli ||= []).push({ owner: k });
+      }
+    }
     const dmg = [{ ship: 0, shark: 0 }, { ship: 0, shark: 0 }];
     const cdmg = [[0, 0, 0, 0], [0, 0, 0, 0]]; // daño a cada cañón en este disparo
     const crepair = [[0, 0, 0, 0], [0, 0, 0, 0]];
     const hitBy = [[null, null, null, null], [null, null, null, null]]; // quién golpeó cada cañón
-    const heal = [0, 0];
     const live = [cann[0][atk[0] - 1] > 0, cann[1][atk[1] - 1] > 0]; // un cañón roto no dispara
     const blocked = [
       blockRound && room.players[1].block?.[i] === atk[0],
@@ -297,7 +314,7 @@ function resolveRound(room) {
     const firing = live.map((isLive, player) => isLive && !blocked[player]);
     // posición real de cada bala (el cañón se mueve con el barco)
     const xu = [2 * atk[0] - 5 + pos[0], 2 * atk[1] - 5 + pos[1]];
-    const simultaneousCollision = firing[0] && firing[1] && xu[0] === xu[1] && xu[0] !== subX && iceAt(xu[0]) < 0;
+    const simultaneousCollision = firing[0] && firing[1] && xu[0] === xu[1] && xu[0] !== subX && iceAt(xu[0]) < 0 && xu[0] !== gullX && !(squidUp && xu[0] === squidX);
     if (simultaneousCollision && xu[0] !== medkitX && xu[0] !== octopusX) {
       ev.shots = [0, 1].map((from) => ({ from, lane: atk[from], x: xu[from], target: 'collision' }));
     } else {
@@ -341,7 +358,9 @@ function resolveRound(room) {
         else if (subX !== null && x === subX) {
           target = 'sub'; heal[from] += 5; crepair[from][atk[from] - 1] += 5;
         }
+        else if (gullX !== null && gullAlive && x === gullX) { target = 'gull'; gullAlive = false; heal[from] += 15; }
         else if (whaleX !== null && x === whaleX) { target = 'whale'; owner = from; } // la orca rebota la bala contra el barco que disparó
+        else if (squidUp && squidAlive && other === squidOwner && x === squidX) { target = 'squid'; owner = other; squidAlive = false; ev.squid.blocked = true; }
         else if (sharkAt(other)) { target = 'shark'; owner = other; }
         else if (Math.abs(x - pos[other]) <= 4) { target = 'ship'; owner = other; }
         else { target = 'miss'; owner = other; }
@@ -373,7 +392,7 @@ function resolveRound(room) {
       }
     }
     for (const k of [0, 1]) if (heal[k] > 0 && room.hp[k].ship > 0) room.hp[k].ship = Math.min(room.maxShipHp[k], room.hp[k].ship + heal[k]);
-    ev.heal = heal;
+    ev.heal = heal.map((h, k) => h + heliHeal[k]);
     ev.maxShipHp = [...room.maxShipHp];
     ev.hp = JSON.parse(JSON.stringify(room.hp));
     ev.cannons = JSON.parse(JSON.stringify(cann));
@@ -387,7 +406,7 @@ function resolveRound(room) {
   P.forEach((p, k) => {
     room.hist[k].push({ attack: p.attack, defense: p.defense });
     if (room.hist[k].length > 10) room.hist[k].shift();
-    p.attack = null; p.defense = null; p.wave = null; p.block = null;
+    p.attack = null; p.defense = null; p.wave = null; p.block = null; p.heli = false;
   });
   // un cañón roto se regenera con 15 de vida para la siguiente ronda
   for (const k of [0, 1]) for (let l = 0; l < 4; l++) if (cann[k][l] === 0) cann[k][l] = 15;
@@ -582,7 +601,7 @@ function armTimer(room, delay) {
 }
 
 const stateFor = (room, k) => ({
-  ...info(room), submitted: !!room.players[k].attack,
+  ...info(room), submitted: !!room.players[k].attack, heli: !!room.players[k].heli,
   inputMs: room.tutorial ? null : Math.max(1000, Math.min(INPUT_MS, room.deadline - Date.now())),
 });
 
@@ -840,7 +859,7 @@ const server = http.createServer(async (req, res) => {
     me.rematch = true;
     if (room.players.every((p) => p.rematch || p.bot)) {
       resetState(room);
-      room.players.forEach((p) => { p.rematch = false; p.attack = null; p.defense = null; p.wave = null; p.block = null; });
+      room.players.forEach((p) => { p.rematch = false; p.attack = null; p.defense = null; p.wave = null; p.block = null; p.heli = false; });
       armTimer(room, INPUT_MS);
       broadcast(room, 'rematch', {});
       room.players.forEach((p, k) => p.stream && send(p.stream, 'state', stateFor(room, k)));
@@ -853,6 +872,17 @@ const server = http.createServer(async (req, res) => {
     const me = room?.players[pid];
     if (!me || me.key !== key || !EMOTES[i]) return json(res, 400, { error: 'Inválido' });
     broadcast(room, 'emote', { pid, text: EMOTES[i] });
+    return json(res, 200, { ok: true });
+  }
+  if (req.method === 'POST' && url.pathname === '/api/heli') {
+    const { room: code, pid, key } = await body(req);
+    const room = rooms.get(String(code));
+    const me = room?.players[pid];
+    if (!me || me.key !== key || room.players.length < 2 || room.over) return json(res, 400, { error: 'Inválido' });
+    const hp = room.hp[pid].ship;
+    if (hp <= 0 || hp > 5) return json(res, 409, { error: 'El helicóptero solo acude con 5 de vida o menos' });
+    me.heli = true;
+    broadcast(room, 'heli', { pid });
     return json(res, 200, { ok: true });
   }
   if (req.method === 'POST' && url.pathname === '/api/submit') {

@@ -1018,13 +1018,233 @@ export function createScene(container) {
     medkit.g.visible = false;
   }
 
+  // ---------- Gaviota, calamar y helicóptero ----------
+  const frameHooks = [];
+  const gull = (() => {
+    const g = new THREE.Group();
+    const white = new THREE.MeshStandardMaterial({ color: 0xfafafa, roughness: 0.6 });
+    const grey = new THREE.MeshStandardMaterial({ color: 0x9fb0bd, roughness: 0.6 });
+    const orange = new THREE.MeshStandardMaterial({ color: 0xffa726, roughness: 0.5 });
+    const dark = new THREE.MeshBasicMaterial({ color: 0x151515 });
+    const body = new THREE.Mesh(new THREE.SphereGeometry(0.4, 14, 10), white); body.scale.set(1.6, 0.7, 0.8); g.add(body);
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.2, 12, 10), white); head.position.set(0.7, 0.14, 0); g.add(head);
+    const beak = new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.3, 8), orange); beak.rotation.z = -Math.PI / 2; beak.position.set(1.0, 0.1, 0); g.add(beak);
+    for (const z of [-0.1, 0.1]) { const eye = new THREE.Mesh(new THREE.SphereGeometry(0.035, 8, 6), dark); eye.position.set(0.82, 0.2, z); g.add(eye); }
+    const tail = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.05, 0.3), grey); tail.position.set(-0.75, 0.04, 0); g.add(tail);
+    const wings = [-1, 1].map((side) => {
+      const w = new THREE.Group();
+      const inner = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.04, 0.9), white); inner.position.z = side * 0.45; w.add(inner);
+      const tip = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.04, 0.7), grey); tip.position.set(-0.05, 0, side * 1.15); w.add(tip);
+      w.position.y = 0.12; g.add(w); return w;
+    });
+    g.visible = false; g.scale.setScalar(1.3); scene.add(g);
+    const s = { g, wings, present: false, x: 0, falling: false };
+    frameHooks.push((dt, t) => {
+      if (!s.present || s.falling) return;
+      const flap = Math.sin(t * 13) * 0.7;
+      wings[0].rotation.x = flap; wings[1].rotation.x = -flap;
+      g.rotation.z = Math.sin(t * 6.5) * 0.04;
+    });
+    return s;
+  })();
+  async function gullFly(wx) {
+    const s = gull;
+    if (!s.present) {
+      s.present = true; s.falling = false; s.g.visible = true; s.g.rotation.set(0, 0, 0); s.g.scale.setScalar(1.3);
+      s.g.position.set(wx - 7, 3.4, 0); s.x = wx - 7;
+    }
+    const from = s.g.position.x, y0 = s.g.position.y;
+    s.x = wx;
+    await tween(900, (t) => { s.g.position.x = from + (wx - from) * t; s.g.position.y = y0 + (1.9 - y0) * t + Math.sin(t * Math.PI) * 0.35; }, easeInOut);
+  }
+  async function gullLeave() {
+    const s = gull;
+    if (!s.present) return;
+    s.present = false;
+    const x0 = s.g.position.x, y0 = s.g.position.y;
+    s.falling = false;
+    await tween(1000, (t) => { s.g.position.x = x0 + 8 * t; s.g.position.y = y0 + 3 * t; }, easeIn);
+    s.g.visible = false;
+  }
+  async function gullShot() {
+    const s = gull;
+    if (!s.present) return;
+    s.present = false; s.falling = true;
+    const p = s.g.position.clone();
+    for (let i = 0; i < 24; i++) {
+      spawn({ pos: p, tex: smokeTex, vel: V(rnd(-2, 2), rnd(-0.5, 2.5), rnd(-2, 2)), grav: 3, drag: 0.8, life: rnd(1, 1.8), s0: 0.18, s1: 0.3, color: 0xffffff, op: 0.95 });
+    }
+    sparks(p, 12, 4, 0xffffff);
+    shake(0.1, 0.25);
+    const x0 = p.x, y0 = p.y;
+    await tween(900, (t) => {
+      s.g.position.set(x0 + 0.8 * t, y0 - (y0 + 0.3) * t * t, 0);
+      s.g.rotation.set(t * 7, 0, t * 4);
+      s.wings[0].rotation.x = 0.4; s.wings[1].rotation.x = -0.4;
+    }, easeIn);
+    splash(V(s.g.position.x, 0.2, 0)); ripple(s.g.position.x, 0, 3.4);
+    s.g.visible = false; s.falling = false;
+  }
+
+  const squid = (() => {
+    const g = new THREE.Group();
+    const skin = new THREE.MeshStandardMaterial({ color: 0xe0503c, roughness: 0.4, emissive: 0x3a0a05, emissiveIntensity: 0.3 });
+    const belly = new THREE.MeshStandardMaterial({ color: 0xf29a7e, roughness: 0.45 });
+    const white = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.25 });
+    const dark = new THREE.MeshBasicMaterial({ color: 0x120a12 });
+    const mantle = new THREE.Mesh(new THREE.ConeGeometry(0.5, 2.2, 18), skin); mantle.position.y = 1.7; g.add(mantle);
+    for (const side of [-1, 1]) {
+      const fin = new THREE.Mesh(new THREE.ConeGeometry(0.42, 0.9, 3), belly);
+      fin.position.set(side * 0.52, 2.55, 0); fin.rotation.z = -side * 1.1; fin.scale.z = 0.25; g.add(fin);
+    }
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.5, 16, 12), skin); head.position.y = 0.55; head.scale.set(1, 0.85, 1); g.add(head);
+    for (const side of [-1, 1]) {
+      const eye = new THREE.Mesh(new THREE.SphereGeometry(0.17, 12, 10), white); eye.position.set(side * 0.38, 0.65, 0.3); g.add(eye);
+      const pupil = new THREE.Mesh(new THREE.SphereGeometry(0.085, 10, 8), dark); pupil.position.set(side * 0.4, 0.65, 0.44); g.add(pupil);
+    }
+    const arms = [];
+    for (let a = 0; a < 8; a++) {
+      const ang = a * Math.PI / 4, long = a % 4 === 0;
+      const dx = Math.cos(ang), dz = Math.sin(ang), len = long ? 1.9 : 1.1;
+      const curve = new THREE.CatmullRomCurve3([V(dx * 0.15, 0.25, dz * 0.15), V(dx * 0.4, -0.1, dz * 0.4), V(dx * 0.62, -0.5, dz * 0.62), V(dx * 0.75, -len * 0.5, dz * 0.75)]);
+      const arm = new THREE.Mesh(new THREE.TubeGeometry(curve, 12, long ? 0.07 : 0.1, 6, false), belly);
+      g.add(arm); arms.push(arm);
+    }
+    g.visible = false; g.scale.setScalar(1.15); scene.add(g);
+    return { g, skin, arms, present: false, up: false, x: 0, z: 0 };
+  })();
+  function inkCloud(x, z, n = 14) {
+    for (let i = 0; i < n; i++) spawn({ pos: V(x, 0.3, z), tex: smokeTex, vel: V(rnd(-1.4, 1.4), rnd(0.2, 1.4), rnd(-1.4, 1.4)), drag: 1.2, life: rnd(1.3, 2.2), s0: 0.6, s1: 2.4, color: 0x1a0f2e, op: 0.8 });
+  }
+  function bubbles(x, z) {
+    for (let i = 0; i < 10; i++) spawn({ pos: V(x + rnd(-0.4, 0.4), 0.05, z + rnd(-0.4, 0.4)), tex: glowTex, vel: V(rnd(-0.2, 0.2), rnd(0.6, 1.6), rnd(-0.2, 0.2)), life: rnd(0.6, 1.1), s0: 0.22, s1: 0.1, color: 0xcfeeff, op: 0.85 });
+  }
+  async function squidShow(wx, up, owner) {
+    const s = squid, z = zOf(owner) * 3;
+    if (s.up) {
+      const y0 = s.g.position.y;
+      await tween(320, (t) => { s.g.position.y = y0 - 2.4 * t; }, easeIn);
+      s.up = false; s.g.visible = false; ripple(s.x, s.z, 3.4);
+    }
+    s.present = true; s.x = wx; s.z = z;
+    s.g.position.set(wx, -2.3, z); s.g.rotation.y = z > 0 ? Math.PI : 0;
+    if (up) {
+      s.g.visible = true; s.up = true;
+      ripple(wx, z, 3.6); bubbles(wx, z);
+      await tween(550, (t) => { s.g.position.y = -2.3 + 2.4 * t + Math.sin(t * Math.PI) * 0.25; }, easeOut);
+      sparks(V(wx, 0.2, z), 10, 3, 0xcfeeff);
+    } else {
+      ripple(wx, z, 2.4); bubbles(wx, z); inkCloud(wx, z, 6);
+      await wait(350);
+    }
+  }
+  async function squidLeave() {
+    const s = squid;
+    if (!s.present) return;
+    s.present = false;
+    if (s.up) {
+      const y0 = s.g.position.y;
+      await tween(450, (t) => { s.g.position.y = y0 - 2.6 * t; }, easeIn);
+      ripple(s.x, s.z, 3.6);
+    }
+    s.up = false; s.g.visible = false;
+  }
+  function squidBlock() {
+    const s = squid;
+    clash(V(s.x, 1.2, s.z)); shake(0.14, 0.3);
+    inkCloud(s.x, s.z, 22);
+    s.skin.emissive.setHex(0xffffff);
+    const y0 = s.g.position.y;
+    tween(450, (t) => { s.g.rotation.z = Math.sin(t * Math.PI * 5) * 0.2 * (1 - t); s.skin.emissive.lerpColors(new THREE.Color(0xffffff), new THREE.Color(0x3a0a05), t); s.g.position.y = y0 + Math.sin(t * Math.PI) * 0.4; }).then(() => { s.g.rotation.z = 0; });
+  }
+
+  const heli = (() => {
+    const g = new THREE.Group();
+    const red = new THREE.MeshStandardMaterial({ color: 0xd32f2f, roughness: 0.35, metalness: 0.3 });
+    const white = new THREE.MeshStandardMaterial({ color: 0xf5f5f5, roughness: 0.4 });
+    const glass = new THREE.MeshPhysicalMaterial({ color: 0x9fd8ff, roughness: 0.05, metalness: 0.1, transparent: true, opacity: 0.8 });
+    const steel = new THREE.MeshStandardMaterial({ color: 0x424950, metalness: 0.7, roughness: 0.4 });
+    const body = new THREE.Mesh(new THREE.SphereGeometry(0.8, 18, 14), red); body.scale.set(1.5, 0.95, 0.85); g.add(body);
+    const cockpit = new THREE.Mesh(new THREE.SphereGeometry(0.55, 14, 10), glass); cockpit.position.set(0.75, 0.12, 0); cockpit.scale.set(1, 0.85, 0.85); g.add(cockpit);
+    const stripe = new THREE.Mesh(new THREE.CylinderGeometry(0.69, 0.69, 0.18, 18), white); stripe.rotation.z = Math.PI / 2; stripe.position.set(-0.2, 0, 0); stripe.scale.set(1, 1, 1.0); g.add(stripe);
+    const boom = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.06, 2.6, 10), red); boom.rotation.z = Math.PI / 2; boom.position.set(-2.2, 0.15, 0); g.add(boom);
+    const fin = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.8, 0.06), red); fin.position.set(-3.4, 0.5, 0); g.add(fin);
+    const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.4, 8), steel); mast.position.y = 0.95; g.add(mast);
+    const rotor = new THREE.Group(); rotor.position.y = 1.18;
+    for (let k = 0; k < 2; k++) { const b = new THREE.Mesh(new THREE.BoxGeometry(4.2, 0.04, 0.22), steel); b.rotation.y = k * Math.PI / 2; rotor.add(b); }
+    g.add(rotor);
+    const tailRotor = new THREE.Group(); tailRotor.position.set(-3.45, 0.55, 0.1);
+    for (let k = 0; k < 2; k++) { const b = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.9, 0.08), steel); b.rotation.z = k * Math.PI / 2; tailRotor.add(b); }
+    g.add(tailRotor);
+    for (const z of [-0.55, 0.55]) {
+      const skid = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 2.0, 8), steel); skid.rotation.z = Math.PI / 2; skid.position.set(0.1, -1.0, z); g.add(skid);
+      for (const x of [-0.5, 0.6]) { const strut = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.55, 6), steel); strut.position.set(x, -0.72, z * 0.85); g.add(strut); }
+    }
+    const light = new THREE.Mesh(new THREE.SphereGeometry(0.09, 8, 6), new THREE.MeshBasicMaterial({ color: 0xff3030 })); light.position.set(-0.1, 0.85, 0); g.add(light);
+    g.visible = false; g.scale.setScalar(1.25); scene.add(g);
+    frameHooks.push((dt) => { if (!g.visible) return; rotor.rotation.y += dt * 38; tailRotor.rotation.z += dt * 44; });
+    return { g, light };
+  })();
+  const cargo = (() => {
+    const g = new THREE.Group();
+    const white = new THREE.MeshStandardMaterial({ color: 0xf7f8f2, roughness: 0.3 });
+    const redM = new THREE.MeshStandardMaterial({ color: 0xe32336, roughness: 0.3, emissive: 0x8f101b, emissiveIntensity: 0.3 });
+    const box = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.65, 0.65), white); box.position.y = 0.33; g.add(box);
+    for (const z of [-0.331, 0.331]) {
+      const v = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.4, 0.02), redM), h = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.14, 0.02), redM);
+      v.position.set(0, 0.33, z); h.position.set(0, 0.33, z); g.add(v, h);
+    }
+    const chute = new THREE.Group(); chute.position.y = 2.1;
+    for (let k = 0; k < 8; k++) {
+      const gore = new THREE.Mesh(new THREE.SphereGeometry(1.1, 6, 8, k * Math.PI / 4, Math.PI / 4, 0, Math.PI / 2), new THREE.MeshStandardMaterial({ color: k % 2 ? 0xffffff : 0xe32336, roughness: 0.6, side: THREE.DoubleSide }));
+      chute.add(gore);
+    }
+    const lineMat = new THREE.LineBasicMaterial({ color: 0xeeeeee });
+    for (const [x, z] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      chute.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([V(x * 0.9, 0.3, z * 0.9), V(x * 0.3, -1.6, z * 0.3)]), lineMat));
+    }
+    g.add(chute);
+    g.visible = false; scene.add(g);
+    return { g, chute };
+  })();
+  // el helicóptero llega, suelta un botiquín con paracaídas sobre el barco y se marcha
+  async function heliSupport(who) {
+    const sx = ships[who].g.position.x, z = zOf(who) * SHIP_Z, hy = 6.2;
+    heli.g.visible = true; heli.g.rotation.set(0, 0, 0);
+    heli.g.position.set(sx - 18, hy + 4, z);
+    const ripples = setInterval(() => ripple(heli.g.position.x, z, 4.5, 0, 1.1), 260);
+    await tween(1500, (t) => { heli.g.position.x = sx - 18 + 18 * t; heli.g.position.y = hy + 4 - 4 * t; heli.g.rotation.z = -0.22 * (1 - t); }, easeOut);
+    // la puerta se abre: cae el botiquín frenado por el paracaídas
+    cargo.g.visible = true; cargo.chute.visible = true; cargo.chute.scale.setScalar(0.01);
+    cargo.g.position.set(sx, hy - 1.2, z);
+    await tween(350, (t) => { cargo.chute.scale.setScalar(0.01 + 0.99 * t); }, easeOut);
+    const y0 = cargo.g.position.y;
+    await tween(1500, (t) => { cargo.g.position.y = y0 + (1.0 - y0) * t; cargo.g.position.x = sx + Math.sin(t * Math.PI * 3) * 0.35 * (1 - t); cargo.g.rotation.z = Math.sin(t * Math.PI * 3) * 0.12 * (1 - t); }, easeInOut);
+    // aterriza: el paracaídas se pliega y el barco se cura
+    const p = V(sx, 1.2, z);
+    spawn({ pos: p, life: 0.4, s0: 0.5, s1: 6, add: true, color: 0x8dffb0 });
+    sparks(p, 28, 5, 0x8dffb0);
+    for (let k = 0; k < 18; k++) spawn({ pos: V(sx + rnd(-1.2, 1.2), 1, z + rnd(-1.2, 1.2)), tex: glowTex, vel: V(0, rnd(1.5, 3.5), 0), life: rnd(0.9, 1.5), s0: 0.45, s1: 0.1, add: true, color: 0x69f0ae, op: 0.9 });
+    api.onHeal?.();
+    tween(450, (t) => { cargo.chute.scale.setScalar(Math.max(0.01, 1 - t)); }, easeIn).then(() => { cargo.chute.visible = false; });
+    await tween(500, (t) => { cargo.g.position.y = 1.0 + Math.sin(t * Math.PI) * 0.6; cargo.g.rotation.y = t * Math.PI * 2; }, easeOut);
+    await tween(350, (t) => { cargo.g.scale.setScalar(Math.max(0.01, 1 - t)); }, easeIn);
+    cargo.g.visible = false; cargo.g.scale.setScalar(1); cargo.g.rotation.set(0, 0, 0);
+    // el piloto saluda con un giro y se va
+    const x1 = heli.g.position.x;
+    await tween(500, (t) => { heli.g.rotation.x = Math.sin(t * Math.PI * 2) * 0.35; }, easeInOut);
+    await tween(1300, (t) => { heli.g.position.x = x1 + 22 * t; heli.g.position.y = hy + 5 * t; heli.g.rotation.z = -0.3 * t; heli.g.rotation.x = 0; }, easeIn);
+    clearInterval(ripples);
+    heli.g.visible = false;
+  }
+
   // x en unidades de 1,5 (posición real del cañón); 'miss' = la bala se pierde fuera de la pantalla
   function fire({ from, x: xu, lane, target, owner, fromX, sub: fromSub = false, octopus: fromOctopus = false, toward, ice }) {
     const dir = fromSub ? (toward === 'me' ? 1 : -1) : fromOctopus ? Math.sign(zOf(owner)) : (from === 'me' ? -1 : 1);
     const x = xu !== undefined ? xu * UNIT : LANE_X[lane - 1], y = fromSub ? 0.9 : 1.3;
     const startX = fromOctopus && fromX !== undefined ? fromX * UNIT : x;
     const startZ = fromSub ? dir * 1.0 : fromOctopus ? 0 : -dir * MUZZLE_Z;
-    const endZ = ['collision', 'whale', 'sub', 'ice', 'octopus', 'medkit'].includes(target) ? 0 : target === 'shark' ? zOf(owner) * FIN_Z : zOf(owner) * HIT_SHIP_Z;
+    const endZ = ['collision', 'whale', 'sub', 'ice', 'octopus', 'medkit', 'gull'].includes(target) ? 0 : target === 'squid' ? zOf(owner) * 3 : target === 'shark' ? zOf(owner) * FIN_Z : zOf(owner) * HIT_SHIP_Z;
     const finalZ = target === 'miss' ? zOf(owner) * OUT_Z : endZ;
     const flight = ((Math.abs(endZ - startZ) + (target === 'whale' ? Math.abs(zOf(owner) * HIT_SHIP_Z - endZ) : 0)) / SPEED) * 1000;
 
@@ -1065,6 +1285,8 @@ export function createScene(container) {
     else if (b.target === 'sub') { clash(V(b.x, 0.9, 0)); sub.hitT = 0.5; }
     else if (b.target === 'octopus') { clash(V(b.x, 0.8, 0)); shake(0.12, 0.25); }
     else if (b.target === 'medkit') medkitCollect();
+    else if (b.target === 'gull') gullShot();
+    else if (b.target === 'squid') squidBlock();
     else if (b.target === 'ice') { clash(V(b.x, 0.9, 0)); iceBreak(b.ice); }
     else clash(p);
   }
@@ -1173,6 +1395,7 @@ export function createScene(container) {
     last = now;
     if (!container.clientWidth) return;
     time += dt;
+    for (const hook of frameHooks) hook(dt, time);
 
     // Tiempo atmosférico
     lightning = Math.max(0, lightning - dt * 3.5);
@@ -1391,6 +1614,6 @@ export function createScene(container) {
     return best;
   }
 
-  Object.assign(api, { setHealth, setCannons, setCannonLabels, setShipLevel, pickFlag, subMove, subLeave, iceShow, iceClear, octopusShow, octopusSpin, octopusLeave, medkitShow, medkitLeave, dud, labelCannon, moveFin, moveShip, fire, label, trackLabel, trackPoint, trackShip, setWeather, setFlag, SHIP_Z });
+  Object.assign(api, { setHealth, setCannons, setCannonLabels, setShipLevel, pickFlag, subMove, subLeave, iceShow, iceClear, octopusShow, octopusSpin, octopusLeave, medkitShow, medkitLeave, gullFly, gullLeave, squidShow, squidLeave, heliSupport, dud, labelCannon, moveFin, moveShip, fire, label, trackLabel, trackPoint, trackShip, setWeather, setFlag, SHIP_Z });
   return api;
 }

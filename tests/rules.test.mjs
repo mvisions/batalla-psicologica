@@ -10,6 +10,7 @@ function setup({ round = 1, a, b, hp0 }) {
   room.hp[1].ship = room.maxShipHp[1];
   room.round = round;
   room.medkitMatch = false;
+  room.wildlife = false;
   if (hp0) room.hp[0].ship = hp0;
   const [p0, p1] = room.players;
   Object.assign(p0, { attack: a.attack, defense: a.defense, wave: a.wave });
@@ -266,4 +267,60 @@ test('con lluvia hay dos icebergs y la bala que da a uno lo destruye', () => {
     }
   }
   assert.ok(destruidos > 0);
+});
+
+test('la gaviota cruza de izquierda a derecha y da 15 de vida a quien la derriba', () => {
+  const room = setup({ round: 13, a: { attack: [1, 2, 3, 4], defense: seq(4) }, b: { attack: seq(4), defense: seq(4) }, hp0: 50 });
+  room.wildlife = true;
+  const { events } = resolveRound(room);
+  assert.equal(events[0].gull.x, -3);
+  assert.equal(events[0].shots.find((s) => s.from === 0).target, 'gull');
+  assert.equal(events[0].heal[0], 15);
+  assert.equal(events[1].gull, null);
+});
+
+test('el calamar sale una ronda sí y otra no', () => {
+  const run = (round) => {
+    const room = setup({ round, a: { attack: seq(1), defense: seq(4) }, b: { attack: seq(4), defense: seq(4) } });
+    room.wildlife = true;
+    return resolveRound(room).events.some((e) => e.squid);
+  };
+  assert.equal(run(3), true);
+  assert.equal(run(4), false);
+});
+
+test('el calamar solo detiene una bala al más perjudicado y solo fuera del agua', () => {
+  let blockedRuns = 0, downRuns = 0;
+  for (let n = 0; n < 400; n++) {
+    const room = setup({ round: 11, a: { attack: seq(4), defense: seq(1) }, b: { attack: seq(3), defense: seq(3) } });
+    room.wildlife = true;
+    room.hp[1].ship = 40; // el jugador 1 es el más perjudicado
+    const { events } = resolveRound(room);
+    let blocked = false;
+    for (const ev of events) {
+      const shot = ev.shots.find((s) => s.from === 0);
+      const squid = ev.squid;
+      if (squid) assert.equal(squid.owner, 1);
+      const expected = Boolean(squid && squid.up && squid.x === 3 && !blocked && shot.target !== 'gull');
+      if (shot.target === 'squid') { assert.ok(expected); blocked = true; blockedRuns++; }
+      else if (squid && !squid.up && squid.x === 3 && shot.target !== 'gull') { assert.equal(shot.target, 'ship'); downRuns++; }
+      if (blocked) assert.ok(!events[events.indexOf(ev) + 1]?.squid);
+    }
+  }
+  assert.ok(blockedRuns > 0 && downRuns > 0);
+});
+
+test('el helicóptero pedido con 5 de vida suelta un botiquín de 15 al inicio de la ronda', () => {
+  const room = setup({ round: 4, a: { attack: seq(4), defense: seq(4) }, b: { attack: seq(4), defense: seq(4) }, hp0: 5 });
+  room.players[0].heli = true;
+  const { events } = resolveRound(room);
+  assert.deepEqual(events[0].heli, [{ owner: 0 }]);
+  assert.equal(room.hp[0].ship, 20);
+  assert.equal(room.players[0].heli, false);
+});
+
+test('sin pedirlo el helicóptero no acude', () => {
+  const room = setup({ round: 4, a: { attack: seq(4), defense: seq(4) }, b: { attack: seq(4), defense: seq(4) }, hp0: 5 });
+  const { events } = resolveRound(room);
+  assert.equal(events[0].heli, undefined);
 });
