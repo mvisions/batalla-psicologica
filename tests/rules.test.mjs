@@ -289,18 +289,19 @@ test('el calamar sale una ronda sí y otra no', () => {
   assert.equal(run(4), false);
 });
 
-test('el calamar solo detiene una bala al más perjudicado y solo fuera del agua', () => {
+test('el calamar fuera del agua detiene cualquier bala y bajo el agua la deja pasar', () => {
   let blockedRuns = 0, downRuns = 0;
   for (let n = 0; n < 400; n++) {
     const room = setup({ round: 11, a: { attack: seq(4), defense: seq(1) }, b: { attack: seq(3), defense: seq(3) } });
     room.wildlife = true;
-    room.hp[1].ship = 40; // el jugador 1 es el más perjudicado
+    const weak = n % 2; // alterna cuál de los dos jugadores es el más perjudicado
+    room.hp[weak].ship = 40;
     const { events } = resolveRound(room);
     let blocked = false;
     for (const ev of events) {
       const shot = ev.shots.find((s) => s.from === 0);
       const squid = ev.squid;
-      if (squid) assert.equal(squid.owner, 1);
+      if (squid) assert.equal(squid.owner, weak);
       const expected = Boolean(squid && squid.up && squid.x === 3 && !blocked && shot.target !== 'gull');
       if (shot.target === 'squid') { assert.ok(expected); blocked = true; blockedRuns++; }
       else if (squid && !squid.up && squid.x === 3 && shot.target !== 'gull') { assert.equal(shot.target, 'ship'); downRuns++; }

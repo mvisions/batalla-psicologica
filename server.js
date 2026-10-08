@@ -360,7 +360,7 @@ function resolveRound(room) {
         }
         else if (gullX !== null && gullAlive && x === gullX) { target = 'gull'; gullAlive = false; heal[from] += 15; }
         else if (whaleX !== null && x === whaleX) { target = 'whale'; owner = from; } // la orca rebota la bala contra el barco que disparó
-        else if (squidUp && squidAlive && other === squidOwner && x === squidX) { target = 'squid'; owner = other; squidAlive = false; ev.squid.blocked = true; }
+        else if (squidUp && squidAlive && x === squidX) { target = 'squid'; owner = squidOwner; squidAlive = false; ev.squid.blocked = true; }
         else if (sharkAt(other)) { target = 'shark'; owner = other; }
         else if (Math.abs(x - pos[other]) <= 4) { target = 'ship'; owner = other; }
         else { target = 'miss'; owner = other; }
