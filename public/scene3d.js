@@ -123,7 +123,7 @@ export function createScene(container) {
   let flashIdx = 0;
 
   // ---------- Agua ----------
-  const WAVE = `uniform float uStorm; uniform float uRough;
+  const WAVE = `uniform float uStorm; uniform float uRough; uniform float uRiver;
     float wave(vec2 p){ float a = 1. + uStorm*.9 + uRough*1.7;
       float swell = sin(p.x*.55+uTime*1.1)*.13 + sin(p.y*.8-uTime*1.4)*.1;
       float chop = sin((p.x+p.y)*1.2+uTime*1.9)*.05 + sin((p.x-p.y)*2.1-uTime*2.4)*.025;
@@ -131,7 +131,7 @@ export function createScene(container) {
       return a*(swell + chop + ripples); }`;
   const waterMat = new THREE.ShaderMaterial({
     transparent: true, depthWrite: false,
-    uniforms: { uTime: { value: 0 }, uStorm: { value: 0 }, uRough: { value: 0 }, uSun: { value: new THREE.Vector3(-0.5, 0.7, 0.4).normalize() } },
+    uniforms: { uTime: { value: 0 }, uStorm: { value: 0 }, uRough: { value: 0 }, uRiver: { value: 0 }, uSun: { value: new THREE.Vector3(-0.5, 0.7, 0.4).normalize() } },
     vertexShader: `uniform float uTime; varying vec3 vW; varying float vH; ${WAVE}
       void main(){ vec4 w = modelMatrix*vec4(position,1.); float h = wave(w.xz); w.y += h; vH = h; vW = w.xyz; gl_Position = projectionMatrix*viewMatrix*w; }`,
     fragmentShader: `uniform float uTime; uniform vec3 uSun; varying vec3 vW; varying float vH; ${WAVE}
@@ -143,6 +143,7 @@ export function createScene(container) {
         vec3 V = normalize(cameraPosition - vW);
         float fres = pow(1. - max(dot(n,V),0.), 3.);
         vec3 col = mix(vec3(.01,.13,.30), vec3(.06,.44,.64), .5 + vH*1.6);
+        col = mix(col, mix(vec3(.05,.17,.07), vec3(.24,.44,.15), .5 + vH*1.6), uRiver);
         col = mix(col, vec3(.12,.2,.27), uStorm*.55);
         col = mix(col, vec3(.62,.8,.94)*(1.-uStorm*.5), fres*.65);
         vec3 R = reflect(-uSun, n);
@@ -704,7 +705,14 @@ export function createScene(container) {
 
   // Tiempo según la ronda: lluvia cada 5, oleaje cada 6 y ballena extra cada 7
   let stormOn = false, roughOn = false, whaleOn = false, snowOn = false, lightningOn = false, fogOn = false, snowAmount = 0;
+  let riverOn = false;
   function setWeather(round) {
+    const rv = round >= 20;
+    if (rv !== riverOn) {
+      riverOn = rv;
+      const from = waterMat.uniforms.uRiver.value, to = rv ? 1 : 0;
+      tween(1800, (t) => { waterMat.uniforms.uRiver.value = from + (to - from) * t; }, easeInOut);
+    }
     const st = round % 5 === 0 && round !== 15, ro = round % 6 === 0, wh = round % 7 === 0;
     const sn = round === 15, bolt = round === 25, fg = round === 35;
     if (wh !== whaleOn) { whaleOn = wh; wh ? whaleArrive() : whaleLeave(); }
@@ -1120,7 +1128,7 @@ export function createScene(container) {
     for (let i = 0; i < 10; i++) spawn({ pos: V(x + rnd(-0.4, 0.4), 0.05, z + rnd(-0.4, 0.4)), tex: glowTex, vel: V(rnd(-0.2, 0.2), rnd(0.6, 1.6), rnd(-0.2, 0.2)), life: rnd(0.6, 1.1), s0: 0.22, s1: 0.1, color: 0xcfeeff, op: 0.85 });
   }
   async function squidShow(wx, up, owner) {
-    const s = squid, z = zOf(owner) * 3;
+    const s = squid, z = zOf(owner) * 11; // pegado a su barco
     if (s.up) {
       const y0 = s.g.position.y;
       await tween(320, (t) => { s.g.position.y = y0 - 2.4 * t; }, easeIn);
@@ -1156,6 +1164,65 @@ export function createScene(container) {
     s.skin.emissive.setHex(0xffffff);
     const y0 = s.g.position.y;
     tween(450, (t) => { s.g.rotation.z = Math.sin(t * Math.PI * 5) * 0.2 * (1 - t); s.skin.emissive.lerpColors(new THREE.Color(0xffffff), new THREE.Color(0x3a0a05), t); s.g.position.y = y0 + Math.sin(t * Math.PI) * 0.4; }).then(() => { s.g.rotation.z = 0; });
+  }
+
+  // ---------- Tronco con ramas (desde la ronda 20): bloquea los disparos de ambos lados ----------
+  const logObj = (() => {
+    const g = new THREE.Group();
+    const bark = new THREE.MeshStandardMaterial({ color: 0x5b4030, roughness: 0.95, flatShading: true });
+    const wood = new THREE.MeshStandardMaterial({ color: 0xc8a06a, roughness: 0.8 });
+    const leaf = new THREE.MeshStandardMaterial({ color: 0x3f7d2a, roughness: 0.8, flatShading: true });
+    const trunkGeo = new THREE.CylinderGeometry(0.55, 0.62, 5.6, 12, 6).rotateX(Math.PI / 2);
+    const pp = trunkGeo.attributes.position;
+    for (let i = 0; i < pp.count; i++) { const k = rnd(0.92, 1.08); pp.setX(i, pp.getX(i) * k); pp.setY(i, pp.getY(i) * k); }
+    trunkGeo.computeVertexNormals();
+    g.add(new THREE.Mesh(trunkGeo, bark));
+    for (const z of [-2.82, 2.82]) {
+      const cap = new THREE.Mesh(new THREE.CircleGeometry(0.52, 12), wood);
+      cap.position.z = z; cap.rotation.y = z > 0 ? 0 : Math.PI; g.add(cap);
+    }
+    [[-1.4, 1, 1.0], [0.6, -1, 1.2], [1.8, 1, 0.8]].forEach(([z, side, len]) => {
+      const stick = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.15, len + 0.5, 6), bark);
+      stick.position.set(side * (len * 0.45 + 0.3), 0.55, z); stick.rotation.z = -side * 0.95; g.add(stick);
+      const tuft = new THREE.Mesh(new THREE.IcosahedronGeometry(0.38, 0), leaf);
+      tuft.position.set(side * (len * 0.9 + 0.6), 1.15, z); g.add(tuft);
+    });
+    g.visible = false; g.scale.setScalar(0.01); scene.add(g);
+    const s = { g, present: false, x: 0, hitT: 0 };
+    frameHooks.push((dt, t) => {
+      if (!s.present) return;
+      g.position.y = 0.05 + Math.sin(t * 2.1) * 0.07;
+      g.rotation.z = Math.sin(t * 1.5) * 0.05 + s.hitT * Math.sin(t * 40) * 0.08;
+      s.hitT = Math.max(0, s.hitT - dt * 2.5);
+    });
+    return s;
+  })();
+  async function logShow(wx) {
+    const s = logObj;
+    if (!s.present) {
+      s.present = true; s.x = wx; s.g.position.set(wx, 0.05, 0); s.g.rotation.y = rnd(-0.12, 0.12);
+      s.g.scale.setScalar(0.01); s.g.visible = true;
+      ripple(wx, 0, 4.5);
+      await tween(600, (t) => { s.g.scale.setScalar(0.01 + 0.99 * t); }, easeOut);
+    } else if (s.x !== wx) {
+      const from = s.x; s.x = wx;
+      ripple(from, 0, 3);
+      await tween(700, (t) => { s.g.position.x = from + (wx - from) * t; }, easeInOut);
+    }
+  }
+  async function logLeave() {
+    const s = logObj;
+    if (!s.present) return;
+    s.present = false;
+    ripple(s.x, 0, 4);
+    await tween(450, (t) => { s.g.scale.setScalar(Math.max(0.01, 1 - t)); }, easeIn);
+    s.g.visible = false;
+  }
+  function logHit(x) {
+    const p = V(x, 0.8, 0);
+    clash(p); shake(0.1, 0.25); logObj.hitT = 1;
+    for (let i = 0; i < 10; i++) spawn({ pos: p, tex: smokeTex, vel: V(rnd(-2, 2), rnd(1, 3.5), rnd(-2, 2)), grav: 7, life: rnd(0.5, 0.9), s0: 0.14, s1: 0.1, color: 0xc8a06a, op: 0.95 });
+    sparks(p, 8, 4, 0xc8a06a);
   }
 
   const heli = (() => {
@@ -1237,7 +1304,7 @@ export function createScene(container) {
     const x = xu !== undefined ? xu * UNIT : LANE_X[lane - 1], y = fromSub ? 0.9 : 1.3;
     const startX = fromOctopus && fromX !== undefined ? fromX * UNIT : x;
     const startZ = fromSub ? dir * 1.0 : fromOctopus ? 0 : -dir * MUZZLE_Z;
-    const endZ = ['collision', 'whale', 'sub', 'ice', 'octopus', 'medkit', 'gull'].includes(target) ? 0 : target === 'squid' ? zOf(owner) * 3 : target === 'shark' ? zOf(owner) * FIN_Z : zOf(owner) * HIT_SHIP_Z;
+    const endZ = ['collision', 'whale', 'sub', 'ice', 'octopus', 'medkit', 'gull', 'log'].includes(target) ? 0 : target === 'squid' ? zOf(owner) * 11 : target === 'shark' ? zOf(owner) * FIN_Z : zOf(owner) * HIT_SHIP_Z;
     const finalZ = target === 'miss' ? zOf(owner) * OUT_Z : endZ;
     const flight = ((Math.abs(endZ - startZ) + (target === 'whale' ? Math.abs(zOf(owner) * HIT_SHIP_Z - endZ) : 0)) / SPEED) * 1000;
 
@@ -1279,6 +1346,7 @@ export function createScene(container) {
     else if (b.target === 'octopus') { clash(V(b.x, 0.8, 0)); shake(0.12, 0.25); }
     else if (b.target === 'medkit') medkitCollect();
     else if (b.target === 'gull') gullShot();
+    else if (b.target === 'log') logHit(b.x);
     else if (b.target === 'squid') squidBlock();
     else if (b.target === 'ice') { clash(V(b.x, 0.9, 0)); iceBreak(b.ice); }
     else clash(p);
@@ -1607,6 +1675,6 @@ export function createScene(container) {
     return best;
   }
 
-  Object.assign(api, { setHealth, setCannons, setCannonLabels, setShipLevel, pickFlag, subMove, subLeave, iceShow, iceClear, octopusShow, octopusSpin, octopusLeave, medkitShow, medkitLeave, gullFly, gullLeave, squidShow, squidLeave, heliSupport, dud, labelCannon, moveFin, moveShip, fire, label, trackLabel, trackPoint, trackShip, setWeather, setFlag, SHIP_Z });
+  Object.assign(api, { setHealth, setCannons, setCannonLabels, setShipLevel, pickFlag, subMove, subLeave, iceShow, iceClear, octopusShow, octopusSpin, octopusLeave, medkitShow, medkitLeave, gullFly, gullLeave, logShow, logLeave, squidShow, squidLeave, heliSupport, dud, labelCannon, moveFin, moveShip, fire, label, trackLabel, trackPoint, trackShip, setWeather, setFlag, SHIP_Z });
   return api;
 }

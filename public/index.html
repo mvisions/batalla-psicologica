@@ -206,7 +206,7 @@
         <li>Si rompes un cañón rival, recuperas 5 de vida.</li>
       </ul>
       <table>
-        <tr><td>Cada 4</td><td>Ronda doble: el daño es x2.</td></tr>
+        <tr><td>Cada 4 y desde la 36</td><td>Ronda doble: el daño es x2.</td></tr>
         <tr><td>Cada 5 salvo la 15</td><td>Lluvia: los tiburones se van con paraguas, no hay defensa y aparecen dos icebergs a la deriva. La primera bala que da a un iceberg lo destruye.</td></tr>
         <tr><td>Cada 6</td><td>Oleaje: mueves tu barco con las flechas del mar (hasta 4 movimientos). Si el rival se mueve, tu bala puede fallar.</td></tr>
         <tr><td>Cada 7</td><td>Llega una orca al centro del mar en un sitio al azar. Rebota las balas contra el barco que disparó.</td></tr>
@@ -818,7 +818,7 @@ $('tutorialClose').onclick = () => {
 function badge(n) {
   const el = $('x2');
   const lines = [];
-  if (n % 4 === 0) lines.push(`RONDA ${n} x2`);
+  if (n % 4 === 0 || n >= 36) lines.push(`RONDA ${n} x2`);
   if (n % 5 === 0 && n !== 15) lines.push('LLUVIA · ICEBERGS');
   if (n % 6 === 0) lines.push('OLEAJE');
   if (n % 7 === 0) lines.push('BALLENA EXTRA');
@@ -1177,7 +1177,7 @@ async function playRound(r, replay = false) {
   playing = true; if (!replay) heliAsked = false; renderHeli();
   tutorialUnlimited = !!r.tutorial;
   renderWave();
-  badge(r.round - 1);
+  $('x2').style.display = 'none'; // el cartel solo se ve al elegir la secuencia
   clearInterval(cd);
   showInputs(false); $('lastRound').classList.add('hidden');
   const me = pid, op = 1 - pid;
@@ -1186,7 +1186,7 @@ async function playRound(r, replay = false) {
   const side = (n) => (n === me ? 'me' : 'op');
   if (r.levels) { scene.setShipLevel('me', r.levels[me]); scene.setShipLevel('op', r.levels[op]); }
   const impactSfx = (t) => (t === 'ship' || t === 'whale' ? 'bomb' : t === 'shark' ? 'splash' : t === 'gull' ? 'gull' : 'clash');
-  let subOn = false, octopusOn = false, medkitOn = false, gullOn = false, squidOn = false;
+  let subOn = false, octopusOn = false, medkitOn = false, gullOn = false, squidOn = false, logOn = false;
   for (const ev of r.events) {
     const slotEnd = Date.now() + SHOT_MS;
     $('msg').textContent = `Disparo ${ev.step + 1}/4`;
@@ -1200,9 +1200,10 @@ async function playRound(r, replay = false) {
       ...(ev.medkit ? [scene.medkitShow(ev.medkit.x * 1.5)] : medkitOn ? [scene.medkitLeave()] : []),
       ...(ev.gull ? [scene.gullFly(ev.gull.x * 1.5)] : gullOn ? [scene.gullLeave()] : []),
       ...(ev.squid ? [scene.squidShow(ev.squid.x * 1.5, ev.squid.up, side(ev.squid.owner))] : squidOn ? [scene.squidLeave()] : []),
+      ...(ev.log ? [scene.logShow(ev.log.x * 1.5)] : logOn ? [scene.logLeave()] : []),
       ...(ev.ice ? ev.ice.map((x, id) => (x === null ? Promise.resolve() : scene.iceShow(id, x * 1.5))) : []),
     ]);
-    subOn = !!ev.sub; octopusOn = !!ev.octopus; medkitOn = !!ev.medkit; gullOn = !!ev.gull; squidOn = !!ev.squid;
+    subOn = !!ev.sub; octopusOn = !!ev.octopus; medkitOn = !!ev.medkit; gullOn = !!ev.gull; squidOn = !!ev.squid; logOn = !!ev.log;
     const impacts = ev.shots.map(async (s) => {
       if (s.target === 'broken' || s.target === 'blocked') { scene.dud(side(s.from), s.lane); sfx('dud'); return Promise.resolve(); }
       const f = scene.fire({ from: side(s.from), x: s.x, lane: s.lane, target: s.target, ice: s.ice, owner: s.owner === undefined ? null : side(s.owner) });
@@ -1237,7 +1238,7 @@ async function playRound(r, replay = false) {
     showCannonRepair(prevC, ev.cannons, me, op);
     await wait(Math.max(0, slotEnd - Date.now()));
   }
-  scene.subLeave(); scene.octopusLeave(); scene.medkitLeave(); scene.gullLeave(); scene.squidLeave(); scene.iceClear();
+  scene.subLeave(); scene.octopusLeave(); scene.medkitLeave(); scene.gullLeave(); scene.squidLeave(); scene.logLeave(); scene.iceClear();
   setHp(r.hp, r.maxShipHp);
   { const before = lastCan; setCannons(r.cannons); showCannonRepair(before, r.cannons, me, op); }
   playing = false;

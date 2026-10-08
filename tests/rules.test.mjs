@@ -269,14 +269,20 @@ test('con lluvia hay dos icebergs y la bala que da a uno lo destruye', () => {
   assert.ok(destruidos > 0);
 });
 
-test('la gaviota cruza de izquierda a derecha y da 15 de vida a quien la derriba', () => {
-  const room = setup({ round: 13, a: { attack: [1, 2, 3, 4], defense: seq(4) }, b: { attack: seq(4), defense: seq(4) }, hp0: 50 });
-  room.wildlife = true;
-  const { events } = resolveRound(room);
-  assert.equal(events[0].gull.x, -3);
-  assert.equal(events[0].shots.find((s) => s.from === 0).target, 'gull');
-  assert.equal(events[0].heal[0], 15);
-  assert.equal(events[1].gull, null);
+test('la gaviota vuela a un carril al azar y da 15 de vida a quien la derriba', () => {
+  let hits = 0;
+  for (let n = 0; n < 300; n++) {
+    const room = setup({ round: 13, a: { attack: [1, 2, 3, 4], defense: seq(4) }, b: { attack: seq(4), defense: seq(4) }, hp0: 50 });
+    room.wildlife = true;
+    const { events } = resolveRound(room);
+    let down = false;
+    for (const ev of events) {
+      if (down) assert.equal(ev.gull, null);
+      const shot = ev.shots.find((s) => s.from === 0);
+      if (shot.target === 'gull') { hits++; down = true; assert.equal(shot.x, ev.gull.x); assert.ok(ev.heal[0] >= 15); }
+    }
+  }
+  assert.ok(hits > 0);
 });
 
 test('el calamar sale una ronda sí y otra no', () => {
@@ -324,4 +330,45 @@ test('sin pedirlo el helicóptero no acude', () => {
   const room = setup({ round: 4, a: { attack: seq(4), defense: seq(4) }, b: { attack: seq(4), defense: seq(4) }, hp0: 5 });
   const { events } = resolveRound(room);
   assert.equal(events[0].heli, undefined);
+});
+
+test('desde la ronda 20 el tronco bloquea los disparos de ambos lados', () => {
+  let withLog = 0;
+  for (let n = 0; n < 300; n++) {
+    const room = setup({ round: 22, a: { attack: [1, 2, 3, 4], defense: seq(2) }, b: { attack: [4, 3, 2, 1], defense: seq(2) } });
+    room.wildlife = true;
+    const { events } = resolveRound(room);
+    for (const ev of events) {
+      if (!ev.log) continue;
+      withLog++;
+      for (const shot of ev.shots) if (shot.x === ev.log.x && shot.target !== 'broken' && !(shot.target === 'shark' && shot.owner === shot.from)) assert.equal(shot.target, 'log');
+    }
+  }
+  assert.ok(withLog > 0);
+});
+
+test('antes de la ronda 20 no hay troncos', () => {
+  const room = setup({ round: 19, a: { attack: seq(1), defense: seq(2) }, b: { attack: seq(4), defense: seq(2) } });
+  room.wildlife = true;
+  assert.ok(resolveRound(room).events.every((ev) => !ev.log));
+});
+
+test('desde la ronda 36 todas las rondas son x2', () => {
+  const room = setup({ round: 37, a: { attack: seq(4), defense: seq(2) }, b: { attack: seq(2), defense: seq(2) } });
+  resolveRound(room);
+  assert.equal(room.hp[1].ship, 105 - 4 * 10);
+});
+
+test('si ambos alcanzan la gaviota, la vida es para quien envió antes la secuencia', () => {
+  let both = 0;
+  for (let n = 0; n < 400; n++) {
+    const room = setup({ round: 13, a: { attack: seq(1), defense: seq(2) }, b: { attack: seq(1), defense: seq(2) } });
+    room.wildlife = true;
+    room.players[0].submittedAt = 2; room.players[1].submittedAt = 1;
+    const { events } = resolveRound(room);
+    for (const ev of events) {
+      if (ev.shots.length === 2 && ev.shots.every((s) => s.target === 'gull')) { both++; assert.equal(ev.heal[1], 15); assert.equal(ev.heal[0], 0); }
+    }
+  }
+  assert.ok(both > 0);
 });
