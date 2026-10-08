@@ -883,7 +883,7 @@ function connect() {
 }
 
 // Botones: revancha, volver al menú, frases rápidas y repetición de la última ronda
-$('menu').onclick = () => { localStorage.removeItem('game'); location.href = '/'; };
+$('menu').onclick = () => { localStorage.removeItem('game'); location.href = './'; };
 $('rematch').onclick = async () => {
   try { await post('/api/rematch', { room, pid, key }); $('rematch').disabled = true; $('msg').textContent = 'Esperando la revancha...'; }
   catch (e) { $('msg').textContent = e.message; }
