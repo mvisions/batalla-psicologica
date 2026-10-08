@@ -65,9 +65,13 @@
   .wbtn:active { transform: translate(-50%, -50%) scale(.92); }
   .wbtn:disabled { opacity: .45; }
   .wbtn .num { position: absolute; top: -2px; left: 50%; transform: translateX(-50%); }
-  .cbtn i, .wbtn i { position: absolute; bottom: -15px; left: 50%; transform: translateX(-50%); font-style: normal; font-size: 11px; background: #000a;
+  .bbtn { position: absolute; z-index: 7; width: 46px; height: 46px; margin: 0; padding: 0; border-radius: 50%; color: #fff; font-size: 20px; font-weight: 900;
+    background: #9d2525dd; border: 2px solid #ff8a80; box-shadow: 0 0 10px #000a; }
+  .bbtn:active { transform: translate(-50%, -50%) scale(.9); }
+  .bbtn:disabled { opacity: .48; }
+  .cbtn i, .wbtn i, .bbtn i { position: absolute; bottom: -15px; left: 50%; transform: translateX(-50%); font-style: normal; font-size: 11px; background: #000a;
     border-radius: 6px; padding: 0 5px; white-space: nowrap; color: #ffd54f; font-weight: bold; }
-  .cbtn i:empty, .wbtn i:empty { display: none; }
+  .cbtn i:empty, .wbtn i:empty, .bbtn i:empty { display: none; }
   #msg { text-align: center; min-height: 22px; }
   .dmg { position: absolute; z-index: 9; transform: translate(-50%, -50%); text-align: center; font-weight: 900; line-height: 1; pointer-events: none;
     text-shadow: 0 0 6px #000, 0 0 12px #000; animation: dmgblink .45s steps(2, start) 6, dmgfloat 2.8s ease-out forwards; }
@@ -191,7 +195,7 @@
   <div id="help" class="modal hidden">
     <div class="panel">
       <h3>Cómo se juega</h3>
-      <p>Cada ronda eliges el orden de tus 4 cañones (ataque) y dónde pones tu tiburón en cada disparo (defensa). Hay 4 disparos de 5 segundos. Barco: 100 de vida. Tiburón: 50. Cada cañón: 25.</p>
+      <p>Cada ronda eliges el orden de tus 4 cañones (ataque) y dónde pones tu tiburón en cada disparo (defensa). Hay 4 disparos de 5 segundos. La vida máxima del barco aumenta 5 por nivel. Tiburón: 50. Cada cañón: 25.</p>
       <ul>
         <li>Si los dos disparan por el mismo sitio, las balas chocan y no hay daño.</li>
         <li>Una bala da al primer tiburón que encuentra en su camino; si no, da al barco.</li>
@@ -200,12 +204,16 @@
       </ul>
       <table>
         <tr><td>Cada 4</td><td>Ronda doble: el daño es x2.</td></tr>
-        <tr><td>Cada 5</td><td>Lluvia: los tiburones se van con paraguas, no hay defensa y aparecen dos icebergs a la deriva. La primera bala que da a un iceberg lo destruye.</td></tr>
+        <tr><td>Cada 5 salvo la 15</td><td>Lluvia: los tiburones se van con paraguas, no hay defensa y aparecen dos icebergs a la deriva. La primera bala que da a un iceberg lo destruye.</td></tr>
         <tr><td>Cada 6</td><td>Oleaje: mueves tu barco con las flechas del mar (hasta 4 movimientos). Si el rival se mueve, tu bala puede fallar.</td></tr>
         <tr><td>Cada 7</td><td>Llega una orca al centro del mar en un sitio al azar. Rebota las balas contra el barco que disparó.</td></tr>
+        <tr><td>Cada 10</td><td>Elige en orden cuatro cañones rivales para bloquear; esos disparos no salen.</td></tr>
         <tr><td>Cada 3</td><td>Un submarino cruza el centro y dispara a un lado al azar en los 3 primeros disparos. Si tu bala le da, recuperas 5 de vida y el cañón que disparó repara 5, hasta 25.</td></tr>
+        <tr><td>Ronda 15</td><td>Nevada sobre el mar.</td></tr>
+        <tr><td>Ronda 25</td><td>Caen rayos sobre el campo de batalla.</td></tr>
+        <tr><td>Ronda 35</td><td>La niebla cubre el mar.</td></tr>
         <tr><td>Ronda 2</td><td>Un pulpo intercepta un disparo en su canal, gira con las patas abiertas y lo devuelve por uno de los otros tres canales contra el rival.</td></tr>
-        <tr><td>Desde la ronda 3</td><td>En una de cada tres partidas aparece un botiquín en las rondas 3, 6, 9… Recorre los cuatro canales; si lo alcanzas, recuperas 40 de vida para el barco, hasta 100.</td></tr>
+        <tr><td>Desde la ronda 3</td><td>En una de cada tres partidas aparece un botiquín en las rondas 3, 6, 9… Recorre los cuatro canales; si lo alcanzas, recuperas 40 de vida para el barco, hasta el máximo de tu nivel.</td></tr>
       </table>
       <button id="helpClose" type="button">Cerrar</button>
     </div>
@@ -320,13 +328,13 @@ const API_BASE_URL = String(APP_CONFIG.apiBaseUrl || '').replace(/\/+$/, '');
 const apiUrl = (route) => `${API_BASE_URL}${route.startsWith('/') ? route : `/${route}`}`;
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 const SHOT_MS = 5000; // 4 disparos x 5 s = 20 s por tanda
-let room, pid, key, isBot = false, names = ['', ''], playing = false, lastHp = null, curRound = 1;
+let room, pid, key, isBot = false, names = ['', ''], playing = false, lastHp = null, lastMaxShipHp = [100, 100], curRound = 1, blockRound = false;
 let lastRound = null, endAt = 0, queue = Promise.resolve();
 let tutorialMode = false, tutorialStep = null, tutorialUnlimited = false;
 let isLeague = false, leagueCode = null, leaguePid = null, leagueKey = null, leaguePollTimer = null;
 let activeEvents = null, spectatorAbort = null, spectatorMode = false, spectatorLeague = null, watchedRoom = null;
 let matchmaking = null, matchmakingPollTimer = null;
-const isRain = () => curRound % 5 === 0;
+const isRain = () => curRound % 5 === 0 && curRound !== 15;
 const isSwell = () => curRound % 6 === 0;
 navigator.serviceWorker?.register('./sw.js').catch(() => {});
 
@@ -540,6 +548,7 @@ async function loadProfile() {
     const profile = await post('/api/profile', { session });
     $('profileStats').textContent = `Nivel ${profile.level} · ${profile.points} pts`;
     const key = profileLevelKey(), previous = localStorage.getItem(key), level = Number(profile.level) || 1;
+    scene.setShipLevel('me', level);
     if (previous !== null && level > Number(previous)) showLevelUp(level);
     localStorage.setItem(key, String(level));
   } catch { $('profileStats').textContent = ''; }
@@ -798,10 +807,14 @@ function badge(n) {
   const el = $('x2');
   const lines = [];
   if (n % 4 === 0) lines.push(`RONDA ${n} x2`);
-  if (n % 5 === 0) lines.push('LLUVIA · ICEBERGS');
+  if (n % 5 === 0 && n !== 15) lines.push('LLUVIA · ICEBERGS');
   if (n % 6 === 0) lines.push('OLEAJE');
   if (n % 7 === 0) lines.push('BALLENA EXTRA');
   if (n % 3 === 0) lines.push('SUBMARINO');
+  if (n === 15) lines.push('NIEVE');
+  if (n === 25) lines.push('RAYOS');
+  if (n === 35) lines.push('NIEBLA');
+  if (n % 10 === 0) lines.push('BLOQUEO DE CAÑONES');
   el.style.display = lines.length ? 'block' : 'none';
   el.style.textAlign = 'center';
   el.innerHTML = lines.join('<br>');
@@ -810,18 +823,22 @@ const promptMsg = () => {
   const notes = [];
   if (isRain()) notes.push('Llueve: los tiburones se han ido y aparecen icebergs; cada bala que da a uno lo destruye');
   if (isSwell()) notes.push('Mar agitado: elige también el oleaje de tu barco');
+  if (blockRound) notes.push('Elige cuatro cañones rivales para bloquear, en el orden de los disparos');
+  if (curRound === 15) notes.push('Nieva sobre el mar');
+  if (curRound === 25) notes.push('Caen rayos sobre el campo de batalla');
+  if (curRound === 35) notes.push('La niebla cubre el mar');
   if (curRound % 7 === 0) notes.push('La orca extra rebota las balas contra tu propio barco');
   if (curRound % 3 === 0) notes.push('Un submarino cruza el mar: si tu bala le da, recuperas 5 y repara 5 el cañón que disparó');
   return notes.length ? notes.join(' · ') : 'Toca los cañones (ataque) y los círculos de agua (defensa)';
 };
 // Prepara los controles para una nueva ronda
 function setupForm() {
-  atkSeq = []; defSeq = [];
+  atkSeq = []; defSeq = []; blockSeq = [];
   moves = []; submitted = false; scene.moveShip('me', 0); renderControls();
 }
 
 // Ataque = toques en los cañones; defensa = toques en los círculos de agua con peces (orden de posición del tiburón)
-let atkSeq = [], defSeq = [], inputsOn = false, sending = false;
+let atkSeq = [], defSeq = [], blockSeq = [], inputsOn = false, sending = false;
 const LANES = [-4.5, -1.5, 1.5, 4.5];
 function showInputs(on) {
   inputsOn = on;
@@ -844,9 +861,15 @@ function renderControls() {
     b.disabled = defSeq.length >= 4;
     b.querySelector('i').textContent = stepsOf(defSeq, l);
   });
+  document.querySelectorAll('.bbtn').forEach((b) => {
+    const l = Number(b.dataset.l);
+    b.classList.toggle('hidden', !inputsOn || !blockRound);
+    b.disabled = blockSeq.length >= 4;
+    b.querySelector('i').textContent = stepsOf(blockSeq, l);
+  });
   const fmtSeq = (s) => [0, 1, 2, 3].map((i) => s[i] ?? '–').join(' ');
-  $('seqTxt').textContent = `Ataque ${brokenAll ? 'sin cañones' : fmtSeq(atkSeq)}${isRain() ? '' : ` · Defensa ${fmtSeq(defSeq)}`}`;
-  const done = (atkSeq.length === 4 || brokenAll) && (isRain() || defSeq.length === 4) && (!isSwell() || moves.length === 4);
+  $('seqTxt').textContent = `Ataque ${brokenAll ? 'sin cañones' : fmtSeq(atkSeq)}${isRain() ? '' : ` · Defensa ${fmtSeq(defSeq)}`}${blockRound ? ` · Bloqueo ${fmtSeq(blockSeq)}` : ''}`;
+  const done = (atkSeq.length === 4 || brokenAll) && (isRain() || defSeq.length === 4) && (!isSwell() || moves.length === 4) && (!blockRound || blockSeq.length === 4);
   if (tutorialMode && tutorialStep === 'attack' && (atkSeq.length === 4 || brokenAll)) setTutorialStep(isRain() ? 'watch' : 'defense');
   else if (tutorialMode && tutorialStep === 'defense' && defSeq.length === 4) setTutorialStep(isSwell() ? 'wave' : 'watch');
   else if (tutorialMode && tutorialStep === 'wave' && moves.length === 4) setTutorialStep('watch');
@@ -862,6 +885,10 @@ function pressWater(l) {
   if (defSeq.length >= 4) return;
   defSeq.push(l); scene.moveFin('me', l); renderControls();
 }
+function pressBlock(l) {
+  if (blockSeq.length >= 4) return;
+  blockSeq.push(l); renderControls();
+}
 for (let l = 1; l <= 4; l++) {
   const c = document.createElement('button');
   c.type = 'button'; c.className = 'cbtn hidden'; c.dataset.l = l; c.innerHTML = `${l}<i></i>`; c.title = `Cañón ${l}`;
@@ -871,6 +898,10 @@ for (let l = 1; l <= 4; l++) {
   w.type = 'button'; w.className = 'wbtn hidden'; w.dataset.l = l; w.innerHTML = `<span class="num">${l}</span><i></i>`; w.title = `Poner el tiburón en el carril ${l}`;
   w.onclick = () => pressWater(l);
   $('arena').appendChild(w); scene.trackPoint(w, LANES[l - 1], 0.1, scene.SHIP_Z - 4.2);
+  const b = document.createElement('button');
+  b.type = 'button'; b.className = 'bbtn hidden'; b.dataset.l = l; b.innerHTML = `${l}<i></i>`; b.title = `Bloquear el cañón rival ${l}`;
+  b.onclick = () => pressBlock(l);
+  $('arena').appendChild(b); scene.trackShip(b, 'op', LANES[l - 1], 1.9, -scene.SHIP_Z);
 }
 
 // Oleaje: las flechas del mar mueven el barco y cada pulsación queda como un movimiento de la secuencia
@@ -915,7 +946,7 @@ function connect() {
     if (playing) return; // una reconexión durante la animación no debe romperla
     tutorialUnlimited = !!s.tutorial;
     if (tutorialMode && !tutorialStep) setTutorialStep(s.submitted ? 'watch' : 'attack');
-    inputMs = s.inputMs; curRound = s.round; $('round').textContent = s.round; badge(s.round); setNames(s.names, s.countries); setHp(s.hp); setCannons(s.cannons); scene.setWeather(s.round); setupForm();
+    inputMs = s.inputMs; curRound = s.round; blockRound = !!s.blockRound; $('round').textContent = s.round; badge(s.round); setNames(s.names, s.countries, s.levels); setHp(s.hp, s.maxShipHp); setCannons(s.cannons); scene.setWeather(s.round); setupForm();
     $('invite').classList.add('hidden');
     if (s.over) {
       document.body.dataset.over = 1; showInputs(false);
@@ -958,11 +989,11 @@ $('rematch').onclick = async () => {
 });
 $('replay').onclick = () => { if (lastRound && !playing) queue = queue.then(() => playRound(lastRound.r, true)).catch(console.error); };
 function showLastRound(r, me, op) {
-  const f = (s) => `ataque ${s.attack.join('')} · defensa ${s.defense.join('')}` + (s.wave ? ` · oleaje ${s.wave.map((m) => (m === 1 ? '▶' : m === 2 ? '◀' : '●')).join(' ')}` : '');
+  const f = (s) => `ataque ${s.attack.join('')} · defensa ${s.defense.join('')}` + (s.wave ? ` · oleaje ${s.wave.map((m) => (m === 1 ? '▶' : m === 2 ? '◀' : '●')).join(' ')}` : '') + (s.block ? ` · bloqueo ${s.block.join('')}` : '');
   $('lrTxt').innerHTML = `Tú: ${f(r.seqs[me])}<br>Rival: ${f(r.seqs[op])}`;
   $('lastRound').classList.remove('hidden');
 }
-function setNames(n, countries = ['un', 'un']) {
+function setNames(n, countries = ['un', 'un'], levels = [1, 1]) {
   names = n; const o = 1 - pid;
   $('meName').textContent = n[pid];
   $('opName').textContent = n[o];
@@ -971,6 +1002,7 @@ function setNames(n, countries = ['un', 'un']) {
     $(who + 'Flag').src = `./flags/${countries[idx]}.svg`;
     $(who + 'Flag').title = countryName(countries[idx]);
     scene.setFlag(who, countries[idx]);
+    scene.setShipLevel(who, levels?.[idx] || 1);
   }
 }
 
@@ -1004,14 +1036,17 @@ function flagAt(e) {
 }
 $('arena').addEventListener('pointermove', flagAt);
 $('arena').addEventListener('pointerdown', flagAt);
-function setHp(hp) {
+function setHp(hp, maxShipHp = lastMaxShipHp) {
   lastHp = hp;
+  if (Array.isArray(maxShipHp)) lastMaxShipHp = maxShipHp.slice();
   const m = hp[pid], o = hp[1 - pid];
-  $('meShip').style.width = m.ship + '%'; $('opShip').style.width = o.ship + '%';
+  const myShipMax = lastMaxShipHp[pid] || 100, opShipMax = lastMaxShipHp[1 - pid] || 100;
+  const myShipRatio = m.ship / myShipMax, opShipRatio = o.ship / opShipMax;
+  $('meShip').style.width = `${Math.min(100, myShipRatio * 100)}%`; $('opShip').style.width = `${Math.min(100, opShipRatio * 100)}%`;
   $('meShark').style.width = m.shark * 2 + '%'; $('opShark').style.width = o.shark * 2 + '%';
-  $('meTxt').textContent = `Barco ${m.ship} · Tiburón ${m.shark}`;
-  $('opTxt').textContent = `Barco ${o.ship} · Tiburón ${o.shark}`;
-  scene.setHealth({ me: { ship: m.ship / 100, shark: m.shark / 50 }, op: { ship: o.ship / 100, shark: o.shark / 50 } });
+  $('meTxt').textContent = `Barco ${Math.floor(myShipRatio * 100)}% · Tiburón ${m.shark}`;
+  $('opTxt').textContent = `Barco ${Math.floor(opShipRatio * 100)}% · Tiburón ${o.shark}`;
+  scene.setHealth({ me: { ship: myShipRatio, shark: m.shark / 50 }, op: { ship: opShipRatio, shark: o.shark / 50 } });
 }
 function showDamage(prev, next, me, op, heal = [0, 0]) {
   const spots = [
@@ -1060,8 +1095,9 @@ async function submitSeq() {
   const broken = myCan.every((h) => h <= 0); // sin cañones no se dispara
   const attack = broken ? [1, 1, 1, 1] : atkSeq, defense = isRain() ? [1, 1, 1, 1] : defSeq;
   const wave = isSwell() ? [...moves, 0, 0, 0, 0].slice(0, 4) : undefined;
+  const block = blockRound ? blockSeq : undefined;
   try {
-    await post('/api/submit', { room, pid, key, attack, defense, wave });
+    await post('/api/submit', { room, pid, key, attack, defense, wave, block });
     submitted = true;
     showInputs(false); clearInterval(cd); if (!playing) $('msg').textContent = 'Esperando al rival...';
   } catch (e) { $('msg').textContent = e.message; }
@@ -1118,9 +1154,10 @@ async function playRound(r, replay = false) {
   clearInterval(cd);
   showInputs(false); $('lastRound').classList.add('hidden');
   const me = pid, op = 1 - pid;
-  const pre = replay ? lastRound : { hp: lastHp, can: lastCan };
-  if (replay) { setHp(pre.hp); setCannons(pre.can); scene.setWeather(r.round - 1); }
+  const pre = replay ? lastRound : { hp: lastHp, can: lastCan, maxShipHp: lastMaxShipHp };
+  if (replay) { setHp(pre.hp, pre.maxShipHp); setCannons(pre.can); scene.setWeather(r.round - 1); }
   const side = (n) => (n === me ? 'me' : 'op');
+  if (r.levels) { scene.setShipLevel('me', r.levels[me]); scene.setShipLevel('op', r.levels[op]); }
   const impactSfx = (t) => (t === 'ship' || t === 'whale' ? 'bomb' : t === 'shark' ? 'splash' : 'clash');
   let subOn = false, octopusOn = false, medkitOn = false;
   for (const ev of r.events) {
@@ -1138,7 +1175,7 @@ async function playRound(r, replay = false) {
     ]);
     subOn = !!ev.sub; octopusOn = !!ev.octopus; medkitOn = !!ev.medkit;
     const impacts = ev.shots.map(async (s) => {
-      if (s.target === 'broken') { scene.dud(side(s.from), s.lane); sfx('dud'); return Promise.resolve(); }
+      if (s.target === 'broken' || s.target === 'blocked') { scene.dud(side(s.from), s.lane); sfx('dud'); return Promise.resolve(); }
       const f = scene.fire({ from: side(s.from), x: s.x, lane: s.lane, target: s.target, ice: s.ice, owner: s.owner === undefined ? null : side(s.owner) });
       sfx('shot');
       await f.done;
@@ -1161,14 +1198,14 @@ async function playRound(r, replay = false) {
     await Promise.all(impacts);
     await wait(60);
     const prev = lastHp, prevC = lastCan;
-    setHp(ev.hp); setCannons(ev.cannons);
+    setHp(ev.hp, ev.maxShipHp); setCannons(ev.cannons);
     showDamage(prev, ev.hp, me, op, ev.heal);
     showCannonDamage(prevC, ev.cannons, me, op);
     showCannonRepair(prevC, ev.cannons, me, op);
     await wait(Math.max(0, slotEnd - Date.now()));
   }
   scene.subLeave(); scene.octopusLeave(); scene.medkitLeave(); scene.iceClear();
-  setHp(r.hp);
+  setHp(r.hp, r.maxShipHp);
   { const before = lastCan; setCannons(r.cannons); showCannonRepair(before, r.cannons, me, op); }
   playing = false;
   scene.moveShip('me', 0); scene.moveShip('op', 0);
@@ -1183,7 +1220,7 @@ async function playRound(r, replay = false) {
   curRound = r.round;
   $('round').textContent = r.round;
   badge(r.winner !== null ? 1 : r.round);
-  lastRound = { r, hp: pre.hp, can: pre.can };
+  lastRound = { r, hp: pre.hp, can: pre.can, maxShipHp: pre.maxShipHp };
   if (spectatorMode) {
     setupForm(); showInputs(false);
     $('leagueStatus').textContent = r.winner === null ? `Espectando · ronda ${r.round}` : 'Partida terminada';

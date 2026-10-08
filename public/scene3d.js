@@ -26,6 +26,7 @@ function canvasTex(w, h, draw) {
 
 export function createScene(container) {
   const api = {};
+  const V = (x, y, z) => new THREE.Vector3(x, y, z);
   const renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, LOW ? 1.5 : 2));
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -35,6 +36,9 @@ export function createScene(container) {
   const canvas = renderer.domElement;
   canvas.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;display:block';
   container.prepend(canvas);
+  const fogOverlay = document.createElement('div');
+  fogOverlay.style.cssText = 'position:absolute;inset:0;z-index:3;pointer-events:none;opacity:0;background:linear-gradient(180deg,#d9e6e866,#b8cbd655 55%,#d9e6e866);backdrop-filter:blur(1.5px);transition:opacity 1.2s ease';
+  container.appendChild(fogOverlay);
 
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(38, 1, 0.1, 300);
@@ -172,6 +176,18 @@ export function createScene(container) {
   rain.frustumCulled = false; rain.visible = false; rain.renderOrder = 7;
   scene.add(rain);
 
+  const SNOW_N = LOW ? 180 : 420;
+  const snowPos = new Float32Array(SNOW_N * 3);
+  for (let i = 0; i < SNOW_N; i++) {
+    snowPos[i * 3] = rnd(-16, 16); snowPos[i * 3 + 1] = rnd(0, 18); snowPos[i * 3 + 2] = rnd(-14, 14);
+  }
+  const snowGeo = new THREE.BufferGeometry();
+  snowGeo.setAttribute('position', new THREE.BufferAttribute(snowPos, 3));
+  const snowMat = new THREE.PointsMaterial({ color: 0xeaf6ff, size: LOW ? 0.2 : 0.16, transparent: true, opacity: 0, depthWrite: false, sizeAttenuation: true });
+  const snow = new THREE.Points(snowGeo, snowMat);
+  snow.frustumCulled = false; snow.visible = false; snow.renderOrder = 8;
+  scene.add(snow);
+
   // ---------- Partículas ----------
   const parts = [];
   function spawn(o) {
@@ -255,6 +271,98 @@ export function createScene(container) {
       new THREE.MeshStandardMaterial({ map: deckTex, roughness: 0.85, metalness: 0.1 }));
     deck.position.y = 0.6; wrap.add(deck);
     const DY = 0.66;
+    const palette = { hull: base.clone(), steel: new THREE.Color(0x8e99a1), turret: turretMat.color.clone(), emissive: new THREE.Color(0x000000), emissiveIntensity: 0 };
+
+    // Skin de nivel 5: dos mascarones chinos dentro del perfil original del casco.
+    const dragonSkin = new THREE.Group();
+    const dragonRed = new THREE.MeshStandardMaterial({ color: 0xb5222b, roughness: 0.35, metalness: 0.08, emissive: 0x3a080b, emissiveIntensity: 0.22 });
+    const dragonGold = new THREE.MeshStandardMaterial({ color: 0xf0b83e, roughness: 0.3, metalness: 0.58, emissive: 0x59340b, emissiveIntensity: 0.12 });
+    const dragonDark = new THREE.MeshStandardMaterial({ color: 0x27151b, roughness: 0.38, metalness: 0.22 });
+    const dragonEye = new THREE.MeshStandardMaterial({ color: 0xffed9b, emissive: 0xffa91e, emissiveIntensity: 1.2, roughness: 0.2 });
+    const makeDragonHead = (direction) => {
+      const head = new THREE.Group();
+      const skull = new THREE.Mesh(new THREE.SphereGeometry(0.58, 20, 14), dragonRed);
+      skull.scale.set(0.78, 0.64, 0.9); skull.position.y = 0.18; head.add(skull);
+      const muzzle = new THREE.Mesh(new THREE.SphereGeometry(0.34, 18, 12), dragonGold);
+      muzzle.scale.set(0.85, 0.46, 1.05); muzzle.position.set(0, 0.02, 0.43); head.add(muzzle);
+      const lowerJaw = new THREE.Mesh(new THREE.BoxGeometry(0.43, 0.12, 0.45), dragonRed);
+      lowerJaw.position.set(0, -0.2, 0.42); head.add(lowerJaw);
+      const mouth = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.045, 0.26), dragonDark);
+      mouth.position.set(0, -0.13, 0.58); head.add(mouth);
+      for (const side of [-1, 1]) {
+        const eye = new THREE.Mesh(new THREE.SphereGeometry(0.085, 12, 8), dragonEye);
+        eye.position.set(side * 0.29, 0.34, 0.28); head.add(eye);
+        const horn = new THREE.Mesh(new THREE.ConeGeometry(0.12, 0.52, 9), dragonGold);
+        horn.position.set(side * 0.34, 0.52, -0.12); horn.rotation.z = -side * 0.28; head.add(horn);
+        const whisker = new THREE.CatmullRomCurve3([
+          V(side * 0.3, 0.02, 0.42), V(side * 0.62, 0.12, 0.56), V(side * 0.72, 0.38, 0.78),
+        ]);
+        head.add(new THREE.Mesh(new THREE.TubeGeometry(whisker, 10, 0.035, 7, false), dragonGold));
+        const fang = new THREE.Mesh(new THREE.ConeGeometry(0.055, 0.18, 7), dragonGold);
+        fang.position.set(side * 0.17, -0.13, 0.62); fang.rotation.x = Math.PI; head.add(fang);
+      }
+      head.position.set(direction * 5.62, DY + 0.16, 0);
+      head.rotation.y = direction > 0 ? Math.PI / 2 : -Math.PI / 2;
+      head.scale.setScalar(0.72);
+      dragonSkin.add(head);
+    };
+    makeDragonHead(-1); makeDragonHead(1);
+    dragonSkin.visible = false; wrap.add(dragonSkin);
+
+    const gondolaSkin = new THREE.Group();
+    const gondolaGold = new THREE.MeshStandardMaterial({ color: 0xd7b35a, metalness: 0.72, roughness: 0.24 });
+    const gondolaBlack = new THREE.MeshStandardMaterial({ color: 0x10151c, metalness: 0.35, roughness: 0.32 });
+    for (const direction of [-1, 1]) {
+      const end = new THREE.Group();
+      const curve = new THREE.CatmullRomCurve3([V(0, -0.05, -0.45), V(0, 0.06, 0), V(0, 0.45, 0.7), V(0, 1.05, 1.18)]);
+      end.add(new THREE.Mesh(new THREE.TubeGeometry(curve, 18, 0.14, 9, false), gondolaBlack));
+      const tip = new THREE.Mesh(new THREE.SphereGeometry(0.12, 10, 8), gondolaGold); tip.position.set(0, 1.03, 1.16); end.add(tip);
+      const trim = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3([V(0, 0.06, 0.02), V(0, 0.48, 0.7), V(0, 0.84, 1.02)]), 12, 0.035, 7, false), gondolaGold);
+      end.add(trim); end.position.set(direction * 5.0, DY, 0); end.rotation.y = direction > 0 ? Math.PI / 2 : -Math.PI / 2; gondolaSkin.add(end);
+    }
+    gondolaSkin.visible = false; wrap.add(gondolaSkin);
+
+    const santaSkin = new THREE.Group();
+    const mastMat = new THREE.MeshStandardMaterial({ color: 0x60391f, roughness: 0.62 });
+    const sailMat = new THREE.MeshStandardMaterial({ color: 0xf2e7cc, side: THREE.DoubleSide, roughness: 0.84 });
+    const sailCrossMat = new THREE.MeshStandardMaterial({ color: 0xb8292e, roughness: 0.65 });
+    for (const [x, height, width] of [[-3.0, 2.65, 1.35], [0, 3.35, 1.8], [3.0, 2.5, 1.25]]) {
+      const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.09, height, 10), mastMat); mast.position.set(x, DY + height / 2, 0); santaSkin.add(mast);
+      const sail = new THREE.Mesh(new THREE.PlaneGeometry(width, height * 0.62), sailMat); sail.position.set(x + 0.12, DY + height * 0.58, 0.08); santaSkin.add(sail);
+      const crossV = new THREE.Mesh(new THREE.BoxGeometry(0.11, height * 0.34, 0.025), sailCrossMat); crossV.position.set(x + 0.12, DY + height * 0.58, 0.1); santaSkin.add(crossV);
+      const crossH = new THREE.Mesh(new THREE.BoxGeometry(width * 0.4, 0.11, 0.025), sailCrossMat); crossH.position.set(x + 0.12, DY + height * 0.58, 0.1); santaSkin.add(crossH);
+    }
+    santaSkin.visible = false; wrap.add(santaSkin);
+
+    const iceSkin = new THREE.Group();
+    const iceCrystal = new THREE.MeshPhysicalMaterial({ color: 0xa8eaff, roughness: 0.18, metalness: 0.08, clearcoat: 0.9, transparent: true, opacity: 0.9, emissive: 0x287b9b, emissiveIntensity: 0.24 });
+    for (const side of [-1, 1]) for (const [index, x] of [-5.2, -3.9, -2.6, 2.6, 3.9, 5.2].entries()) {
+      const spike = new THREE.Mesh(new THREE.ConeGeometry(index % 2 ? 0.22 : 0.3, index % 2 ? 0.85 : 1.1, 6), iceCrystal);
+      spike.position.set(x, DY + 0.45, side * 1.12); spike.rotation.z = (index % 2 ? 0.16 : -0.12) * side; iceSkin.add(spike);
+    }
+    iceSkin.visible = false; wrap.add(iceSkin);
+
+    const lavaSkin = new THREE.Group();
+    const lavaRock = new THREE.MeshStandardMaterial({ color: 0x281e21, roughness: 0.86, flatShading: true });
+    const lavaGlow = new THREE.MeshStandardMaterial({ color: 0xff6a16, emissive: 0xf02f08, emissiveIntensity: 1.35, roughness: 0.4 });
+    for (const side of [-1, 1]) {
+      const crack = new THREE.CatmullRomCurve3([V(-5.8, DY + 0.1, side * 1.17), V(-3.4, DY + 0.12, side * 0.96), V(-1.6, DY + 0.1, side * 1.18), V(0.4, DY + 0.13, side * 0.94), V(2.7, DY + 0.1, side * 1.16), V(5.7, DY + 0.12, side * 0.98)]);
+      lavaSkin.add(new THREE.Mesh(new THREE.TubeGeometry(crack, 28, 0.065, 7, false), lavaGlow));
+      for (const x of [-5.2, -2.6, 0, 2.6, 5.2]) {
+        const rock = new THREE.Mesh(new THREE.IcosahedronGeometry(0.3, 0), lavaRock); rock.position.set(x, DY + 0.08, side * 1.2); rock.scale.set(1.2, 0.6, 0.75); lavaSkin.add(rock);
+      }
+    }
+    lavaSkin.visible = false; wrap.add(lavaSkin);
+
+    const goldSkin = new THREE.Group();
+    const goldPlate = new THREE.MeshStandardMaterial({ color: 0xf0c44f, metalness: 0.88, roughness: 0.2, emissive: 0x56340a, emissiveIntensity: 0.18 });
+    for (const side of [-1, 1]) {
+      const rail = new THREE.Mesh(new THREE.BoxGeometry(11.4, 0.08, 0.06), goldPlate); rail.position.set(0, DY + 0.28, side * 1.17); goldSkin.add(rail);
+      for (const x of [-5.2, -3.9, -2.6, -1.3, 0, 1.3, 2.6, 3.9, 5.2]) {
+        const stud = new THREE.Mesh(new THREE.SphereGeometry(0.11, 10, 8), goldPlate); stud.position.set(x, DY + 0.28, side * 1.22); goldSkin.add(stud);
+      }
+    }
+    goldSkin.visible = false; wrap.add(goldSkin);
 
     const box = (w, h, d, mat, x, y, z) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat); m.position.set(x, y, z); wrap.add(m); return m; };
     const cyl = (r0, r1, h, mat, x, y, z) => { const m = new THREE.Mesh(new THREE.CylinderGeometry(r0, r1, h, 16), mat); m.position.set(x, y, z); wrap.add(m); return m; };
@@ -334,7 +442,7 @@ export function createScene(container) {
     if (who === 'op') g.rotation.y = Math.PI;
     scene.add(g);
     applyModelShadows(g);
-    return { g, wrap, hullMat, steel, turrets, radar, flag, flagBase, base, red, ratio: 1, smokeAcc: 0, puffAcc: 0, phase: who === 'me' ? 0 : 2, hitT: 0, off: 0 };
+    return { g, wrap, hullMat, steel, turrets, radar, flag, flagBase, skins: { dragon: dragonSkin, gondola: gondolaSkin, santa: santaSkin, ice: iceSkin, lava: lavaSkin, gold: goldSkin }, palette, base, red, ratio: 1, smokeAcc: 0, puffAcc: 0, phase: who === 'me' ? 0 : 2, hitT: 0, off: 0 };
   }
 
   // ---------- Tiburones ----------
@@ -450,7 +558,7 @@ export function createScene(container) {
       const s = ships[who], k = sharks[who];
       s.ratio = h[who].ship; k.ratio = h[who].shark;
       s.hullMat.color.copy(s.base).lerp(s.red, 1 - s.ratio);
-      s.steel.color.set(0x8e99a1).lerp(s.red, (1 - s.ratio) * 0.45);
+      s.steel.color.copy(s.palette.steel).lerp(s.red, (1 - s.ratio) * 0.45);
       k.finMat.color.copy(k.base).lerp(k.red, 1 - k.ratio);
       k.skin.color.copy(whiteC).lerp(skinRed, 1 - k.ratio);
       if (k.ratio > 0 && k.dead) { // revancha: el tiburón vuelve
@@ -461,6 +569,34 @@ export function createScene(container) {
         const y0 = k.rig.position.y;
         tween(900, (t) => { k.rig.position.y = y0 - 3.2 * t; }, easeIn).then(() => { k.root.visible = false; });
       }
+    }
+  }
+
+  function setShipLevel(who, level) {
+    const ship = ships[who];
+    if (!ship) return;
+    const currentLevel = Number(level) || 1;
+    const style = currentLevel >= 30 ? { skin: 'gold', hull: 0xc79b35, steel: 0xffd778, turret: 0xf6c75a, emissive: 0x5b3d09, intensity: 0.16 }
+      : currentLevel >= 25 ? { skin: 'lava', hull: 0x352024, steel: 0x743b2b, turret: 0x9d4f2b, emissive: 0xff3300, intensity: 0.46 }
+        : currentLevel >= 20 ? { skin: 'ice', hull: 0xa8dce9, steel: 0xe7fbff, turret: 0xbee5f1, emissive: 0x297994, intensity: 0.17 }
+          : currentLevel >= 15 ? { skin: 'santa', hull: 0x70472d, steel: 0xb58953, turret: 0xd0b072, emissive: 0x000000, intensity: 0 }
+            : currentLevel >= 10 ? { skin: 'gondola', hull: 0x171923, steel: 0xc9a55f, turret: 0xdec675, emissive: 0x000000, intensity: 0 }
+              : currentLevel >= 5 ? { skin: 'dragon', hull: 0x77333a, steel: 0xc99f4b, turret: 0xc4a259, emissive: 0x240607, intensity: 0.08 }
+                : { skin: null, hull: 0x7d8a96, steel: 0x8e99a1, turret: 0xa4afb6, emissive: 0x000000, intensity: 0 };
+    for (const [name, group] of Object.entries(ship.skins)) group.visible = name === style.skin;
+    ship.palette.hull.set(style.hull);
+    ship.palette.steel.set(style.steel);
+    ship.palette.turret.set(style.turret);
+    ship.palette.emissive.set(style.emissive);
+    ship.palette.emissiveIntensity = style.intensity;
+    ship.base.copy(ship.palette.hull);
+    ship.hullMat.color.copy(ship.base).lerp(ship.red, 1 - ship.ratio);
+    ship.hullMat.emissive.copy(ship.palette.emissive);
+    ship.hullMat.emissiveIntensity = ship.palette.emissiveIntensity;
+    ship.steel.color.copy(ship.palette.steel).lerp(ship.red, (1 - ship.ratio) * 0.45);
+    for (const turret of ship.turrets) {
+      const health = turret.hp ?? 25;
+      turret.tMat.color.copy(ship.palette.turret).lerp(new THREE.Color(0x5a2a22), (1 - Math.max(0, health / 25)) * 0.85);
     }
   }
 
@@ -567,9 +703,10 @@ export function createScene(container) {
   }
 
   // Tiempo según la ronda: lluvia cada 5, oleaje cada 6 y ballena extra cada 7
-  let stormOn = false, roughOn = false, whaleOn = false;
+  let stormOn = false, roughOn = false, whaleOn = false, snowOn = false, lightningOn = false, fogOn = false, snowAmount = 0;
   function setWeather(round) {
-    const st = round % 5 === 0, ro = round % 6 === 0, wh = round % 7 === 0;
+    const st = round % 5 === 0 && round !== 15, ro = round % 6 === 0, wh = round % 7 === 0;
+    const sn = round === 15, bolt = round === 25, fg = round === 35;
     if (wh !== whaleOn) { whaleOn = wh; wh ? whaleArrive() : whaleLeave(); }
     if (st !== stormOn) {
       stormOn = st;
@@ -582,10 +719,17 @@ export function createScene(container) {
       const from = rough, to = ro ? 1 : 0;
       tween(2200, (t) => { rough = from + (to - from) * t; }, easeInOut);
     }
+    if (sn !== snowOn) {
+      snowOn = sn;
+      tween(1200, (t) => { snowAmount = sn ? t : 1 - t; }, easeInOut);
+    }
+    if (bolt && !lightningOn) nextBolt = 0.5;
+    lightningOn = bolt;
+    fogOn = fg;
+    fogOverlay.style.opacity = fg ? '1' : '0';
   }
 
   // ---------- Efectos de impacto ----------
-  const V = (x, y, z) => new THREE.Vector3(x, y, z);
   function sparks(p, n, speed, color = 0xffd27a) {
     for (let i = 0; i < n; i++) {
       const v = V(rnd(-1, 1), rnd(-0.2, 1.2), rnd(-1, 1)).normalize().multiplyScalar(rnd(speed * 0.4, speed));
@@ -963,12 +1107,13 @@ export function createScene(container) {
     g.lineWidth = 6; g.strokeStyle = '#ff5252'; g.stroke();
     g.lineWidth = 12; g.beginPath(); g.moveTo(38, 38); g.lineTo(90, 90); g.moveTo(90, 38); g.lineTo(38, 90); g.stroke();
   });
-  const turretBase = new THREE.Color(0xa4afb6), turretBurnt = new THREE.Color(0x5a2a22);
+  const turretBurnt = new THREE.Color(0x5a2a22);
   function setCannons(c) {
     for (const who of ['me', 'op']) {
       ships[who].turrets.forEach((tu, i) => {
         const hp = c[who][i];
-        tu.tMat.color.copy(turretBase).lerp(turretBurnt, (1 - Math.max(0, hp / 25)) * 0.85);
+        tu.hp = hp;
+        tu.tMat.color.copy(ships[who].palette.turret).lerp(turretBurnt, (1 - Math.max(0, hp / 25)) * 0.85);
         if (hp <= 0 && !tu.broken) {
           tu.broken = true;
           tu.num.material.map = xTex; tu.num.material.needsUpdate = true;
@@ -1031,9 +1176,9 @@ export function createScene(container) {
 
     // Tiempo atmosférico
     lightning = Math.max(0, lightning - dt * 3.5);
-    if (storm > 0.8) {
+    if (storm > 0.8 || lightningOn) {
       nextBolt -= dt;
-      if (nextBolt <= 0) { lightning = 1; nextBolt = rnd(5, 10); setTimeout(() => api.onThunder?.(), 450); }
+      if (nextBolt <= 0) { lightning = 1; nextBolt = lightningOn ? rnd(2.2, 4) : rnd(5, 10); setTimeout(() => api.onThunder?.(), 450); }
     }
     hemi.intensity = 0.8 - 0.3 * storm + lightning * 3;
     sun.intensity = 2.6 - 1.9 * storm + lightning * 4;
@@ -1057,6 +1202,20 @@ export function createScene(container) {
       rainGeo.attributes.position.needsUpdate = true;
       if (Math.random() < dt * 14 * storm) ripple(rnd(-8, 8), rnd(-8, 8), 0.9, 0, 0.7);
     } else rain.visible = false;
+
+    snowMat.opacity = 0.9 * snowAmount;
+    snow.visible = snowAmount > 0.02;
+    if (snow.visible) {
+      for (let i = 0; i < SNOW_N; i++) {
+        const offset = i * 3;
+        snowPos[offset + 1] -= dt * (1.1 + (i % 7) * 0.12);
+        snowPos[offset] += Math.sin(time * 0.7 + i) * dt * 0.28;
+        if (snowPos[offset + 1] < 0) {
+          snowPos[offset] = rnd(-16, 16); snowPos[offset + 1] = rnd(14, 19); snowPos[offset + 2] = rnd(-14, 14);
+        }
+      }
+      snowGeo.attributes.position.needsUpdate = true;
+    }
 
     for (const who of ['me', 'op']) {
       const s = ships[who];
@@ -1232,6 +1391,6 @@ export function createScene(container) {
     return best;
   }
 
-  Object.assign(api, { setHealth, setCannons, setCannonLabels, pickFlag, subMove, subLeave, iceShow, iceClear, octopusShow, octopusSpin, octopusLeave, medkitShow, medkitLeave, dud, labelCannon, moveFin, moveShip, fire, label, trackLabel, trackPoint, trackShip, setWeather, setFlag, SHIP_Z });
+  Object.assign(api, { setHealth, setCannons, setCannonLabels, setShipLevel, pickFlag, subMove, subLeave, iceShow, iceClear, octopusShow, octopusSpin, octopusLeave, medkitShow, medkitLeave, dud, labelCannon, moveFin, moveShip, fire, label, trackLabel, trackPoint, trackShip, setWeather, setFlag, SHIP_Z });
   return api;
 }

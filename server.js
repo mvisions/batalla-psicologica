@@ -238,12 +238,19 @@ const valid = (s) => Array.isArray(s) && s.length === 4 && s.every((n) => Number
 const validWave = (s) => Array.isArray(s) && s.length === 4 && s.every((n) => Number.isInteger(n) && n >= 0 && n <= 2);
 const cleanName = (n) => String(n || '').trim().slice(0, 16) || 'Jugador';
 const cleanCountry = (c) => (/^[a-z]{2}$/i.test(String(c)) ? String(c).toLowerCase() : 'un'); // 'un' = bandera internacional
+function shipMaxHpForLevel(level) { return 100 + 5 * Math.max(1, Math.floor(Number(level) || 1)); }
+function maxShipHealthForPlayer(player) { return player?.bot ? 100 : shipMaxHpForLevel(ranking[player?.sub]?.level); }
+function setRoomPlayerMaxHealth(room, index) {
+  room.maxShipHp[index] = maxShipHealthForPlayer(room.players[index]);
+  if (room.hp[index]) room.hp[index].ship = room.maxShipHp[index];
+}
 
 function resolveRound(room) {
   const medkitPosts = [-3, -1, 1, 3];
   const medkitRound = room.medkitMatch && room.round >= 3 && (room.round - 3) % 3 === 0;
+  const blockRound = room.round % 10 === 0;
   let medkitCollected = false;
-  const rain = room.round % 5 === 0; // con lluvia los tiburones se van y no interceptan
+  const rain = room.round % 5 === 0 && room.round !== 15; // la ronda 15 es nevada, no lluvia
   const whaleRound = room.round % 7 === 0; // ballena extra en medio del mar, en un carril al azar por disparo
   const swell = room.round % 6 === 0; // con oleaje los barcos se desplazan: 1 derecha, 2 izquierda, 0 quieto
   const pos = [0, 0]; // desplazamiento de cada barco en unidades de medio carril
@@ -280,9 +287,14 @@ function resolveRound(room) {
     const hitBy = [[null, null, null, null], [null, null, null, null]]; // quién golpeó cada cañón
     const heal = [0, 0];
     const live = [cann[0][atk[0] - 1] > 0, cann[1][atk[1] - 1] > 0]; // un cañón roto no dispara
+    const blocked = [
+      blockRound && room.players[1].block?.[i] === atk[0],
+      blockRound && room.players[0].block?.[i] === atk[1],
+    ];
+    const firing = live.map((isLive, player) => isLive && !blocked[player]);
     // posición real de cada bala (el cañón se mueve con el barco)
     const xu = [2 * atk[0] - 5 + pos[0], 2 * atk[1] - 5 + pos[1]];
-    const simultaneousCollision = live[0] && live[1] && xu[0] === xu[1] && xu[0] !== subX && iceAt(xu[0]) < 0;
+    const simultaneousCollision = firing[0] && firing[1] && xu[0] === xu[1] && xu[0] !== subX && iceAt(xu[0]) < 0;
     if (simultaneousCollision && xu[0] !== medkitX && xu[0] !== octopusX) {
       ev.shots = [0, 1].map((from) => ({ from, lane: atk[from], x: xu[from], target: 'collision' }));
     } else {
@@ -291,6 +303,7 @@ function resolveRound(room) {
       for (const from of [0, 1]) {
         const other = 1 - from, x = xu[from];
         if (!live[from]) { ev.shots.push({ from, lane: atk[from], x, target: 'broken' }); continue; }
+        if (blocked[from]) { ev.shots.push({ from, lane: atk[from], x, target: 'blocked' }); continue; }
         const sharkAt = (k) => !rain && room.hp[k].shark > 0 && 2 * def[k] - 5 === x;
         let target, owner, iceId;
         if (simultaneousCollision && from === 1 && (octopusCaughtThisStep || medkitCaughtThisStep)) { target = 'collision'; }
@@ -356,8 +369,9 @@ function resolveRound(room) {
         cann[k][l] = Math.min(25, cann[k][l] + crepair[k][l]);
       }
     }
-    for (const k of [0, 1]) if (heal[k] > 0 && room.hp[k].ship > 0) room.hp[k].ship = Math.min(100, room.hp[k].ship + heal[k]);
+    for (const k of [0, 1]) if (heal[k] > 0 && room.hp[k].ship > 0) room.hp[k].ship = Math.min(room.maxShipHp[k], room.hp[k].ship + heal[k]);
     ev.heal = heal;
+    ev.maxShipHp = [...room.maxShipHp];
     ev.hp = JSON.parse(JSON.stringify(room.hp));
     ev.cannons = JSON.parse(JSON.stringify(cann));
     events.push(ev);
@@ -366,11 +380,11 @@ function resolveRound(room) {
   let winner = null;
   const dead0 = room.hp[0].ship <= 0, dead1 = room.hp[1].ship <= 0;
   if (dead0 || dead1) winner = dead0 && dead1 ? 'draw' : dead0 ? 1 : 0;
-  const seqs = P.map((p) => ({ attack: p.attack, defense: p.defense, wave: p.wave }));
+  const seqs = P.map((p) => ({ attack: p.attack, defense: p.defense, wave: p.wave, block: p.block }));
   P.forEach((p, k) => {
     room.hist[k].push({ attack: p.attack, defense: p.defense });
     if (room.hist[k].length > 10) room.hist[k].shift();
-    p.attack = null; p.defense = null; p.wave = null;
+    p.attack = null; p.defense = null; p.wave = null; p.block = null;
   });
   // un cañón roto se regenera con 15 de vida para la siguiente ronda
   for (const k of [0, 1]) for (let l = 0; l < 4; l++) if (cann[k][l] === 0) cann[k][l] = 15;
@@ -385,7 +399,7 @@ function broadcast(room, event, data) {
   room.players.forEach((p) => p.stream && send(p.stream, event, data));
   room.spectators?.forEach((stream) => send(stream, event, data));
 }
-const info = (room) => ({ names: room.players.map((p) => p.name), countries: room.players.map((p) => p.country || 'un'), hp: room.hp, cannons: room.cannons, round: room.round, over: room.over, tutorial: room.tutorial, inputMs: room.tutorial ? null : INPUT_MS });
+const info = (room) => ({ names: room.players.map((p) => p.name), countries: room.players.map((p) => p.country || 'un'), levels: room.players.map((p) => Number(ranking[p.sub]?.level) || 1), maxShipHp: room.players.map(maxShipHealthForPlayer), blockRound: room.round % 10 === 0, hp: room.hp, cannons: room.cannons, round: room.round, over: room.over, tutorial: room.tutorial, inputMs: room.tutorial ? null : INPUT_MS });
 
 // Secuencia aleatoria usando solo cañones que funcionan
 const workingSeq = (room, k) => {
@@ -397,7 +411,7 @@ const workingSeq = (room, k) => {
 const INPUT_MS = 30000, SHOT_MS = 5000;
 
 const newKey = () => crypto.randomBytes(12).toString('hex');
-const blankPlayer = (name, sub, extra = {}) => ({ name, sub, key: newKey(), stream: null, attack: null, defense: null, wave: null, rematch: false, ...extra });
+const blankPlayer = (name, sub, extra = {}) => ({ name, sub, key: newKey(), stream: null, attack: null, defense: null, wave: null, block: null, rematch: false, ...extra });
 function joinMatchmaking(who, country) {
   const existing = Array.from(matchTickets.values()).find((ticket) => ticket.sub === who.sub && ticket.status === 'waiting');
   if (existing) return existing;
@@ -408,6 +422,7 @@ function joinMatchmaking(who, country) {
     const code = newRoomCode();
     const room = makeRoom(opponent.player, false);
     room.players.push(blankPlayer(ticket.player.name, ticket.player.sub, { country: ticket.player.country }));
+    setRoomPlayerMaxHealth(room, 1);
     room.startedAt = Date.now();
     room.matchmaking = true;
     rooms.set(code, room);
@@ -423,7 +438,8 @@ function matchmakingState(ticket) {
   } : { status: ticket.status };
 }
 function resetState(room) {
-  room.hp = [{ ship: 100, shark: 50 }, { ship: 100, shark: 50 }];
+  room.maxShipHp = [0, 1].map((index) => maxShipHealthForPlayer(room.players[index]));
+  room.hp = room.maxShipHp.map((ship) => ({ ship, shark: 50 }));
   room.cannons = [[25, 25, 25, 25], [25, 25, 25, 25]];
   room.medkitMatch = Math.random() < 1 / 3;
   room.octopusLane = 1 + Math.floor(Math.random() * 4);
@@ -448,6 +464,7 @@ function createLeagueMatch(league, round, players) {
   const [first, second] = players.map((id) => league.players[id]);
   const room = makeRoom(first, false);
   room.players.push(blankPlayer(second.name, second.sub, { country: second.country }));
+  setRoomPlayerMaxHealth(room, 1);
   room.startedAt = Date.now();
   room.leagueMatch = { code: league.code, round, match: matchIndex };
   const code = newRoomCode();
@@ -554,7 +571,8 @@ function armTimer(room, delay) {
   room.timer = setTimeout(() => {
     if (room.over) return;
     room.players.forEach((p, k) => {
-      if (!p.attack) Object.assign(p, p.bot ? botPlan(room, k) : { attack: workingSeq(room, k), defense: randSeq(), wave: randWave() });
+      if (!p.attack) Object.assign(p, p.bot ? botPlan(room, k) : { attack: workingSeq(room, k), defense: randSeq(), wave: randWave(), block: room.round % 10 === 0 ? randSeq() : null });
+      if (room.round % 10 === 0 && !p.block) p.block = randSeq();
     });
     runRound(room);
   }, delay);
@@ -768,6 +786,7 @@ const server = http.createServer(async (req, res) => {
     room.startedAt = Date.now();
     const guest = blankPlayer(who.name, who.sub, { country: cleanCountry(b.country) });
     room.players.push(guest);
+    setRoomPlayerMaxHealth(room, 1);
     return json(res, 200, { room: String(code), pid: 1, key: guest.key });
   }
   if (req.method === 'GET' && url.pathname === '/api/events') {
@@ -818,7 +837,7 @@ const server = http.createServer(async (req, res) => {
     me.rematch = true;
     if (room.players.every((p) => p.rematch || p.bot)) {
       resetState(room);
-      room.players.forEach((p) => { p.rematch = false; p.attack = null; p.defense = null; p.wave = null; });
+      room.players.forEach((p) => { p.rematch = false; p.attack = null; p.defense = null; p.wave = null; p.block = null; });
       armTimer(room, INPUT_MS);
       broadcast(room, 'rematch', {});
       room.players.forEach((p, k) => p.stream && send(p.stream, 'state', stateFor(room, k)));
@@ -834,16 +853,17 @@ const server = http.createServer(async (req, res) => {
     return json(res, 200, { ok: true });
   }
   if (req.method === 'POST' && url.pathname === '/api/submit') {
-    const { room: code, pid, key, attack, defense, wave } = await body(req);
+    const { room: code, pid, key, attack, defense, wave, block } = await body(req);
     const room = rooms.get(String(code));
     const me = room?.players[pid];
     if (!me || me.key !== key || room.players.length < 2 || room.over) return json(res, 400, { error: 'Inválido' });
     if (!valid(attack) || !valid(defense)) return json(res, 400, { error: 'Secuencia inválida' });
     if (room.round % 6 === 0 && !validWave(wave)) return json(res, 400, { error: 'Oleaje inválido' });
+    if (room.round % 10 === 0 && !valid(block)) return json(res, 400, { error: 'Secuencia de bloqueo inválida' });
     if (me.attack) return json(res, 409, { error: 'Ya enviaste' });
-    me.attack = attack; me.defense = defense; me.wave = wave;
+    me.attack = attack; me.defense = defense; me.wave = wave; me.block = room.round % 10 === 0 ? block : null;
     const bot = room.players.find((p) => p.bot);
-    if (bot) Object.assign(bot, botPlan(room, room.players.indexOf(bot)));
+    if (bot) Object.assign(bot, { ...botPlan(room, room.players.indexOf(bot)), block: room.round % 10 === 0 ? randSeq() : null });
     if (room.tutorial && bot) room.tutorial = false;
     if (room.players.every((p) => p.attack)) {
       runRound(room);
@@ -868,4 +888,4 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     });
 }
 
-export { resolveRound, makeRoom, botPlan, workingSeq };
+export { resolveRound, makeRoom, botPlan, workingSeq, shipMaxHpForLevel };

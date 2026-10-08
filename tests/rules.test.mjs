@@ -1,11 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { resolveRound, makeRoom, botPlan } from '../server.js';
+import { resolveRound, makeRoom, botPlan, shipMaxHpForLevel } from '../server.js';
 
 // Partida de dos jugadores con las secuencias indicadas
 function setup({ round = 1, a, b, hp0 }) {
   const room = makeRoom({ name: 'A', sub: 'a' }, false);
   room.players.push({ name: 'B', sub: 'b', attack: null, defense: null, wave: null });
+  room.maxShipHp[1] = shipMaxHpForLevel(1);
+  room.hp[1].ship = room.maxShipHp[1];
   room.round = round;
   room.medkitMatch = false;
   if (hp0) room.hp[0].ship = hp0;
@@ -20,8 +22,32 @@ test('dos balas por el mismo carril chocan sin darño', () => {
   const room = setup({ a: { attack: seq(1), defense: seq(4) }, b: { attack: seq(1), defense: seq(4) } });
   const { events } = resolveRound(room);
   assert.ok(events[0].shots.every((s) => s.target === 'collision'));
-  assert.equal(room.hp[0].ship, 100);
-  assert.equal(room.hp[1].ship, 100);
+  assert.equal(room.hp[0].ship, 105);
+  assert.equal(room.hp[1].ship, 105);
+});
+
+test('cada nivel suma 5 de vida máxima; nivel 30 suma 150', () => {
+  assert.equal(shipMaxHpForLevel(1), 105);
+  assert.equal(shipMaxHpForLevel(30), 250);
+});
+
+test('en ronda 10 cada jugador puede bloquear los cañones elegidos en orden', () => {
+  const room = setup({ round: 10, a: { attack: seq(1), defense: seq(3) }, b: { attack: seq(4), defense: seq(1) } });
+  room.players[0].block = seq(2);
+  room.players[1].block = seq(1);
+
+  const { events } = resolveRound(room);
+  assert.equal(events[0].shots.find((shot) => shot.from === 0).target, 'blocked');
+  assert.notEqual(events[0].shots.find((shot) => shot.from === 1).target, 'blocked');
+  assert.equal(room.hp[1].ship, 105);
+});
+
+test('fuera de ronda 10 la secuencia de bloqueo no detiene disparos', () => {
+  const room = setup({ round: 9, a: { attack: seq(1), defense: seq(3) }, b: { attack: seq(4), defense: seq(1) } });
+  room.players[1].block = seq(1);
+
+  const { events } = resolveRound(room);
+  assert.notEqual(events[0].shots.find((shot) => shot.from === 0).target, 'blocked');
 });
 
 test('el tiburón rival intercepta la bala en su carril', () => {
@@ -30,7 +56,7 @@ test('el tiburón rival intercepta la bala en su carril', () => {
   const shot = events[0].shots.find((s) => s.from === 0);
   assert.equal(shot.target, 'shark');
   assert.equal(room.hp[1].shark, 50 - 5 * 4);
-  assert.equal(room.hp[1].ship, 100);
+  assert.equal(room.hp[1].ship, 105);
 });
 
 test('con lluvia (ronda 5) los tiburones no interceptan', () => {
@@ -40,10 +66,18 @@ test('con lluvia (ronda 5) los tiburones no interceptan', () => {
   assert.equal(room.hp[1].shark, 50);
 });
 
+test('la ronda 15 es nevada y mantiene activa la defensa contra tiburones', () => {
+  const room = setup({ round: 15, a: { attack: seq(1), defense: seq(4) }, b: { attack: seq(4), defense: seq(1) } });
+  const originalRandom = Math.random;
+  let events;
+  try { Math.random = () => 0.999; ({ events } = resolveRound(room)); } finally { Math.random = originalRandom; }
+  assert.equal(events[0].shots.find((shot) => shot.from === 0).target, 'shark');
+});
+
 test('la ronda 4 hace doble daño', () => {
   const room = setup({ round: 4, a: { attack: seq(1), defense: seq(4) }, b: { attack: seq(4), defense: seq(4) } });
   resolveRound(room);
-  assert.equal(room.hp[1].ship, 100 - 10 * 4);
+  assert.equal(room.hp[1].ship, 105 - 10 * 4);
 });
 
 test('un cañón roto no dispara y se regenera con 15 al acabar la ronda', () => {
@@ -112,7 +146,7 @@ test('recoger el botiquín suma 40 de vida al barco y lo retira del recorrido', 
   assert.deepEqual(events.slice(1).map((event) => event.medkit), [null, null, null]);
 });
 
-test('el botiquín no sube la vida del barco por encima de 100', () => {
+test('el botiquín no supera la vida máxima del nivel', () => {
   const room = setup({ hp0: 80, round: 3, a: { attack: seq(1), defense: seq(4) }, b: { attack: seq(4), defense: seq(1) } });
   room.medkitMatch = true; room.cannons[1] = [0, 0, 0, 0];
   const originalRandom = Math.random;
@@ -120,7 +154,7 @@ test('el botiquín no sube la vida del barco por encima de 100', () => {
   try { Math.random = () => 0.999; ({ events } = resolveRound(room)); } finally { Math.random = originalRandom; }
 
   assert.deepEqual(events[0].heal, [40, 0]);
-  assert.equal(events[0].hp[0].ship, 100);
+  assert.equal(events[0].hp[0].ship, 105);
 });
 
 test('el pulpo de ronda 2 devuelve el disparo por otro puesto contra el rival', () => {
@@ -136,7 +170,7 @@ test('el pulpo de ronda 2 devuelve el disparo por otro puesto contra el rival', 
   assert.notEqual(events[0].octopus.release.lane, 1);
   assert.ok([2, 3, 4].includes(events[0].octopus.release.lane));
   assert.equal(events[0].octopus.release.target, 'ship');
-  assert.equal(events[0].hp[1].ship, 95);
+  assert.equal(events[0].hp[1].ship, 100);
   assert.equal(room.octopusUsed, true);
   assert.equal(events[1].octopus, null);
 });
