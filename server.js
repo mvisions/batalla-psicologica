@@ -5,6 +5,8 @@ import crypto from 'node:crypto';
 import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 import QRCode from 'qrcode';
+import { Firestore } from '@google-cloud/firestore';
+import { createFirestoreRankingStore } from './src/firestore-ranking-store.mjs';
 import { limitLeaderboard, migrateLegacyRanking, upsertLeaderboard } from './src/leaderboard.mjs';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
@@ -63,10 +65,63 @@ for (const profile of Object.values(ranking)) {
   delete profile.wBest;
 }
 
-function persistRanking() {
+const rankingStorage = process.env.RANKING_STORAGE || 'file';
+if (!['file', 'firestore'].includes(rankingStorage)) throw new Error('RANKING_STORAGE debe ser file o firestore');
+if (rankingStorage === 'firestore' && (!process.env.GOOGLE_CLOUD_PROJECT || !process.env.GOOGLE_APPLICATION_CREDENTIALS)) {
+  throw new Error('Firestore requiere GOOGLE_CLOUD_PROJECT y GOOGLE_APPLICATION_CREDENTIALS');
+}
+if (rankingStorage === 'firestore' && !fs.existsSync(process.env.GOOGLE_APPLICATION_CREDENTIALS)) {
+  throw new Error('No se encontró el archivo de credenciales de Firestore');
+}
+const firestoreDatabase = rankingStorage === 'firestore'
+  ? new Firestore({ projectId: process.env.GOOGLE_CLOUD_PROJECT })
+  : null;
+const firestoreRankingStore = firestoreDatabase ? createFirestoreRankingStore(firestoreDatabase) : null;
+let firestoreWriteQueue = Promise.resolve();
+
+function rankingDocument() {
+  return { version: 2, weekKey: leaderboard.weekKey, allTime: leaderboard.allTime, weekly: leaderboard.weekly };
+}
+
+function writeLocalRanking() {
   fs.writeFileSync(PROFILE_FILE, JSON.stringify(ranking));
-  fs.writeFileSync(RANK_FILE, JSON.stringify({ version: 2, weekKey: leaderboard.weekKey, allTime: leaderboard.allTime, weekly: leaderboard.weekly }));
+  fs.writeFileSync(RANK_FILE, JSON.stringify(rankingDocument()));
   rankingNeedsMigration = false;
+}
+
+function persistRanking(profileIds = Object.keys(ranking)) {
+  writeLocalRanking();
+  if (!firestoreRankingStore) return firestoreWriteQueue;
+
+  const leaderboardSnapshot = structuredClone(rankingDocument());
+  const profileSnapshot = structuredClone(Object.fromEntries(profileIds
+    .filter((id) => ranking[id])
+    .map((id) => [id, ranking[id]])));
+  const ids = Object.keys(profileSnapshot);
+  firestoreWriteQueue = firestoreWriteQueue
+    .catch(() => {})
+    .then(() => firestoreRankingStore.save(leaderboardSnapshot, profileSnapshot, ids));
+  firestoreWriteQueue.catch((error) => console.error('No se pudo guardar el ranking en Firestore:', error));
+  return firestoreWriteQueue;
+}
+
+async function initializeRankingStore() {
+  if (!firestoreRankingStore) return;
+
+  const remote = await firestoreRankingStore.load();
+  if (remote.leaderboard?.version === 2) {
+    for (const id of Object.keys(ranking)) delete ranking[id];
+    Object.assign(ranking, remote.profiles);
+    leaderboard.weekKey = remote.leaderboard.weekKey || currentWeek;
+    leaderboard.allTime = limitLeaderboard(remote.leaderboard.allTime || []);
+    leaderboard.weekly = limitLeaderboard(remote.leaderboard.weekly || []);
+    rankingNeedsMigration = false;
+  } else {
+    Object.assign(ranking, remote.profiles);
+    await firestoreRankingStore.save(rankingDocument(), structuredClone(ranking), Object.keys(ranking));
+    rankingNeedsMigration = false;
+  }
+  writeLocalRanking();
 }
 
 function ensureCurrentWeek() {
@@ -78,7 +133,7 @@ function ensureCurrentWeek() {
     profile.weekKey = key;
     profile.wStreak = 0;
   }
-  persistRanking();
+  persistRanking([winner.sub, loser.sub]);
 }
 
 function recordResult(winner, loser) {
@@ -97,7 +152,7 @@ function recordResult(winner, loser) {
   l.streak = 0; l.wStreak = 0;
   leaderboard.allTime = upsertLeaderboard(leaderboard.allTime, { id: winner.sub, name: w.name, best: w.streak });
   leaderboard.weekly = upsertLeaderboard(leaderboard.weekly, { id: winner.sub, name: w.name, best: w.wStreak });
-  persistRanking();
+  persistRanking([winner.sub]);
 }
 function recordBotWin(winner) {
   ensureCurrentWeek();
@@ -767,7 +822,12 @@ const server = http.createServer(async (req, res) => {
 });
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  server.listen(PORT, '0.0.0.0', () => console.log(`Servidor en http://localhost:${PORT} · invitaciones: ${EXPLICIT_URL || lanUrl()}`));
+  initializeRankingStore()
+    .then(() => server.listen(PORT, '0.0.0.0', () => console.log(`Servidor en http://localhost:${PORT} · invitaciones: ${EXPLICIT_URL || lanUrl()}`)))
+    .catch((error) => {
+      console.error('No se pudo inicializar el almacenamiento del ranking:', error);
+      process.exitCode = 1;
+    });
 }
 
 export { resolveRound, makeRoom, botPlan, workingSeq };

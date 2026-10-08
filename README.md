@@ -62,12 +62,17 @@ En Render configura (el Blueprint prepara estos valores; introduce `GOOGLE_CLIEN
 - `API_BASE_URL`: URL HTTPS del Web Service
 - `PUBLIC_URL`: `https://mvisions.github.io/batalla-psicologica/`
 - `ALLOWED_ORIGINS`: `https://mvisions.github.io`
+- `RANKING_STORAGE`: `firestore`
+- `GOOGLE_CLOUD_PROJECT`: `ayta-510923`
+- `GOOGLE_APPLICATION_CREDENTIALS`: `/etc/secrets/render-ranking-key.json`
+
+Sube la clave JSON de la cuenta de servicio `render-ranking` como Secret File llamado `render-ranking-key.json` en Render. Esa cuenta debe tener únicamente el rol `Cloud Datastore User`. En desarrollo local, deja `RANKING_STORAGE=file`; el servidor usa `data/ranking.json` y `data/profiles.json`.
 
 En GitHub activa Pages con GitHub Actions. El workflow publica `dist/`; define las variables de repositorio `BATALLA_API_URL` y `BATALLA_PUBLIC_URL` si las URLs difieren de las predeterminadas. En Google Cloud autoriza `https://mvisions.github.io` como origen JavaScript y `https://TU-SERVICIO.onrender.com/auth/google/callback` como URI de redirección.
 
 Cada vista del ranking (`Siempre` y `Esta semana`) conserva como máximo 20 marcas. Una marca nueva solo entra si supera estrictamente el puesto 20; al entrar, la última sale de la clasificación. Los puntos y el perfil del jugador se conservan aparte.
 
-El plan gratuito de Render puede suspender el servicio y no conserva `data/` al reiniciar; clasificación, perfiles e historial se reiniciarán. Para conservarlos, configura almacenamiento persistente o una base de datos antes del lanzamiento público.
+El ranking y los perfiles se guardan en Firestore. Su cuota gratuita incluye hasta 1 GiB, 50.000 lecturas y 20.000 escrituras al día; el exceso se factura a Google Cloud. Render Free sigue usando almacenamiento efímero para el historial de partidas, que puede reiniciarse al dormir o redeplegar el servicio.
 
 ## Pruebas
 
@@ -77,7 +82,7 @@ npm test
 
 ## Datos locales
 
-El servidor crea `data/` para la clave de sesiones, las listas del ranking, los perfiles y el historial de partidas. Esta carpeta y `.env` están excluidos de Git y no se incluyen al publicar el proyecto.
+El servidor crea `data/` para la clave local de sesiones, las listas del ranking, los perfiles y el historial de partidas. En producción, el ranking y los perfiles se sincronizan con Firestore; esta carpeta y `.env` están excluidos de Git y no se incluyen al publicar el proyecto.
 
 ## Estructura
 

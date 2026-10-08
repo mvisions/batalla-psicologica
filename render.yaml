@@ -2,15 +2,11 @@ services:
   - type: web
     name: batalla-psicologica-api
     runtime: node
-    plan: 0.5c-512mb
+    plan: free
     region: oregon
     buildCommand: npm ci
     startCommand: npm start
     healthCheckPath: /api/health
-    disk:
-      name: batalla-psicologica-data
-      mountPath: /opt/render/project/src/data
-      sizeGB: 1
     envVars:
       - key: NODE_VERSION
         value: 22.22.1
@@ -24,3 +20,9 @@ services:
         value: https://mvisions.github.io/batalla-psicologica/
       - key: ALLOWED_ORIGINS
         value: https://mvisions.github.io
+      - key: RANKING_STORAGE
+        value: firestore
+      - key: GOOGLE_CLOUD_PROJECT
+        value: ayta-510923
+      - key: GOOGLE_APPLICATION_CREDENTIALS
+        value: /etc/secrets/render-ranking-key.json
