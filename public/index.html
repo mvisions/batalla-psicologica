@@ -83,6 +83,29 @@
   #win h1 { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); margin: 0; font-size: 56px; text-align: center;
     color: #ffd54f; text-shadow: 0 0 20px #ff9800, 0 4px 8px #000; animation: pop 1s ease-out; }
   @keyframes pop { from { transform: translate(-50%, -50%) scale(.1); } to { transform: translate(-50%, -50%) scale(1); } }
+  #levelUp { position: fixed; inset: 0; z-index: 80; display: grid; place-items: center; padding: 18px; background: #03111dcc; pointer-events: none; }
+  .level-up-card { position: relative; display: grid; justify-items: center; gap: 7px; width: min(88vw, 340px); padding: 23px 24px 21px;
+    overflow: hidden; border: 1px solid #ffe08a; border-radius: 12px; color: #fff; text-align: center;
+    background: linear-gradient(155deg, #174153, #09223b 70%); box-shadow: 0 12px 44px #000c, 0 0 36px #ffc85755;
+    animation: levelUpCard .5s cubic-bezier(.18,.82,.24,1.16) both; }
+  .level-up-card::before { content: ''; position: absolute; inset: -55%; pointer-events: none;
+    background: conic-gradient(from 20deg, transparent 0 23%, #fff2 27%, transparent 32% 48%, #ffc85722 52%, transparent 58% 100%);
+    animation: levelUpRays 2.8s linear infinite; }
+  .level-up-badge { position: relative; display: grid; place-items: center; width: 86px; aspect-ratio: 1; border: 3px solid #fff1b7;
+    border-radius: 50%; color: #14364b; font-size: 35px; font-weight: 900;
+    background: radial-gradient(circle at 35% 28%, #fff4bd, #ffc857 58%, #d98425); box-shadow: 0 0 0 7px #ffc85724, 0 0 32px #ffc85788;
+    animation: levelUpBadge .9s .15s ease-out both; }
+  .level-up-badge::after { content: '✦'; position: absolute; top: -10px; right: -13px; color: #fff3a6; font-size: 23px; text-shadow: 0 0 12px #ffc857; }
+  .level-up-kicker { position: relative; margin: 7px 0 0; color: #ffe08a; font-size: 13px; font-weight: 800; }
+  .level-up-title { position: relative; margin: 0; font-size: 29px; line-height: 1.05; }
+  .level-up-note { position: relative; margin: 1px 0 0; color: #c4e4ed; font-size: 14px; }
+  .level-up-spark { position: absolute; top: 48%; left: 50%; width: 6px; height: 6px; border-radius: 50%; color: #ffe08a;
+    background: currentColor; box-shadow: 0 0 9px currentColor; animation: levelUpSpark .85s .15s ease-out both; }
+  @keyframes levelUpCard { from { opacity: 0; transform: translateY(18px) scale(.78); } to { opacity: 1; transform: translateY(0) scale(1); } }
+  @keyframes levelUpBadge { 0% { transform: scale(.5) rotate(-35deg); } 65% { transform: scale(1.14) rotate(8deg); } 100% { transform: scale(1) rotate(0); } }
+  @keyframes levelUpRays { to { transform: rotate(360deg); } }
+  @keyframes levelUpSpark { to { opacity: 0; transform: rotate(var(--spark-angle)) translateX(var(--spark-distance)) scale(.15); } }
+  @media (prefers-reduced-motion: reduce) { .level-up-card::before, .level-up-badge, .level-up-spark { animation-duration: .01ms; animation-iteration-count: 1; } }
   select { font-size: 16px; padding: 10px; border-radius: 8px; border: 0; width: 100%; margin-top: 6px; background: #fff; color: #111; }
   #topbar { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
   #topbar button { width: auto; margin: 0; padding: 6px 12px; font-size: 13px; background: #2a4a6e; }
@@ -156,6 +179,14 @@
     <button id="muteBtn" type="button">Sonido: sí</button>
     <span id="profileStats" class="hidden"></span>
     <input id="vol" type="range" min="0" max="100" value="80" title="Volumen">
+  </div>
+  <div id="levelUp" class="hidden" role="status" aria-live="polite" aria-atomic="true">
+    <div class="level-up-card">
+      <span class="level-up-badge" aria-hidden="true">↑</span>
+      <p class="level-up-kicker">¡NUEVO NIVEL!</p>
+      <h2 class="level-up-title">Nivel <span id="levelUpValue"></span></h2>
+      <p class="level-up-note">Tu racha sigue creciendo</p>
+    </div>
   </div>
   <div id="help" class="modal hidden">
     <div class="panel">
@@ -477,11 +508,40 @@ function showLoggedOut() {
   $('profileStats').classList.add('hidden'); $('profileStats').textContent = '';
   $('gbtn').classList.remove('hidden');
 }
+function profileLevelKey() {
+  try {
+    const encoded = session.split('.')[0].replace(/-/g, '+').replace(/_/g, '/');
+    const payload = JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(encoded), (char) => char.charCodeAt(0))));
+    return `profile-level:${payload.sub || 'current'}`;
+  } catch { return 'profile-level:current'; }
+}
+let levelUpTimer;
+function showLevelUp(level) {
+  const overlay = $('levelUp');
+  $('levelUpValue').textContent = level;
+  overlay.querySelectorAll('.level-up-spark').forEach((spark) => spark.remove());
+  for (let i = 0; i < 18; i++) {
+    const spark = document.createElement('i');
+    spark.className = 'level-up-spark';
+    spark.style.setProperty('--spark-angle', `${i * 20}deg`);
+    spark.style.setProperty('--spark-distance', `${76 + (i % 4) * 25}px`);
+    overlay.appendChild(spark);
+  }
+  overlay.classList.remove('hidden');
+  clearTimeout(levelUpTimer);
+  levelUpTimer = setTimeout(() => {
+    overlay.classList.add('hidden');
+    overlay.querySelectorAll('.level-up-spark').forEach((spark) => spark.remove());
+  }, 2600);
+}
 async function loadProfile() {
   if (!session) return;
   try {
     const profile = await post('/api/profile', { session });
     $('profileStats').textContent = `Nivel ${profile.level} · ${profile.points} pts`;
+    const key = profileLevelKey(), previous = localStorage.getItem(key), level = Number(profile.level) || 1;
+    if (previous !== null && level > Number(previous)) showLevelUp(level);
+    localStorage.setItem(key, String(level));
   } catch { $('profileStats').textContent = ''; }
 }
 $('logout').onclick = (e) => {

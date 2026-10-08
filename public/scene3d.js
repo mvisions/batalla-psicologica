@@ -754,26 +754,31 @@ export function createScene(container) {
   // ---------- Pulpo (ronda 2): intercepta una bala y la devuelve al rival ----------
   const octopus = (() => {
     const g = new THREE.Group();
-    const bodyMat = new THREE.MeshStandardMaterial({ color: 0xd45fa5, roughness: 0.4, emissive: 0x321128, emissiveIntensity: 0.3 });
-    const armMat = new THREE.MeshStandardMaterial({ color: 0xb84391, roughness: 0.42, emissive: 0x281021, emissiveIntensity: 0.18 });
-    const body = new THREE.Mesh(new THREE.SphereGeometry(0.58, 20, 14), bodyMat);
-    body.position.y = 0.52; body.scale.set(1.05, 0.78, 0.9); g.add(body);
+    const bodyMat = new THREE.MeshStandardMaterial({ color: 0xd45fa5, roughness: 0.34, metalness: 0.04, emissive: 0x321128, emissiveIntensity: 0.3 });
+    const armMat = new THREE.MeshStandardMaterial({ color: 0xb84391, roughness: 0.36, metalness: 0.03, emissive: 0x281021, emissiveIntensity: 0.18 });
+    const body = new THREE.Mesh(new THREE.SphereGeometry(0.76, 24, 18), bodyMat);
+    body.position.y = 0.66; body.scale.set(1.08, 0.82, 0.98); g.add(body);
     const eyeWhite = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.25 });
     const pupilMat = new THREE.MeshStandardMaterial({ color: 0x15121a, roughness: 0.2 });
     for (const x of [-0.2, 0.2]) {
-      const eye = new THREE.Mesh(new THREE.SphereGeometry(0.12, 12, 8), eyeWhite);
-      eye.position.set(x, 0.58, 0.46); g.add(eye);
-      const pupil = new THREE.Mesh(new THREE.SphereGeometry(0.055, 10, 8), pupilMat);
-      pupil.position.set(x, 0.57, 0.56); g.add(pupil);
+      const eye = new THREE.Mesh(new THREE.SphereGeometry(0.15, 16, 12), eyeWhite);
+      eye.position.set(x * 1.3, 0.73, 0.62); g.add(eye);
+      const pupil = new THREE.Mesh(new THREE.SphereGeometry(0.07, 12, 10), pupilMat);
+      pupil.position.set(x * 1.3, 0.71, 0.75); g.add(pupil);
     }
     for (let arm = 0; arm < 8; arm++) {
       const angle = arm * Math.PI / 4;
       const dx = Math.cos(angle), dz = Math.sin(angle);
       const curve = new THREE.CatmullRomCurve3([
-        V(0, 0.2, 0), V(dx * 0.45, 0.12, dz * 0.45),
-        V(dx * 0.9, -0.08, dz * 0.9), V(dx * 1.25, 0.1, dz * 1.25),
+        V(0, 0.22, 0), V(dx * 0.62, 0.18, dz * 0.62),
+        V(dx * 1.28, -0.02, dz * 1.28), V(dx * 1.78, 0.16, dz * 1.78),
       ]);
-      g.add(new THREE.Mesh(new THREE.TubeGeometry(curve, 14, 0.085, 6, false), armMat));
+      g.add(new THREE.Mesh(new THREE.TubeGeometry(curve, 18, 0.12, 8, false), armMat));
+      for (const t of [0.42, 0.62, 0.8]) {
+        const p = curve.getPoint(t);
+        const sucker = new THREE.Mesh(new THREE.SphereGeometry(0.075, 10, 8), eyeWhite);
+        sucker.position.copy(p); sucker.scale.set(1, 0.35, 1); g.add(sucker);
+      }
     }
     g.visible = false; g.scale.setScalar(0.01); scene.add(g);
     return { g, bodyMat, armMat, present: false, x: 0 };
@@ -783,7 +788,7 @@ export function createScene(container) {
       octopus.present = true; octopus.x = wx; octopus.g.position.set(wx, -0.2, 0);
       octopus.g.rotation.set(0, 0, 0); octopus.g.scale.setScalar(0.01); octopus.g.visible = true;
       ripple(wx, 0, 3);
-      await tween(450, (t) => { octopus.g.scale.setScalar(0.01 + 0.99 * t); }, easeOut);
+      await tween(550, (t) => { octopus.g.scale.setScalar(0.01 + 1.24 * t); }, easeOut);
     }
   }
   async function octopusSpin() {
@@ -810,13 +815,35 @@ export function createScene(container) {
   // ---------- Botiquín: recorre los cuatro puestos y se recoge al recibir un disparo ----------
   const medkit = (() => {
     const g = new THREE.Group();
-    const caseMat = new THREE.MeshStandardMaterial({ color: 0xf1f4f2, roughness: 0.42, metalness: 0.08 });
-    const crossMat = new THREE.MeshStandardMaterial({ color: 0xd7333f, roughness: 0.35, emissive: 0x591019, emissiveIntensity: 0.18 });
-    const box = new THREE.Mesh(new THREE.BoxGeometry(0.72, 0.52, 0.48), caseMat); box.position.y = 0.3; g.add(box);
-    const handle = new THREE.Mesh(new THREE.TorusGeometry(0.16, 0.035, 8, 16, Math.PI), caseMat);
-    handle.position.set(0, 0.57, 0); g.add(handle);
-    const vertical = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.34, 0.035), crossMat); vertical.position.set(0, 0.3, 0.258); g.add(vertical);
-    const horizontal = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.14, 0.035), crossMat); horizontal.position.set(0, 0.3, 0.258); g.add(horizontal);
+    const caseMat = new THREE.MeshPhysicalMaterial({ color: 0xf7f8f2, roughness: 0.28, metalness: 0.08, clearcoat: 0.7, clearcoatRoughness: 0.2 });
+    const edgeMat = new THREE.MeshStandardMaterial({ color: 0xc8d0cf, metalness: 0.48, roughness: 0.28 });
+    const crossMat = new THREE.MeshStandardMaterial({ color: 0xe32336, roughness: 0.28, metalness: 0.02, emissive: 0x8f101b, emissiveIntensity: 0.22 });
+    const strapMat = new THREE.MeshStandardMaterial({ color: 0x315e68, roughness: 0.55 });
+    const box = new THREE.Mesh(new THREE.BoxGeometry(1.18, 0.82, 0.78), caseMat); box.position.y = 0.43; g.add(box);
+    const lid = new THREE.Mesh(new THREE.BoxGeometry(1.25, 0.16, 0.84), caseMat); lid.position.y = 0.91; g.add(lid);
+    for (const x of [-0.54, 0.54]) for (const z of [-0.35, 0.35]) {
+      const bumper = new THREE.Mesh(new THREE.SphereGeometry(0.12, 12, 8), edgeMat);
+      bumper.position.set(x, 0.12, z); bumper.scale.set(1, 1, 0.8); g.add(bumper);
+    }
+    const handle = new THREE.Mesh(new THREE.TorusGeometry(0.24, 0.055, 10, 20, Math.PI), strapMat);
+    handle.position.set(0, 1.04, 0); g.add(handle);
+    const addCross = (x, y, z, face, scale = 1) => {
+      const vertical = new THREE.Mesh(new THREE.BoxGeometry(0.22 * scale, 0.62 * scale, 0.06), crossMat);
+      const horizontal = new THREE.Mesh(new THREE.BoxGeometry(0.62 * scale, 0.22 * scale, 0.06), crossMat);
+      vertical.position.set(x, y, z); horizontal.position.set(x, y, z);
+      if (face === 'top') { vertical.rotation.x = -Math.PI / 2; horizontal.rotation.x = -Math.PI / 2; }
+      if (face === 'back') { vertical.rotation.y = Math.PI; horizontal.rotation.y = Math.PI; }
+      g.add(vertical, horizontal);
+    };
+    addCross(0, 0.45, 0.43, 'front', 1.1);
+    addCross(0, 0.45, -0.43, 'back', 1.1);
+    addCross(0, 0.99, 0, 'top', 0.8);
+    for (const x of [-0.37, 0.37]) {
+      const latch = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.18, 0.08), edgeMat);
+      latch.position.set(x, 0.91, 0.43); g.add(latch);
+    }
+    const sideStripe = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.7, 0.8), strapMat);
+    g.add(sideStripe);
     g.visible = false; g.scale.setScalar(0.01); scene.add(g);
     return { g, present: false, x: 0 };
   })();
@@ -825,7 +852,7 @@ export function createScene(container) {
       medkit.present = true; medkit.x = wx; medkit.g.position.set(wx, -0.2, 0);
       medkit.g.scale.setScalar(0.01); medkit.g.visible = true;
       ripple(wx, 0, 2.5);
-      await tween(350, (t) => { medkit.g.scale.setScalar(0.01 + 0.99 * t); }, easeOut);
+      await tween(450, (t) => { medkit.g.scale.setScalar(0.01 + 1.15 * t); }, easeOut);
     } else if (medkit.x !== wx) {
       const from = medkit.x; medkit.x = wx;
       await tween(300, (t) => { medkit.g.position.x = from + (wx - from) * t; }, easeInOut);
@@ -848,9 +875,10 @@ export function createScene(container) {
   }
 
   // x en unidades de 1,5 (posición real del cañón); 'miss' = la bala se pierde fuera de la pantalla
-  function fire({ from, x: xu, lane, target, owner, sub: fromSub = false, octopus: fromOctopus = false, toward, ice }) {
+  function fire({ from, x: xu, lane, target, owner, fromX, sub: fromSub = false, octopus: fromOctopus = false, toward, ice }) {
     const dir = fromSub ? (toward === 'me' ? 1 : -1) : fromOctopus ? Math.sign(zOf(owner)) : (from === 'me' ? -1 : 1);
     const x = xu !== undefined ? xu * UNIT : LANE_X[lane - 1], y = fromSub ? 0.9 : 1.3;
+    const startX = fromOctopus && fromX !== undefined ? fromX * UNIT : x;
     const startZ = fromSub ? dir * 1.0 : fromOctopus ? 0 : -dir * MUZZLE_Z;
     const endZ = ['collision', 'whale', 'sub', 'ice', 'octopus', 'medkit'].includes(target) ? 0 : target === 'shark' ? zOf(owner) * FIN_Z : zOf(owner) * HIT_SHIP_Z;
     const finalZ = target === 'miss' ? zOf(owner) * OUT_Z : endZ;
@@ -865,7 +893,7 @@ export function createScene(container) {
     const holder = new THREE.Group(); holder.add(m);
     const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: 0xff9a2e, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false }));
     glow.scale.setScalar(1.1); holder.add(glow);
-    holder.position.set(x, y, startZ);
+    holder.position.set(startX, y, startZ);
     holder.scale.setScalar(1.7);
     scene.add(holder);
 
@@ -882,7 +910,7 @@ export function createScene(container) {
 
     let done;
     const promise = new Promise((r) => { done = r; });
-    bullets.push({ holder, m, dir, endZ, finalZ, x, target, owner, ice, trail: 0, done, glow, passed: false });
+    bullets.push({ holder, m, dir, startX, startZ, endZ, finalZ, x, target, owner, ice, trail: 0, done, glow, passed: false });
     return { flight, done: promise };
   }
 
@@ -1084,6 +1112,12 @@ export function createScene(container) {
     for (let i = bullets.length - 1; i >= 0; i--) {
       const b = bullets[i];
       b.holder.position.z += b.dir * SPEED * dt;
+      if (b.startX !== b.x) {
+        const span = b.endZ - b.startZ;
+        const progress = span === 0 ? 1 : Math.max(0, Math.min(1, (b.holder.position.z - b.startZ) / span));
+        b.holder.position.x = b.startX + (b.x - b.startX) * progress;
+        b.holder.rotation.y = Math.atan2((b.x - b.startX) * b.dir, Math.abs(span));
+      }
       b.glow.material.opacity = 0.75 + Math.random() * 0.25;
       b.trail += dt;
       while (b.trail > 0.035) {
