@@ -1194,18 +1194,13 @@ export function createScene(container) {
       const v = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.4, 0.02), redM), h = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.14, 0.02), redM);
       v.position.set(0, 0.33, z); h.position.set(0, 0.33, z); g.add(v, h);
     }
-    const chute = new THREE.Group(); chute.position.y = 2.1;
-    for (let k = 0; k < 8; k++) {
-      const gore = new THREE.Mesh(new THREE.SphereGeometry(1.1, 6, 8, k * Math.PI / 4, Math.PI / 4, 0, Math.PI / 2), new THREE.MeshStandardMaterial({ color: k % 2 ? 0xffffff : 0xe32336, roughness: 0.6, side: THREE.DoubleSide }));
-      chute.add(gore);
-    }
-    const lineMat = new THREE.LineBasicMaterial({ color: 0xeeeeee });
-    for (const [x, z] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
-      chute.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([V(x * 0.9, 0.3, z * 0.9), V(x * 0.3, -1.6, z * 0.3)]), lineMat));
-    }
-    g.add(chute);
+    const lid = new THREE.Mesh(new THREE.BoxGeometry(0.98, 0.12, 0.72), white); lid.position.y = 0.7; g.add(lid);
+    const handle = new THREE.Mesh(new THREE.TorusGeometry(0.2, 0.045, 8, 16, Math.PI), new THREE.MeshStandardMaterial({ color: 0x315e68, roughness: 0.5 })); handle.position.y = 0.76; g.add(handle);
+    const top = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.02, 0.4), redM), top2 = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.02, 0.14), redM);
+    top.position.y = 0.77; top2.position.y = 0.77; g.add(top, top2);
+    g.scale.setScalar(1.5);
     g.visible = false; scene.add(g);
-    return { g, chute };
+    return { g };
   })();
   // el helicóptero llega, suelta un botiquín con paracaídas sobre el barco y se marcha
   async function heliSupport(who) {
@@ -1214,22 +1209,20 @@ export function createScene(container) {
     heli.g.position.set(sx - 18, hy + 4, z);
     const ripples = setInterval(() => ripple(heli.g.position.x, z, 4.5, 0, 1.1), 260);
     await tween(1500, (t) => { heli.g.position.x = sx - 18 + 18 * t; heli.g.position.y = hy + 4 - 4 * t; heli.g.rotation.z = -0.22 * (1 - t); }, easeOut);
-    // la puerta se abre: cae el botiquín frenado por el paracaídas
-    cargo.g.visible = true; cargo.chute.visible = true; cargo.chute.scale.setScalar(0.01);
+    // se abre la puerta y cae el botiquín directo sobre el barco
+    cargo.g.visible = true; cargo.g.scale.setScalar(1.5);
     cargo.g.position.set(sx, hy - 1.2, z);
-    await tween(350, (t) => { cargo.chute.scale.setScalar(0.01 + 0.99 * t); }, easeOut);
     const y0 = cargo.g.position.y;
-    await tween(1500, (t) => { cargo.g.position.y = y0 + (1.0 - y0) * t; cargo.g.position.x = sx + Math.sin(t * Math.PI * 3) * 0.35 * (1 - t); cargo.g.rotation.z = Math.sin(t * Math.PI * 3) * 0.12 * (1 - t); }, easeInOut);
-    // aterriza: el paracaídas se pliega y el barco se cura
+    await tween(900, (t) => { cargo.g.position.y = y0 + (1.0 - y0) * t * t; cargo.g.rotation.y = t * Math.PI * 2; cargo.g.rotation.z = Math.sin(t * Math.PI * 2) * 0.15; }, (t) => t);
+    // aterriza y el barco se cura
     const p = V(sx, 1.2, z);
     spawn({ pos: p, life: 0.4, s0: 0.5, s1: 6, add: true, color: 0x8dffb0 });
     sparks(p, 28, 5, 0x8dffb0);
     for (let k = 0; k < 18; k++) spawn({ pos: V(sx + rnd(-1.2, 1.2), 1, z + rnd(-1.2, 1.2)), tex: glowTex, vel: V(0, rnd(1.5, 3.5), 0), life: rnd(0.9, 1.5), s0: 0.45, s1: 0.1, add: true, color: 0x69f0ae, op: 0.9 });
     api.onHeal?.();
-    tween(450, (t) => { cargo.chute.scale.setScalar(Math.max(0.01, 1 - t)); }, easeIn).then(() => { cargo.chute.visible = false; });
     await tween(500, (t) => { cargo.g.position.y = 1.0 + Math.sin(t * Math.PI) * 0.6; cargo.g.rotation.y = t * Math.PI * 2; }, easeOut);
-    await tween(350, (t) => { cargo.g.scale.setScalar(Math.max(0.01, 1 - t)); }, easeIn);
-    cargo.g.visible = false; cargo.g.scale.setScalar(1); cargo.g.rotation.set(0, 0, 0);
+    await tween(350, (t) => { cargo.g.scale.setScalar(Math.max(0.01, 1.5 * (1 - t))); }, easeIn);
+    cargo.g.visible = false; cargo.g.rotation.set(0, 0, 0);
     // el piloto saluda con un giro y se va
     const x1 = heli.g.position.x;
     await tween(500, (t) => { heli.g.rotation.x = Math.sin(t * Math.PI * 2) * 0.35; }, easeInOut);
