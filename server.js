@@ -240,6 +240,9 @@ const cleanName = (n) => String(n || '').trim().slice(0, 16) || 'Jugador';
 const cleanCountry = (c) => (/^[a-z]{2}$/i.test(String(c)) ? String(c).toLowerCase() : 'un'); // 'un' = bandera internacional
 
 function resolveRound(room) {
+  const medkitPosts = [-3, -1, 1, 3];
+  const medkitRound = room.medkitMatch && room.round >= 3 && (room.round - 3) % 3 === 0;
+  let medkitCollected = false;
   const rain = room.round % 5 === 0; // con lluvia los tiburones se van y no interceptan
   const whaleRound = room.round % 7 === 0; // ballena extra en medio del mar, en un carril al azar por disparo
   const swell = room.round % 6 === 0; // con oleaje los barcos se desplazan: 1 derecha, 2 izquierda, 0 quieto
@@ -264,11 +267,13 @@ function resolveRound(room) {
     // submarino (rondas múltiplo de 3): cruza el centro en un carril al azar, dispara a un lado al azar y se va antes del último disparo
     const subRound = room.round % 3 === 0 && i < 3;
     const subX = subRound ? [-3, -1, 1, 3][Math.floor(Math.random() * 4)] : null;
+    const octopusX = room.round === 2 && !room.octopusUsed ? 2 * room.octopusLane - 5 : null;
+    const medkitX = medkitRound && !medkitCollected ? medkitPosts[i] : null;
     // icebergs (lluvia): dos, derivan a carriles al azar en cada disparo; la primera bala que da a uno lo destruye
     const lanePool = [-3, -1, 1, 3].sort(() => Math.random() - 0.5);
     const iceX = rain ? [iceAlive[0] ? lanePool[0] : null, iceAlive[1] ? lanePool[1] : null] : null;
     const iceAt = (x) => (iceX ? iceX.findIndex((v) => v !== null && v === x) : -1);
-    const ev = { step: i, atk, def, pos: [...pos], swell, whale: whaleX, ice: iceX, sub: subRound ? { x: subX, toward: Math.floor(Math.random() * 2) } : null, shots: [] };
+    const ev = { step: i, atk, def, pos: [...pos], swell, whale: whaleX, ice: iceX, sub: subRound ? { x: subX, toward: Math.floor(Math.random() * 2) } : null, octopus: octopusX === null ? null : { x: octopusX, release: null }, medkit: medkitX === null ? null : { x: medkitX }, shots: [] };
     const dmg = [{ ship: 0, shark: 0 }, { ship: 0, shark: 0 }];
     const cdmg = [[0, 0, 0, 0], [0, 0, 0, 0]]; // daño a cada cañón en este disparo
     const crepair = [[0, 0, 0, 0], [0, 0, 0, 0]];
@@ -277,15 +282,45 @@ function resolveRound(room) {
     const live = [cann[0][atk[0] - 1] > 0, cann[1][atk[1] - 1] > 0]; // un cañón roto no dispara
     // posición real de cada bala (el cañón se mueve con el barco)
     const xu = [2 * atk[0] - 5 + pos[0], 2 * atk[1] - 5 + pos[1]];
-    if (live[0] && live[1] && xu[0] === xu[1] && xu[0] !== subX && iceAt(xu[0]) < 0) {
+    const simultaneousCollision = live[0] && live[1] && xu[0] === xu[1] && xu[0] !== subX && iceAt(xu[0]) < 0;
+    if (simultaneousCollision && xu[0] !== medkitX && xu[0] !== octopusX) {
       ev.shots = [0, 1].map((from) => ({ from, lane: atk[from], x: xu[from], target: 'collision' }));
     } else {
+      let octopusCaughtThisStep = false;
+      let medkitCaughtThisStep = false;
       for (const from of [0, 1]) {
         const other = 1 - from, x = xu[from];
         if (!live[from]) { ev.shots.push({ from, lane: atk[from], x, target: 'broken' }); continue; }
         const sharkAt = (k) => !rain && room.hp[k].shark > 0 && 2 * def[k] - 5 === x;
         let target, owner, iceId;
-        if (sharkAt(from)) { target = 'shark'; owner = from; }
+        if (simultaneousCollision && from === 1 && (octopusCaughtThisStep || medkitCaughtThisStep)) { target = 'collision'; }
+        else if (sharkAt(from)) { target = 'shark'; owner = from; }
+        else if (octopusX !== null && !room.octopusUsed && x === octopusX) {
+          target = 'octopus'; owner = other;
+          room.octopusUsed = true;
+          octopusCaughtThisStep = true;
+          const returnLanes = [1, 2, 3, 4].filter((lane) => lane !== atk[from]);
+          const returnLane = returnLanes[Math.floor(Math.random() * returnLanes.length)];
+          const returnX = 2 * returnLane - 5;
+          const returnTarget = !rain && room.hp[other].shark > 0 && 2 * def[other] - 5 === returnX
+            ? 'shark'
+            : Math.abs(returnX - pos[other]) <= 4 ? 'ship' : 'miss';
+          const amount = DMG * mult;
+          if (returnTarget === 'shark') dmg[other].shark += amount;
+          else if (returnTarget === 'ship') {
+            dmg[other].ship += amount;
+            const cannon = nearestCannon(other, returnX);
+            cdmg[other][cannon] += amount;
+            hitBy[other][cannon] = from;
+          }
+          ev.octopus.release = { from, lane: returnLane, x: returnX, target: returnTarget, owner: other };
+        }
+        else if (medkitX !== null && x === medkitX && !medkitCollected) {
+          target = 'medkit';
+          medkitCollected = true;
+          medkitCaughtThisStep = true;
+          heal[from] += 40;
+        }
         else if (iceAt(x) >= 0) { target = 'ice'; iceId = iceAt(x); iceAlive[iceId] = false; } // el iceberg se autodestruye con la bala
         else if (subX !== null && x === subX) {
           target = 'sub'; heal[from] += 5; crepair[from][atk[from] - 1] += 5;
@@ -390,6 +425,9 @@ function matchmakingState(ticket) {
 function resetState(room) {
   room.hp = [{ ship: 100, shark: 50 }, { ship: 100, shark: 50 }];
   room.cannons = [[25, 25, 25, 25], [25, 25, 25, 25]];
+  room.medkitMatch = Math.random() < 1 / 3;
+  room.octopusLane = 1 + Math.floor(Math.random() * 4);
+  room.octopusUsed = false;
   room.round = START_ROUND; room.over = false; room.hist = [[], []]; room.startedAt = Date.now();
 }
 function makeRoom(who, bot, level = 'normal', tutorial = false) {

@@ -173,6 +173,8 @@
         <tr><td>Cada 6</td><td>Oleaje: mueves tu barco con las flechas del mar (hasta 4 movimientos). Si el rival se mueve, tu bala puede fallar.</td></tr>
         <tr><td>Cada 7</td><td>Llega una orca al centro del mar en un sitio al azar. Rebota las balas contra el barco que disparó.</td></tr>
         <tr><td>Cada 3</td><td>Un submarino cruza el centro y dispara a un lado al azar en los 3 primeros disparos. Si tu bala le da, recuperas 5 de vida y el cañón que disparó repara 5, hasta 25.</td></tr>
+        <tr><td>Ronda 2</td><td>Un pulpo intercepta un disparo en su canal, gira con las patas abiertas y lo devuelve por uno de los otros tres canales contra el rival.</td></tr>
+        <tr><td>Desde la ronda 3</td><td>En una de cada tres partidas aparece un botiquín en las rondas 3, 6, 9… Recorre los cuatro canales; si lo alcanzas, recuperas 40 de vida para el barco, hasta 100.</td></tr>
       </table>
       <button id="helpClose" type="button">Cerrar</button>
     </div>
@@ -1060,25 +1062,35 @@ async function playRound(r, replay = false) {
   if (replay) { setHp(pre.hp); setCannons(pre.can); scene.setWeather(r.round - 1); }
   const side = (n) => (n === me ? 'me' : 'op');
   const impactSfx = (t) => (t === 'ship' || t === 'whale' ? 'bomb' : t === 'shark' ? 'splash' : 'clash');
-  let subOn = false;
+  let subOn = false, octopusOn = false, medkitOn = false;
   for (const ev of r.events) {
     const slotEnd = Date.now() + SHOT_MS;
     $('msg').textContent = `Disparo ${ev.step + 1}/4`;
-    // Las aletas, el submarino y los icebergs se colocan antes de disparar
+    // Las aletas y los obstáculos se colocan antes de disparar
     await Promise.all([
       scene.moveFin('me', ev.def[me]), scene.moveFin('op', ev.def[op]),
       ...(ev.swell ? [scene.moveShip('me', ev.pos[me]), scene.moveShip('op', ev.pos[op])] : []),
       ...(ev.whale != null ? [scene.moveFin('mid', (ev.whale + 5) / 2)] : []),
       ...(ev.sub ? [scene.subMove(ev.sub.x * 1.5)] : subOn ? [scene.subLeave()] : []),
+      ...(ev.octopus ? [scene.octopusShow(ev.octopus.x * 1.5)] : octopusOn ? [scene.octopusLeave()] : []),
+      ...(ev.medkit ? [scene.medkitShow(ev.medkit.x * 1.5)] : medkitOn ? [scene.medkitLeave()] : []),
       ...(ev.ice ? ev.ice.map((x, id) => (x === null ? Promise.resolve() : scene.iceShow(id, x * 1.5))) : []),
     ]);
-    subOn = !!ev.sub;
-    const impacts = ev.shots.map((s) => {
+    subOn = !!ev.sub; octopusOn = !!ev.octopus; medkitOn = !!ev.medkit;
+    const impacts = ev.shots.map(async (s) => {
       if (s.target === 'broken') { scene.dud(side(s.from), s.lane); sfx('dud'); return Promise.resolve(); }
       const f = scene.fire({ from: side(s.from), x: s.x, lane: s.lane, target: s.target, ice: s.ice, owner: s.owner === undefined ? null : side(s.owner) });
       sfx('shot');
-      f.done.then(() => { if (s.target !== 'miss') sfx(impactSfx(s.target)); });
-      return f.done;
+      await f.done;
+      if (s.target !== 'miss') sfx(impactSfx(s.target));
+      if (s.target === 'octopus' && ev.octopus?.release) {
+        await scene.octopusSpin();
+        const release = ev.octopus.release;
+        const returned = scene.fire({ octopus: true, x: release.x, target: release.target, owner: side(release.owner) });
+        sfx('shot');
+        await returned.done;
+        if (release.target !== 'miss') sfx(impactSfx(release.target));
+      }
     });
     if (ev.sub) { // el submarino dispara hacia uno de los dos lados
       const sf = scene.fire({ sub: true, toward: side(ev.sub.toward), x: ev.sub.x, target: ev.sub.target, owner: side(ev.sub.owner) });
@@ -1095,7 +1107,7 @@ async function playRound(r, replay = false) {
     showCannonRepair(prevC, ev.cannons, me, op);
     await wait(Math.max(0, slotEnd - Date.now()));
   }
-  scene.subLeave(); scene.iceClear();
+  scene.subLeave(); scene.octopusLeave(); scene.medkitLeave(); scene.iceClear();
   setHp(r.hp);
   { const before = lastCan; setCannons(r.cannons); showCannonRepair(before, r.cannons, me, op); }
   playing = false;

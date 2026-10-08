@@ -7,6 +7,7 @@ function setup({ round = 1, a, b, hp0 }) {
   const room = makeRoom({ name: 'A', sub: 'a' }, false);
   room.players.push({ name: 'B', sub: 'b', attack: null, defense: null, wave: null });
   room.round = round;
+  room.medkitMatch = false;
   if (hp0) room.hp[0].ship = hp0;
   const [p0, p1] = room.players;
   Object.assign(p0, { attack: a.attack, defense: a.defense, wave: a.wave });
@@ -61,6 +62,83 @@ test('romper un cañón rival cura 5 de vida', () => {
   assert.equal(events[0].cannons[1][0], 0);
   // el cañón ya roto no vuelve a curar
   assert.deepEqual(events[1].heal, [0, 0]);
+});
+
+test('el botiquín aparece en una de cada tres partidas y solo en rondas 3, 6, 9…', () => {
+  const originalRandom = Math.random;
+  try {
+    Math.random = () => 0.2;
+    const enabled = makeRoom({ name: 'A', sub: 'a' }, false);
+    Math.random = () => 0.8;
+    const disabled = makeRoom({ name: 'B', sub: 'b' }, false);
+    assert.equal(enabled.medkitMatch, true);
+    assert.equal(disabled.medkitMatch, false);
+  } finally { Math.random = originalRandom; }
+
+  for (const round of [1, 2, 4, 5, 7]) {
+    const room = setup({ round, a: { attack: seq(2), defense: seq(4), wave: seq(0) }, b: { attack: seq(4), defense: seq(1), wave: seq(0) } });
+    room.medkitMatch = true;
+    assert.ok(resolveRound(room).events.every((event) => event.medkit === null));
+  }
+
+  const laterRound = setup({ round: 6, a: { attack: seq(2), defense: seq(4), wave: seq(0) }, b: { attack: seq(4), defense: seq(1), wave: seq(0) } });
+  laterRound.medkitMatch = true;
+  laterRound.cannons[0] = [0, 0, 0, 0]; laterRound.cannons[1] = [0, 0, 0, 0];
+  assert.deepEqual(resolveRound(laterRound).events.map((event) => event.medkit?.x ?? null), [-3, -1, 1, 3]);
+});
+
+test('el botiquín recorre los cuatro puestos desde ronda 3 y cura 40 una sola vez', () => {
+  const room = setup({ round: 3, a: { attack: seq(1), defense: seq(4) }, b: { attack: seq(4), defense: seq(1) } });
+  room.medkitMatch = true;
+  room.cannons[0] = [0, 0, 0, 0];
+  room.cannons[1] = [0, 0, 0, 0];
+  const { events } = resolveRound(room);
+
+  assert.deepEqual(events.map((event) => event.medkit?.x ?? null), [-3, -1, 1, 3]);
+  assert.ok(events.every((event) => event.heal.every((amount) => amount === 0)));
+});
+
+test('recoger el botiquín suma 40 de vida al barco y lo retira del recorrido', () => {
+  const room = setup({ round: 3, hp0: 55, a: { attack: seq(1), defense: seq(4) }, b: { attack: seq(4), defense: seq(1) } });
+  room.medkitMatch = true;
+  room.cannons[1] = [0, 0, 0, 0];
+  const random = Math.random;
+  let events;
+  try { Math.random = () => 0.999; ({ events } = resolveRound(room)); } finally { Math.random = random; }
+
+  assert.equal(events[0].shots.find((shot) => shot.from === 0).target, 'medkit');
+  assert.deepEqual(events[0].heal, [40, 0]);
+  assert.equal(events[0].hp[0].ship, 95);
+  assert.deepEqual(events.slice(1).map((event) => event.medkit), [null, null, null]);
+});
+
+test('el botiquín no sube la vida del barco por encima de 100', () => {
+  const room = setup({ hp0: 80, round: 3, a: { attack: seq(1), defense: seq(4) }, b: { attack: seq(4), defense: seq(1) } });
+  room.medkitMatch = true; room.cannons[1] = [0, 0, 0, 0];
+  const originalRandom = Math.random;
+  let events;
+  try { Math.random = () => 0.999; ({ events } = resolveRound(room)); } finally { Math.random = originalRandom; }
+
+  assert.deepEqual(events[0].heal, [40, 0]);
+  assert.equal(events[0].hp[0].ship, 100);
+});
+
+test('el pulpo de ronda 2 devuelve el disparo por otro puesto contra el rival', () => {
+  const room = setup({ round: 2, a: { attack: seq(1), defense: seq(4) }, b: { attack: seq(4), defense: seq(1) } });
+  room.octopusLane = 1;
+  const originalRandom = Math.random;
+  let events;
+  try { Math.random = () => 0.99; ({ events } = resolveRound(room)); } finally { Math.random = originalRandom; }
+
+  assert.equal(events[0].shots.find((shot) => shot.from === 0).target, 'octopus');
+  assert.equal(events[0].octopus.release.from, 0);
+  assert.equal(events[0].octopus.release.owner, 1);
+  assert.notEqual(events[0].octopus.release.lane, 1);
+  assert.ok([2, 3, 4].includes(events[0].octopus.release.lane));
+  assert.equal(events[0].octopus.release.target, 'ship');
+  assert.equal(events[0].hp[1].ship, 95);
+  assert.equal(room.octopusUsed, true);
+  assert.equal(events[1].octopus, null);
 });
 
 test('con oleaje un barco desplazado hace fallar la bala', () => {

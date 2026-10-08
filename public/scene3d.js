@@ -751,12 +751,108 @@ export function createScene(container) {
     });
   }
 
+  // ---------- Pulpo (ronda 2): intercepta una bala y la devuelve al rival ----------
+  const octopus = (() => {
+    const g = new THREE.Group();
+    const bodyMat = new THREE.MeshStandardMaterial({ color: 0xd45fa5, roughness: 0.4, emissive: 0x321128, emissiveIntensity: 0.3 });
+    const armMat = new THREE.MeshStandardMaterial({ color: 0xb84391, roughness: 0.42, emissive: 0x281021, emissiveIntensity: 0.18 });
+    const body = new THREE.Mesh(new THREE.SphereGeometry(0.58, 20, 14), bodyMat);
+    body.position.y = 0.52; body.scale.set(1.05, 0.78, 0.9); g.add(body);
+    const eyeWhite = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.25 });
+    const pupilMat = new THREE.MeshStandardMaterial({ color: 0x15121a, roughness: 0.2 });
+    for (const x of [-0.2, 0.2]) {
+      const eye = new THREE.Mesh(new THREE.SphereGeometry(0.12, 12, 8), eyeWhite);
+      eye.position.set(x, 0.58, 0.46); g.add(eye);
+      const pupil = new THREE.Mesh(new THREE.SphereGeometry(0.055, 10, 8), pupilMat);
+      pupil.position.set(x, 0.57, 0.56); g.add(pupil);
+    }
+    for (let arm = 0; arm < 8; arm++) {
+      const angle = arm * Math.PI / 4;
+      const dx = Math.cos(angle), dz = Math.sin(angle);
+      const curve = new THREE.CatmullRomCurve3([
+        V(0, 0.2, 0), V(dx * 0.45, 0.12, dz * 0.45),
+        V(dx * 0.9, -0.08, dz * 0.9), V(dx * 1.25, 0.1, dz * 1.25),
+      ]);
+      g.add(new THREE.Mesh(new THREE.TubeGeometry(curve, 14, 0.085, 6, false), armMat));
+    }
+    g.visible = false; g.scale.setScalar(0.01); scene.add(g);
+    return { g, bodyMat, armMat, present: false, x: 0 };
+  })();
+  async function octopusShow(wx) {
+    if (!octopus.present) {
+      octopus.present = true; octopus.x = wx; octopus.g.position.set(wx, -0.2, 0);
+      octopus.g.rotation.set(0, 0, 0); octopus.g.scale.setScalar(0.01); octopus.g.visible = true;
+      ripple(wx, 0, 3);
+      await tween(450, (t) => { octopus.g.scale.setScalar(0.01 + 0.99 * t); }, easeOut);
+    }
+  }
+  async function octopusSpin() {
+    const start = octopus.g.rotation.y;
+    octopus.bodyMat.emissive.setHex(0xff5f9d);
+    sparks(V(octopus.x, 0.9, 0), 18, 4, 0xff91c5);
+    await tween(1000, (t) => {
+      octopus.g.rotation.y = start + Math.PI * 6 * t;
+      octopus.g.rotation.z = Math.sin(t * Math.PI * 6) * 0.08;
+    }, easeOut);
+    octopus.g.rotation.y = start;
+    octopus.g.rotation.z = 0;
+    octopus.bodyMat.emissive.setHex(0x321128);
+  }
+  async function octopusLeave() {
+    if (!octopus.present) return;
+    octopus.present = false;
+    const wx = octopus.x;
+    ripple(wx, 0, 2.4);
+    await tween(350, (t) => { octopus.g.scale.setScalar(Math.max(0.01, 1 - t)); }, easeIn);
+    octopus.g.visible = false;
+  }
+
+  // ---------- Botiquín: recorre los cuatro puestos y se recoge al recibir un disparo ----------
+  const medkit = (() => {
+    const g = new THREE.Group();
+    const caseMat = new THREE.MeshStandardMaterial({ color: 0xf1f4f2, roughness: 0.42, metalness: 0.08 });
+    const crossMat = new THREE.MeshStandardMaterial({ color: 0xd7333f, roughness: 0.35, emissive: 0x591019, emissiveIntensity: 0.18 });
+    const box = new THREE.Mesh(new THREE.BoxGeometry(0.72, 0.52, 0.48), caseMat); box.position.y = 0.3; g.add(box);
+    const handle = new THREE.Mesh(new THREE.TorusGeometry(0.16, 0.035, 8, 16, Math.PI), caseMat);
+    handle.position.set(0, 0.57, 0); g.add(handle);
+    const vertical = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.34, 0.035), crossMat); vertical.position.set(0, 0.3, 0.258); g.add(vertical);
+    const horizontal = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.14, 0.035), crossMat); horizontal.position.set(0, 0.3, 0.258); g.add(horizontal);
+    g.visible = false; g.scale.setScalar(0.01); scene.add(g);
+    return { g, present: false, x: 0 };
+  })();
+  async function medkitShow(wx) {
+    if (!medkit.present) {
+      medkit.present = true; medkit.x = wx; medkit.g.position.set(wx, -0.2, 0);
+      medkit.g.scale.setScalar(0.01); medkit.g.visible = true;
+      ripple(wx, 0, 2.5);
+      await tween(350, (t) => { medkit.g.scale.setScalar(0.01 + 0.99 * t); }, easeOut);
+    } else if (medkit.x !== wx) {
+      const from = medkit.x; medkit.x = wx;
+      await tween(300, (t) => { medkit.g.position.x = from + (wx - from) * t; }, easeInOut);
+    }
+  }
+  function medkitCollect() {
+    if (!medkit.present) return;
+    medkit.present = false;
+    const p = V(medkit.x, 0.45, 0);
+    medkit.g.visible = false;
+    spawn({ pos: p, life: 0.3, s0: 0.5, s1: 4, add: true, color: 0x8dffb0 });
+    sparks(p, 16, 4, 0x8dffb0);
+    ripple(medkit.x, 0, 4);
+  }
+  async function medkitLeave() {
+    if (!medkit.present) return;
+    medkit.present = false;
+    await tween(280, (t) => { medkit.g.scale.setScalar(Math.max(0.01, 1 - t)); }, easeIn);
+    medkit.g.visible = false;
+  }
+
   // x en unidades de 1,5 (posición real del cañón); 'miss' = la bala se pierde fuera de la pantalla
-  function fire({ from, x: xu, lane, target, owner, sub: fromSub = false, toward, ice }) {
-    const dir = fromSub ? (toward === 'me' ? 1 : -1) : (from === 'me' ? -1 : 1);
+  function fire({ from, x: xu, lane, target, owner, sub: fromSub = false, octopus: fromOctopus = false, toward, ice }) {
+    const dir = fromSub ? (toward === 'me' ? 1 : -1) : fromOctopus ? Math.sign(zOf(owner)) : (from === 'me' ? -1 : 1);
     const x = xu !== undefined ? xu * UNIT : LANE_X[lane - 1], y = fromSub ? 0.9 : 1.3;
-    const startZ = fromSub ? dir * 1.0 : -dir * MUZZLE_Z;
-    const endZ = ['collision', 'whale', 'sub', 'ice'].includes(target) ? 0 : target === 'shark' ? zOf(owner) * FIN_Z : zOf(owner) * HIT_SHIP_Z;
+    const startZ = fromSub ? dir * 1.0 : fromOctopus ? 0 : -dir * MUZZLE_Z;
+    const endZ = ['collision', 'whale', 'sub', 'ice', 'octopus', 'medkit'].includes(target) ? 0 : target === 'shark' ? zOf(owner) * FIN_Z : zOf(owner) * HIT_SHIP_Z;
     const finalZ = target === 'miss' ? zOf(owner) * OUT_Z : endZ;
     const flight = ((Math.abs(endZ - startZ) + (target === 'whale' ? Math.abs(zOf(owner) * HIT_SHIP_Z - endZ) : 0)) / SPEED) * 1000;
 
@@ -779,7 +875,7 @@ export function createScene(container) {
     for (let i = 0; i < 7; i++) {
       spawn({ pos: mp, tex: smokeTex, vel: V(rnd(-0.6, 0.6), rnd(0, 0.5), dir * rnd(1, 3)), drag: 1.5, life: 1.3, s0: 0.5, s1: 2, color: 0xb8b8b8, op: 0.6 });
     }
-    if (!fromSub) {
+    if (!fromSub && !fromOctopus) {
       const br = ships[from].turrets[lane - 1].barrels;
       tween(300, (t) => { br.position.z = 0.38 * Math.sin(Math.PI * Math.pow(t, 0.5)) * (1 - t * 0.2); }, easeOut).then(() => { br.position.z = 0; });
     }
@@ -795,6 +891,8 @@ export function createScene(container) {
     if (b.target === 'ship') { explodeShip(p); hitShip(b.owner); }
     else if (b.target === 'shark') { splash(V(b.x, 0.2, b.endZ)); hitShark(b.owner); }
     else if (b.target === 'sub') { clash(V(b.x, 0.9, 0)); sub.hitT = 0.5; }
+    else if (b.target === 'octopus') { clash(V(b.x, 0.8, 0)); shake(0.12, 0.25); }
+    else if (b.target === 'medkit') medkitCollect();
     else if (b.target === 'ice') { clash(V(b.x, 0.9, 0)); iceBreak(b.ice); }
     else clash(p);
   }
@@ -1100,6 +1198,6 @@ export function createScene(container) {
     return best;
   }
 
-  Object.assign(api, { setHealth, setCannons, setCannonLabels, pickFlag, subMove, subLeave, iceShow, iceClear, dud, labelCannon, moveFin, moveShip, fire, label, trackLabel, trackPoint, trackShip, setWeather, setFlag, SHIP_Z });
+  Object.assign(api, { setHealth, setCannons, setCannonLabels, pickFlag, subMove, subLeave, iceShow, iceClear, octopusShow, octopusSpin, octopusLeave, medkitShow, medkitLeave, dud, labelCannon, moveFin, moveShip, fire, label, trackLabel, trackPoint, trackShip, setWeather, setFlag, SHIP_Z });
   return api;
 }
