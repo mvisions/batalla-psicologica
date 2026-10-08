@@ -24,6 +24,10 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
+## @capgo/capacitor-social-login
+
+Version 8.5.13, licensed under Mozilla Public License 2.0. The complete license text is included in `licenses/MPL-2.0.txt` and is also available at https://mozilla.org/MPL/2.0/.
+
 ## flag-icons
 
 The MIT License (MIT)

@@ -3,12 +3,24 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
+    "build:native-auth": "esbuild src/native-google-auth.js --bundle --format=esm --platform=browser --target=es2020 --outfile=public/vendor/native-google-auth.js",
+    "prestart": "npm run build:native-auth",
     "start": "node --env-file-if-exists=.env server.js",
-    "test": "node --test tests/*.test.mjs"
+    "test": "node --test tests/*.test.mjs",
+    "android:add": "npm run build:native-auth && node --env-file-if-exists=.env scripts/configure-capacitor.mjs && cap add android",
+    "android:sync": "npm run build:native-auth && node --env-file-if-exists=.env scripts/configure-capacitor.mjs && cap sync android",
+    "android:build": "npm run android:sync && cd android && ./gradlew assembleDebug"
   },
   "dependencies": {
+    "@capacitor/android": "^8.5.3",
+    "@capacitor/core": "^8.5.3",
+    "@capgo/capacitor-social-login": "^8.5.13",
+    "esbuild": "^0.25.12",
     "flag-icons": "^7.5.0",
     "qrcode": "^1.5.4",
     "three": "^0.186.1"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^8.5.3"
   }
 }

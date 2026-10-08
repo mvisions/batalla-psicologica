@@ -500,6 +500,21 @@ async function initAuth() {
   if (session) {
     try { showLoggedIn(await post('/api/session', { session })); } catch { localStorage.removeItem('session'); session = null; }
   }
+  if (window.Capacitor?.isNativePlatform?.()) {
+    const button = document.createElement('button');
+    button.type = 'button'; button.textContent = 'Iniciar sesión con Google';
+    button.onclick = async () => {
+      button.disabled = true; $('lobbyMsg').textContent = '';
+      try {
+        const { signInWithGoogle } = await import('/vendor/native-google-auth.js');
+        await onGoogle({ credential: await signInWithGoogle(clientId) });
+      } catch (error) { $('lobbyMsg').textContent = error.message || 'No se pudo iniciar sesión con Google'; }
+      finally { button.disabled = false; }
+    };
+    $('gbtn').replaceChildren(button);
+    $('gbtn').classList.remove('hidden');
+    return;
+  }
   const s = document.createElement('script');
   s.src = 'https://accounts.google.com/gsi/client'; s.async = true;
   s.onload = () => {

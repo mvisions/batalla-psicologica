@@ -5,7 +5,8 @@ Juego web multijugador de estrategia con partidas 1 contra 1, búsqueda automát
 ## Requisitos
 
 - Node.js 22 o posterior
-- Un cliente OAuth 2.0 de Google de tipo aplicación web
+- Clientes OAuth de Google para Web y Android
+- Java 21 y Android SDK API 36 para compilar Android
 
 ## Instalación
 
@@ -14,7 +15,7 @@ npm install
 cp .env.example .env
 ```
 
-Edita `.env` y define `GOOGLE_CLIENT_ID` con el ID del cliente OAuth de Google. No publiques `.env` ni lo añadas a Git.
+Edita `.env` y define `GOOGLE_CLIENT_ID` con el ID OAuth Web. `GOOGLE_ANDROID_CLIENT_ID` identifica el cliente Android registrado en Google Cloud; el plugin nativo usa el ID Web como audiencia del token. No publiques `.env` ni lo añadas a Git.
 
 En Google Cloud Console, autoriza estos orígenes JavaScript:
 
@@ -26,6 +27,8 @@ Autoriza también estos URI de redirección:
 - `http://localhost:3000/auth/google/callback`
 - `https://TU-DOMINIO/auth/google/callback`
 
+En la pantalla de consentimiento, agrega las cuentas que probarán el inicio de sesión mientras la app esté en modo de prueba.
+
 Inicia el servidor:
 
 ```sh
@@ -33,6 +36,22 @@ npm start
 ```
 
 Abre `http://localhost:3000`. Para que otros dispositivos de la red local se conecten, inicia sesión y comparte la URL de red mostrada por el servidor. Para jugar desde Internet se necesita desplegar el servidor detrás de HTTPS y configurar `PUBLIC_URL`.
+
+## Android
+
+El wrapper usa Capacitor y el paquete `com.mvisions.batallapsicologica`. Google Cloud tiene un cliente Android de depuración registrado para ese paquete y la SHA-1 del debug keystore local. El plugin nativo envía el ID token del cliente Web al backend para verificar la cuenta.
+
+```sh
+npm run android:add
+npm run android:sync
+npm run android:build
+```
+
+`android:add` se ejecuta una sola vez. El APK debug se genera en `android/app/build/outputs/apk/debug/app-debug.apk`.
+
+`CAPACITOR_SERVER_URL` apunta por defecto al backend del emulador Android (`http://10.0.2.2:3000`). Para probar en un teléfono físico, cambia `CAPACITOR_SERVER_URL` en `.env` por la IP LAN del servidor, vuelve a ejecutar `npm run android:sync` e instala el APK en un dispositivo de la misma red.
+
+Para producción se necesita desplegar el backend Node detrás de HTTPS, definir `PUBLIC_URL` y `CAPACITOR_SERVER_URL`, y volver a sincronizar/compilar. GitHub Pages por sí solo no ejecuta la API. Las compilaciones release y Play App Signing requieren clientes Android registrados con las SHA-1 de sus certificados correspondientes. Mientras el consentimiento OAuth esté en modo de prueba, agrega las cuentas de prueba en Google Auth Platform.
 
 ## Pruebas
 
