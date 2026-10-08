@@ -522,7 +522,7 @@ async function initAuth() {
   const s = document.createElement('script');
   s.src = 'https://accounts.google.com/gsi/client'; s.async = true;
   s.onload = () => {
-    google.accounts.id.initialize({ client_id: clientId, ux_mode: 'redirect', login_uri: `${API_BASE_URL || location.origin}/auth/google/callback` });
+    google.accounts.id.initialize({ client_id: clientId, callback: onGoogle, ux_mode: 'popup' });
     google.accounts.id.renderButton($('gbtn'), { theme: 'filled_blue', size: 'large', text: 'signin_with', locale: 'es' });
   };
   document.head.appendChild(s);
