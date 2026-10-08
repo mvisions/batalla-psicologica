@@ -5,6 +5,7 @@ import crypto from 'node:crypto';
 import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 import QRCode from 'qrcode';
+import { limitLeaderboard, migrateLegacyRanking, upsertLeaderboard } from './src/leaderboard.mjs';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const DIR = path.join(ROOT, 'public');
@@ -36,7 +37,9 @@ function decryptCode(token) {
 }
 
 const RANK_FILE = path.join(DATA, 'ranking.json');
-const ranking = fs.existsSync(RANK_FILE) ? JSON.parse(fs.readFileSync(RANK_FILE, 'utf8')) : {};
+const PROFILE_FILE = path.join(DATA, 'profiles.json');
+const storedRanking = fs.existsSync(RANK_FILE) ? JSON.parse(fs.readFileSync(RANK_FILE, 'utf8')) : {};
+const storedProfiles = fs.existsSync(PROFILE_FILE) ? JSON.parse(fs.readFileSync(PROFILE_FILE, 'utf8')) : null;
 // Semana ISO (ej. 2026-W41) para el ranking semanal
 const weekKey = (d = new Date()) => {
   const t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
@@ -44,28 +47,66 @@ const weekKey = (d = new Date()) => {
   const y0 = new Date(Date.UTC(t.getUTCFullYear(), 0, 1));
   return `${t.getUTCFullYear()}-W${Math.ceil(((t - y0) / 864e5 + 1) / 7)}`;
 };
-function recordResult(winner, loser) {
+const currentWeek = weekKey();
+const hasLeaderboardFormat = storedRanking.version === 2;
+const ranking = storedProfiles || (hasLeaderboardFormat ? storedRanking.profiles || {} : storedRanking);
+let rankingNeedsMigration = !hasLeaderboardFormat || !storedProfiles;
+const leaderboard = hasLeaderboardFormat
+  ? {
+    weekKey: storedRanking.weekKey || currentWeek,
+    allTime: limitLeaderboard(storedRanking.allTime || []),
+    weekly: limitLeaderboard(storedRanking.weekly || []),
+  }
+  : migrateLegacyRanking(storedRanking, currentWeek);
+for (const profile of Object.values(ranking)) {
+  delete profile.best;
+  delete profile.wBest;
+}
+
+function persistRanking() {
+  fs.writeFileSync(PROFILE_FILE, JSON.stringify(ranking));
+  fs.writeFileSync(RANK_FILE, JSON.stringify({ version: 2, weekKey: leaderboard.weekKey, allTime: leaderboard.allTime, weekly: leaderboard.weekly }));
+  rankingNeedsMigration = false;
+}
+
+function ensureCurrentWeek() {
   const key = weekKey();
+  if (leaderboard.weekKey === key) return;
+  leaderboard.weekKey = key;
+  leaderboard.weekly = [];
+  for (const profile of Object.values(ranking)) {
+    profile.weekKey = key;
+    profile.wStreak = 0;
+  }
+  persistRanking();
+}
+
+function recordResult(winner, loser) {
+  ensureCurrentWeek();
+  const key = leaderboard.weekKey;
   const get = (p) => {
-    const e = (ranking[p.sub] ||= { name: p.name, streak: 0, best: 0, points: 0, wins: 0, level: 1 });
+    const e = (ranking[p.sub] ||= { name: p.name, streak: 0, points: 0, wins: 0, level: 1 });
     e.name = p.name;
     e.points ||= 0; e.wins ||= 0; e.level ||= 1;
-    if (e.weekKey !== key) { e.weekKey = key; e.wStreak = 0; e.wBest = 0; }
+    if (e.weekKey !== key) { e.weekKey = key; e.wStreak = 0; }
     return e;
   };
   const w = get(winner), l = get(loser);
-  w.streak++; w.best = Math.max(w.best, w.streak); w.wStreak++; w.wBest = Math.max(w.wBest, w.wStreak);
+  w.streak++; w.wStreak++;
   w.points += 10; w.wins++; w.level = Math.floor(w.points / 100) + 1;
   l.streak = 0; l.wStreak = 0;
-  fs.writeFileSync(RANK_FILE, JSON.stringify(ranking));
+  leaderboard.allTime = upsertLeaderboard(leaderboard.allTime, { id: winner.sub, name: w.name, best: w.streak });
+  leaderboard.weekly = upsertLeaderboard(leaderboard.weekly, { id: winner.sub, name: w.name, best: w.wStreak });
+  persistRanking();
 }
 function recordBotWin(winner) {
-  const entry = (ranking[winner.sub] ||= { name: winner.name, streak: 0, best: 0, points: 0, wins: 0, level: 1 });
+  ensureCurrentWeek();
+  const entry = (ranking[winner.sub] ||= { name: winner.name, streak: 0, points: 0, wins: 0, level: 1 });
   entry.name = winner.name;
   entry.points = (entry.points || 0) + 10;
   entry.wins = (entry.wins || 0) + 1;
   entry.level = Math.floor(entry.points / 100) + 1;
-  fs.writeFileSync(RANK_FILE, JSON.stringify(ranking));
+  persistRanking();
 }
 const GAMES_FILE = path.join(DATA, 'games.json');
 const games = fs.existsSync(GAMES_FILE) ? JSON.parse(fs.readFileSync(GAMES_FILE, 'utf8')) : [];
@@ -76,10 +117,9 @@ function recordGame(room, winner) {
   fs.writeFileSync(GAMES_FILE, JSON.stringify(games));
 }
 const topRanking = (period) => {
-  const wk = weekKey();
-  return Object.values(ranking)
-    .map((r) => ({ name: r.name, best: period === 'week' ? (r.weekKey === wk ? r.wBest : 0) : r.best }))
-    .filter((r) => r.best > 0).sort((a, b) => b.best - a.best).slice(0, 10);
+  ensureCurrentWeek();
+  if (rankingNeedsMigration) persistRanking();
+  return (period === 'week' ? leaderboard.weekly : leaderboard.allTime).map(({ name, best }) => ({ name, best }));
 };
 const randSeq = () => Array.from({ length: 4 }, () => 1 + Math.floor(Math.random() * 4));
 const randWave = () => Array.from({ length: 4 }, () => Math.floor(Math.random() * 3));

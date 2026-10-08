@@ -65,7 +65,9 @@ En Render configura (el Blueprint prepara estos valores; introduce `GOOGLE_CLIEN
 
 En GitHub activa Pages con GitHub Actions. El workflow publica `dist/`; define las variables de repositorio `BATALLA_API_URL` y `BATALLA_PUBLIC_URL` si las URLs difieren de las predeterminadas. En Google Cloud autoriza `https://mvisions.github.io` como origen JavaScript y `https://TU-SERVICIO.onrender.com/auth/google/callback` como URI de redirección.
 
-El plan gratuito de Render puede suspender el servicio y no conserva `data/` al reiniciar; ranking e historial se reiniciarán. Para conservarlos, configura almacenamiento persistente o una base de datos antes del lanzamiento público.
+Cada vista del ranking (`Siempre` y `Esta semana`) conserva como máximo 20 marcas. Una marca nueva solo entra si supera estrictamente el puesto 20; al entrar, la última sale de la clasificación. Los puntos y el perfil del jugador se conservan aparte.
+
+El plan gratuito de Render puede suspender el servicio y no conserva `data/` al reiniciar; clasificación, perfiles e historial se reiniciarán. Para conservarlos, configura almacenamiento persistente o una base de datos antes del lanzamiento público.
 
 ## Pruebas
 
@@ -75,7 +77,7 @@ npm test
 
 ## Datos locales
 
-El servidor crea `data/` para la clave de sesiones, el ranking y el historial de partidas. Esta carpeta y `.env` están excluidos de Git y no se incluyen al publicar el proyecto.
+El servidor crea `data/` para la clave de sesiones, las listas del ranking, los perfiles y el historial de partidas. Esta carpeta y `.env` están excluidos de Git y no se incluyen al publicar el proyecto.
 
 ## Estructura
 
