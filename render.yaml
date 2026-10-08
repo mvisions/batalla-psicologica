@@ -2,11 +2,15 @@ services:
   - type: web
     name: batalla-psicologica-api
     runtime: node
-    plan: free
+    plan: 0.5c-512mb
     region: oregon
     buildCommand: npm ci
     startCommand: npm start
     healthCheckPath: /api/health
+    disk:
+      name: batalla-psicologica-data
+      mountPath: /opt/render/project/src/data
+      sizeGB: 1
     envVars:
       - key: NODE_VERSION
         value: 22.22.1
