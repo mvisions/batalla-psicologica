@@ -5,6 +5,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Batalla Psicológica · 2 jugadores</title>
 <meta name="theme-color" content="#06182b">
+<meta name="description" content="Batalla naval psicológica 1 contra 1: adivina los disparos de tu rival. Torneos de 4, ligas de 8 y partidas rápidas. ¡Gratis, desde el móvil!">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Batalla Psicológica · Te reto a una batalla naval">
+<meta property="og:description" content="Adivina los disparos de tu rival. Torneos de 4 jugadores, ligas de 8 y partidas rápidas. ¡Juega gratis!">
+<meta property="og:image" content="./icon-512.png">
+<meta name="twitter:card" content="summary">
 <link rel="manifest" href="./manifest.webmanifest">
 <link rel="icon" href="./icon.svg" type="image/svg+xml">
 <script type="importmap">{ "imports": { "three": "./vendor/three.module.js" } }</script>
@@ -297,6 +303,7 @@
         <div class="invite-actions">
           <a id="wa" target="_blank" rel="noopener">WhatsApp · app o web</a>
           <a id="waWeb" target="_blank" rel="noopener">WhatsApp Web</a>
+          <a id="shareLink" class="hidden" href="#">Compartir enlace</a>
         </div>
         <img id="inviteQr" width="180" height="180" alt="Código QR para unirse a la partida">
         <label for="link">Enlace de invitación</label>
@@ -354,6 +361,15 @@ let matchmaking = null, matchmakingPollTimer = null;
 const isRain = () => curRound % 5 === 0 && curRound !== 15;
 const isSwell = () => curRound % 6 === 0;
 navigator.serviceWorker?.register('./sw.js').catch(() => {});
+// El servidor gratuito de Render se duerme: se despierta nada más abrir el juego
+fetch(apiUrl('/api/health')).catch(() => {});
+// Al volver a la pestaña o recuperar la conexión, se reengancha a la partida si la conexión en vivo se cayó
+const reconnectIfDropped = () => {
+  if (document.visibilityState === 'visible' && room && key && !spectatorMode && activeEvents && activeEvents.readyState === EventSource.CLOSED) connect();
+  if (isLeague && leagueCode) pollLeague();
+};
+document.addEventListener('visibilitychange', reconnectIfDropped);
+addEventListener('online', reconnectIfDropped);
 
 const scene = createScene($('arena'));
 scene.onThunder = () => sfx('thunder');
@@ -651,6 +667,10 @@ function showInvite(link) {
   const message = encodeURIComponent('Te reto a una Batalla Psicológica: ' + link);
   $('wa').href = `https://wa.me/?text=${message}`;
   $('waWeb').href = `https://web.whatsapp.com/send?text=${message}`;
+  if (navigator.share) {
+    $('shareLink').classList.remove('hidden');
+    $('shareLink').onclick = (e) => { e.preventDefault(); navigator.share({ title: 'Batalla Psicológica', text: 'Te reto a una Batalla Psicológica', url: link }).catch(() => {}); };
+  }
   $('inviteQr').src = apiUrl(`/api/qr?url=${encodeURIComponent(link)}`);
   $('invite').classList.remove('hidden');
 }
@@ -997,7 +1017,9 @@ function countdown() {
 }
 
 function connect() {
+  activeEvents?.close();
   const es = new EventSource(apiUrl(`/api/events?room=${room}&pid=${pid}&key=${key}`));
+  activeEvents = es;
   es.onerror = async () => { // solo se olvida la partida si el servidor confirma que ya no existe
     if (es.readyState !== EventSource.CLOSED) return;
     try {
