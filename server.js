@@ -147,7 +147,7 @@ function applyBotStartLevels() { // nivel inicial de los bots del torneo (Ronald
   }
 }
 applyBotStartLevels();
-const pointsPerWin = () => 50;
+const pointsPerWin = (level) => (level >= 15 ? 10 : 50); // a partir del nivel 15 cada victoria da menos puntos
 function recordResult(winner, loser) {
   ensureCurrentWeek();
   const key = leaderboard.weekKey;
