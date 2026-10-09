@@ -495,39 +495,66 @@ function createLeagueMatch(league, round, players) {
   const matchIndex = league.rounds[round].length;
   const [first, second] = players.map((id) => league.players[id]);
   const room = makeRoom(first, false);
-  room.players.push(blankPlayer(second.name, second.sub, { country: second.country }));
+  Object.assign(room.players[0], { bot: Boolean(first.bot), botDifficulty: first.botDifficulty });
+  setRoomPlayerMaxHealth(room, 0);
+  room.players.push(blankPlayer(second.name, second.sub, { country: second.country, bot: Boolean(second.bot), botDifficulty: second.botDifficulty }));
   setRoomPlayerMaxHealth(room, 1);
   room.startedAt = Date.now();
   room.leagueMatch = { code: league.code, round, match: matchIndex };
   const code = newRoomCode();
   rooms.set(code, room);
-  league.rounds[round].push({ players, room: code, winner: null });
+  const label = league.size === 4 ? (round === 0 ? `Semifinal ${matchIndex + 1}` : matchIndex === 0 ? 'Final' : '3er puesto') : LEAGUE_ROUNDS[round];
+  league.rounds[round].push({ players, room: code, winner: null, label });
+  if (room.players.every((player) => player.bot)) {
+    room.started = true;
+    armTimer(room, Number(process.env.BOT_TURN_MS) || 250);
+  }
 }
 function startLeague(league) {
+  clearTimeout(league.registrationTimer);
+  league.registrationDeadline = null;
   const order = league.players.map((_, id) => id);
   for (let i = order.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [order[i], order[j]] = [order[j], order[i]];
   }
   league.status = 'running';
-  league.rounds = [[], [], []];
-  for (let i = 0; i < 8; i += 2) createLeagueMatch(league, 0, order.slice(i, i + 2));
+  league.rounds = league.size === 4 ? [[], []] : [[], [], []];
+  for (let i = 0; i < league.size; i += 2) createLeagueMatch(league, 0, order.slice(i, i + 2));
+}
+function fillFourPlayerTournament(league) {
+  if (league.size !== 4 || league.status !== 'registration') return;
+  const bots = [
+    { name: 'Lamine', sub: 'tournament-bot-lamine', country: 'es', botDifficulty: 'normal' },
+    { name: 'Messi', sub: 'tournament-bot-messi', country: 'ar', botDifficulty: 'easy' },
+    { name: 'Ronaldo', sub: 'tournament-bot-ronaldo', country: 'pt', botDifficulty: 'hard' },
+  ];
+  while (league.players.length < league.size) {
+    const bot = bots[league.players.filter((player) => player.bot).length];
+    league.players.push({ ...bot, bot: true, key: newKey() });
+  }
+  startLeague(league);
 }
 function addLeaguePlayer(league, who, country) {
   const existing = league.players.find((p) => p.sub === who.sub);
   if (existing) return existing;
-  if (league.status !== 'registration' || league.players.length >= 8) return null;
+  if (league.status !== 'registration' || league.players.length >= league.size) return null;
   const player = { name: cleanName(who.name), sub: who.sub, country: cleanCountry(country), key: newKey() };
   league.players.push(player);
-  if (league.players.length === 8) startLeague(league);
+  if (league.players.length === league.size) startLeague(league);
   return player;
 }
-function createLeague(who, country, name) {
+function createLeague(who, country, name, size = 8) {
   let code;
   do { code = crypto.randomBytes(4).toString('hex').toUpperCase(); } while (leagues.has(code));
-  const league = { code, name: String(name || '').trim().slice(0, 48) || 'Liga de 8 jugadores', createdBy: cleanName(who.name), status: 'registration', players: [], rounds: [], champion: null };
+  const league = { code, size, name: String(name || '').trim().slice(0, 48) || (size === 4 ? 'Torneo de 4 jugadores' : 'Liga de 8 jugadores'), createdBy: cleanName(who.name), status: 'registration', players: [], rounds: [], champion: null, runnerUp: null, third: null, fourth: null };
   leagues.set(code, league);
-  return { league, player: addLeaguePlayer(league, who, country) };
+  const player = addLeaguePlayer(league, who, country);
+  if (size === 4 && league.status === 'registration') {
+    league.registrationDeadline = Date.now() + (Number(process.env.TOURNAMENT_FILL_MS) || 5 * 60 * 1000);
+    league.registrationTimer = setTimeout(() => fillFourPlayerTournament(league), league.registrationDeadline - Date.now());
+  }
+  return { league, player };
 }
 function completeLeagueMatch(room, winner) {
   const ref = room.leagueMatch;
@@ -538,6 +565,21 @@ function completeLeagueMatch(room, winner) {
   match.winner = match.players[winnerIndex];
   const roundMatches = league.rounds[ref.round];
   if (!roundMatches.every((entry) => entry.winner !== null)) return;
+  if (league.size === 4 && ref.round === 0) {
+    const winners = roundMatches.map((entry) => entry.winner);
+    const losers = roundMatches.map((entry) => entry.players.find((player) => player !== entry.winner));
+    createLeagueMatch(league, 1, winners);
+    createLeagueMatch(league, 1, losers);
+    return;
+  }
+  if (league.size === 4 && ref.round === 1) {
+    league.champion = roundMatches[0].winner;
+    league.runnerUp = roundMatches[0].players.find((player) => player !== roundMatches[0].winner);
+    league.third = roundMatches[1].winner;
+    league.fourth = roundMatches[1].players.find((player) => player !== roundMatches[1].winner);
+    league.status = 'complete';
+    return;
+  }
   if (ref.round === 2) {
     league.champion = match.winner;
     league.status = 'complete';
@@ -553,16 +595,19 @@ function leagueSnapshot(league, playerId) {
     if (match) active = { match, round };
   }
   const lost = league.rounds.some((round) => round.some((match) => match.players.includes(playerId) && match.winner !== null && match.winner !== playerId));
-  let status = active ? 'playing' : league.status === 'registration' ? 'registration' : league.champion === playerId ? 'champion' : lost ? 'eliminated' : 'waiting';
+  let status = active ? 'playing' : league.status === 'registration' ? 'registration' : league.champion === playerId ? 'champion' : league.size === 4 && league.runnerUp === playerId ? 'runnerUp' : league.size === 4 && league.third === playerId ? 'third' : league.size === 4 && league.fourth === playerId ? 'fourth' : lost ? 'eliminated' : 'waiting';
   let match = null;
   if (active) {
     const seat = active.match.players.indexOf(playerId);
     const room = rooms.get(active.match.room);
-    match = { room: active.match.room, pid: seat, key: room.players[seat].key, round: active.round, roundName: LEAGUE_ROUNDS[active.round], opponent: league.players[active.match.players[1 - seat]].name };
+    match = { room: active.match.room, pid: seat, key: room.players[seat].key, round: active.round, roundName: active.match.label, opponent: league.players[active.match.players[1 - seat]].name };
   }
   return {
-    name: league.name, createdBy: league.createdBy, status, players: league.players.map((p) => p.name), champion: league.champion === null ? null : league.players[league.champion].name,
-    rounds: league.rounds.map((round, i) => ({ name: LEAGUE_ROUNDS[i], matches: round.map((entry) => ({
+    name: league.name, createdBy: league.createdBy, size: league.size, status, registrationDeadline: league.registrationDeadline || null,
+    players: league.players.map((p) => p.name), countries: league.players.map((p) => p.country), difficulties: league.players.map((p) => p.botDifficulty || null),
+    champion: league.champion === null ? null : league.players[league.champion].name,
+    rounds: league.rounds.map((round, i) => ({ name: league.size === 4 ? (i === 0 ? 'Semifinales' : 'Final y tercer puesto') : LEAGUE_ROUNDS[i], matches: round.map((entry) => ({
+      label: entry.label,
       players: entry.players.map((id) => league.players[id].name), winner: entry.winner === null ? null : league.players[entry.winner].name,
     })) })),
     match,
@@ -572,7 +617,7 @@ function leagueSnapshot(league, playerId) {
 // Plan de la máquina según el nivel; el difícil estudia las últimas secuencias del humano
 function botPlan(room, k) {
   const wave = randWave();
-  const level = room.level || 'normal';
+  const level = room.players[k].botDifficulty || room.level || 'normal';
   if (level === 'easy') return { attack: randSeq(), defense: randSeq(), wave };
   if (level === 'normal') return { attack: workingSeq(room, k), defense: randSeq(), wave };
   const h = room.hist[1 - k].slice(-8);
@@ -599,7 +644,12 @@ function botPlan(room, k) {
 function armTimer(room, delay) {
   clearTimeout(room.timer);
   if (room.tutorial) { room.timer = null; room.deadline = 0; return; }
-  room.deadline = Date.now() + delay;
+  const botDelay = room.players.every((player) => player.bot) ? (Number(process.env.BOT_TURN_MS) || 250) : delay;
+  room.players.forEach((player, index) => {
+    if (player.bot && !player.attack) Object.assign(player, botPlan(room, index));
+    if (room.round % 10 === 0 && player.bot && !player.block) player.block = randSeq();
+  });
+  room.deadline = Date.now() + botDelay;
   room.timer = setTimeout(() => {
     if (room.over) return;
     room.players.forEach((p, k) => {
@@ -607,7 +657,7 @@ function armTimer(room, delay) {
       if (room.round % 10 === 0 && !p.block) p.block = randSeq();
     });
     runRound(room);
-  }, delay);
+  }, botDelay);
 }
 
 const stateFor = (room, k) => ({
@@ -625,7 +675,7 @@ function runRound(room) {
     if (result.winner !== 'draw') {
       const winner = room.players[result.winner];
       if (room.bot) { if (!winner.bot) recordBotWin(winner); }
-      else recordResult(winner, room.players[1 - result.winner]);
+      else if (!winner.bot && !room.players[1 - result.winner].bot) recordResult(winner, room.players[1 - result.winner]);
     }
   } else {
     armTimer(room, result.events.length * SHOT_MS + INPUT_MS);
@@ -710,8 +760,9 @@ const server = http.createServer(async (req, res) => {
     const b = await body(req);
     const who = identify(b);
     if (!who) return json(res, 401, { error: 'Inicia sesión con Google' });
-    if (b.mode === 'league') {
-      const { league, player } = createLeague(who, b.country, b.leagueName);
+    if (b.mode === 'league' || b.mode === 'tournament4') {
+      const size = b.mode === 'tournament4' ? 4 : 8;
+      const { league, player } = createLeague(who, b.country, b.leagueName, size);
       return json(res, 200, { league: league.code, leaguePid: league.players.indexOf(player), leagueKey: player.key, token: encryptCode(`league:${league.code}`) });
     }
     const bot = b.mode === 'bot';
@@ -772,14 +823,15 @@ const server = http.createServer(async (req, res) => {
       code: league.code,
       name: league.name,
       createdBy: league.createdBy,
+      size: league.size,
       players: league.players.map((p) => p.name),
-      rounds: league.rounds.map((round, i) => ({ name: LEAGUE_ROUNDS[i], matches: round.map((match) => ({
+      rounds: league.rounds.map((round, i) => ({ name: league.size === 4 ? (i === 0 ? 'Semifinales' : 'Final y tercer puesto') : LEAGUE_ROUNDS[i], matches: round.map((match) => ({
         players: match.players.map((id) => league.players[id].name), winner: match.winner === null ? null : league.players[match.winner].name,
       })) })),
       matches: league.rounds.flatMap((round, i) => round.flatMap((match) => {
         const game = rooms.get(match.room);
         return match.winner === null && game?.started ? [{
-          room: match.room, roundName: LEAGUE_ROUNDS[i], players: match.players.map((id) => league.players[id].name),
+          room: match.room, roundName: match.label, players: match.players.map((id) => league.players[id].name),
           spectators: game.spectators?.size || 0,
         }] : [];
       })),
@@ -808,7 +860,7 @@ const server = http.createServer(async (req, res) => {
       const league = leagues.get(code.slice(7));
       if (!league) return json(res, 404, { error: 'Liga inexistente' });
       const player = addLeaguePlayer(league, who, b.country);
-      if (!player) return json(res, 409, { error: 'La liga ya tiene 8 jugadores' });
+      if (!player) return json(res, 409, { error: 'El torneo ya está completo' });
       return json(res, 200, { league: league.code, leaguePid: league.players.indexOf(player), leagueKey: player.key, token: b.token });
     }
     const room = code && rooms.get(code);

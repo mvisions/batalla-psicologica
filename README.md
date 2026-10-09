@@ -1,6 +1,6 @@
 # Batalla Psicológica
 
-Juego web multijugador de estrategia con partidas 1 contra 1, búsqueda automática de rival, torneos de ocho participantes y espectadores.
+Juego web multijugador de estrategia con partidas 1 contra 1, búsqueda automática de rival, torneos de cuatro y ocho participantes y espectadores. El torneo de cuatro participantes se juega con dos semifinales, una final y un partido por el tercer puesto. Tras cinco minutos de inscripción, los puestos vacantes se completan con Lamine (bandera española, nivel medio), Messi (bandera argentina, nivel fácil) y Ronaldo (bandera portuguesa, nivel máximo); los bots juegan automáticamente.
 
 ## Requisitos
 

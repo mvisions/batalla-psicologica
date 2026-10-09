@@ -136,3 +136,209 @@ test('liga de ocho crea cuatro cruces aleatorios con todos los participantes', a
     }
   }
 });
+
+test('el torneo de cuatro crea semifinales, final y partido por el tercer puesto', async () => {
+  const port = await unusedPort();
+  const projectDir = fileURLToPath(new URL('..', import.meta.url));
+  const child = spawn(process.execPath, ['server.js'], {
+    cwd: projectDir,
+    env: { ...process.env, PORT: String(port), START_ROUND: '36', GOOGLE_CLIENT_ID: '', ALLOW_DEVELOPMENT_LOGIN: 'true' },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  const controllers = [];
+  try {
+    await waitForServer(child);
+    const base = `http://127.0.0.1:${port}`;
+    const post = async (route, value, expected = 200) => {
+      const response = await fetch(`${base}${route}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(value),
+      });
+      assert.equal(response.status, expected);
+      return response.json();
+    };
+    const stateFor = async (player) => {
+      const query = new URLSearchParams({ code: player.league, pid: player.leaguePid, key: player.leagueKey });
+      const response = await fetch(`${base}/api/league/state?${query}`);
+      assert.equal(response.status, 200);
+      return response.json();
+    };
+    const players = [await post('/api/create', { name: 'Jugador 1', mode: 'tournament4', leagueName: 'Copa de prueba' })];
+    for (let i = 2; i <= 4; i++) players.push(await post('/api/join', { name: `Jugador ${i}`, token: players[0].token }));
+    assert.equal((await post('/api/join', { name: 'Jugador 5', token: players[0].token }, 409)).error, 'El torneo ya está completo');
+
+    const initialStates = await Promise.all(players.map(stateFor));
+    const initial = initialStates[0];
+    assert.equal(initial.name, 'Copa de prueba');
+    assert.equal(initial.size, 4);
+    assert.equal(initial.status, 'playing');
+    assert.equal(initial.rounds[0].name, 'Semifinales');
+    assert.equal(initial.rounds[0].matches.length, 2);
+    assert.equal(initial.rounds[1].matches.length, 0);
+    assert.deepEqual(initial.rounds[0].matches.map((match) => match.label), ['Semifinal 1', 'Semifinal 2']);
+    const semifinalRooms = new Map();
+    for (let i = 0; i < initialStates.length; i++) {
+      const state = initialStates[i];
+      assert.equal(state.match.roundName.startsWith('Semifinal'), true);
+      const group = semifinalRooms.get(state.match.room) || [];
+      group.push({ ...state.match, leaguePid: players[i].leaguePid });
+      semifinalRooms.set(state.match.room, group);
+    }
+    assert.equal(semifinalRooms.size, 2);
+    for (const group of semifinalRooms.values()) assert.equal(group.length, 2);
+
+    const playMatch = async (group) => {
+      group.sort((a, b) => a.pid - b.pid);
+      const readers = [];
+      for (let pid = 0; pid < 2; pid++) {
+        const controller = new AbortController(); controllers.push(controller);
+        const response = await fetch(`${base}/api/events?room=${group[pid].room}&pid=${pid}&key=${group[pid].key}`, { signal: controller.signal });
+        const next = eventReader(response.body);
+        assert.equal((await next()).event, 'hello');
+        if (pid === 0) assert.equal((await next()).event, 'waiting');
+        readers.push(next);
+      }
+      for (const next of readers) assert.equal((await next()).event, 'state');
+      let result;
+      for (let round = 0; round < 12; round++) {
+        for (let pid = 0; pid < 2; pid++) {
+          const lane = pid === 0 ? 1 : 4;
+          await post('/api/submit', {
+            room: group[pid].room, pid, key: group[pid].key,
+            attack: [lane, lane, lane, lane],
+            defense: [pid === 0 ? 4 : 2, pid === 0 ? 4 : 2, pid === 0 ? 4 : 2, pid === 0 ? 4 : 2],
+            wave: [0, 0, 0, 0],
+            block: [pid === 0 ? 4 : 1, pid === 0 ? 4 : 1, pid === 0 ? 4 : 1, pid === 0 ? 4 : 1],
+          });
+
+        }
+        const updates = await Promise.all(readers.map(async (next) => {
+          let event = await next();
+          while (event.event === 'ready') event = await next();
+          assert.equal(event.event, 'round');
+          return JSON.parse(event.data);
+        }));
+        result = updates[0].winner;
+        assert.equal(updates[1].winner, result);
+        if (result !== null) break;
+      }
+      assert.notEqual(result, null, 'el duelo debe terminar');
+      return { winner: group[result].leaguePid, loser: group[1 - result].leaguePid };
+    };
+
+    const semifinalResults = [];
+    for (const group of semifinalRooms.values()) semifinalResults.push(await playMatch(group));
+    const nextStates = await Promise.all(players.map(stateFor));
+    const finals = new Map();
+    const placements = new Map();
+    for (let i = 0; i < nextStates.length; i++) {
+      const state = nextStates[i];
+      assert.equal(state.status, 'playing');
+      const target = state.match.roundName === 'Final' ? finals : placements;
+      const group = target.get(state.match.room) || [];
+      group.push({ ...state.match, leaguePid: players[i].leaguePid });
+      target.set(state.match.room, group);
+    }
+    assert.equal(finals.size, 1);
+    assert.equal(placements.size, 1);
+    const finalistIds = new Set([...finals.values()][0].map((player) => player.leaguePid));
+    const thirdPlaceIds = new Set([...placements.values()][0].map((player) => player.leaguePid));
+    assert.deepEqual([...finalistIds].sort(), semifinalResults.map((match) => match.winner).sort());
+    assert.deepEqual([...thirdPlaceIds].sort(), semifinalResults.map((match) => match.loser).sort());
+    assert.deepEqual(initial.rounds[0].matches.map((match) => match.players.length), [2, 2]);
+    assert.equal(nextStates[0].rounds[1].name, 'Final y tercer puesto');
+    assert.deepEqual(nextStates[0].rounds[1].matches.map((match) => match.label), ['Final', '3er puesto']);
+
+    await Promise.all([...finals.values(), ...placements.values()].map(playMatch));
+    const completed = await Promise.all(players.map(stateFor));
+    const finalWinner = completed.find((state) => state.status === 'champion');
+    const runnerUp = completed.find((state) => state.status === 'runnerUp');
+    const thirdPlace = completed.find((state) => state.status === 'third');
+    const fourthPlace = completed.find((state) => state.status === 'fourth');
+    assert.ok(finalWinner);
+    assert.ok(runnerUp);
+    assert.ok(thirdPlace);
+    assert.ok(fourthPlace);
+    assert.equal(completed.filter((state) => state.status === 'champion').length, 1);
+    assert.equal(completed.filter((state) => state.status === 'runnerUp').length, 1);
+    assert.equal(completed.filter((state) => state.status === 'third').length, 1);
+    assert.equal(completed.filter((state) => state.status === 'fourth').length, 1);
+    assert.equal(completed.filter((state) => state.status === 'eliminated').length, 0);
+  } finally {
+    controllers.forEach((controller) => controller.abort());
+    if (child.exitCode === null && child.signalCode === null) {
+      const exited = new Promise((resolve) => child.once('exit', resolve));
+      child.kill();
+      await exited;
+    }
+  }
+});
+
+test('tras cinco minutos completa los puestos del torneo con bots y estos juegan automáticamente', async () => {
+  const port = await unusedPort();
+  const projectDir = fileURLToPath(new URL('..', import.meta.url));
+  const child = spawn(process.execPath, ['server.js'], {
+    cwd: projectDir,
+    env: {
+      ...process.env, PORT: String(port), START_ROUND: '36', TOURNAMENT_FILL_MS: '100', BOT_TURN_MS: '500',
+      GOOGLE_CLIENT_ID: '', ALLOW_DEVELOPMENT_LOGIN: 'true',
+    },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  const controllers = [];
+  try {
+    await waitForServer(child);
+    const base = `http://127.0.0.1:${port}`;
+    const hostResponse = await fetch(`${base}/api/create`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Anfitrión', mode: 'tournament4', leagueName: 'Torneo automático' }),
+    });
+    assert.equal(hostResponse.status, 200);
+    const host = await hostResponse.json();
+    const query = new URLSearchParams({ code: host.league, pid: host.leaguePid, key: host.leagueKey });
+    const getState = async () => {
+      const response = await fetch(`${base}/api/league/state?${query}`);
+      assert.equal(response.status, 200);
+      return response.json();
+    };
+    let state = await getState();
+    for (let attempt = 0; attempt < 30 && state.status === 'registration'; attempt++) {
+      await new Promise((resolve) => setTimeout(resolve, 25));
+      state = await getState();
+    }
+    assert.equal(state.status, 'playing');
+    assert.deepEqual(state.players, ['Anfitrión', 'Lamine', 'Messi', 'Ronaldo']);
+    assert.deepEqual(state.countries, ['un', 'es', 'ar', 'pt']);
+    assert.deepEqual(state.difficulties, [null, 'normal', 'easy', 'hard']);
+    assert.equal(state.rounds[0].matches.length, 2);
+
+    const leaguesResponse = await fetch(`${base}/api/leagues`);
+    const activeLeagues = await leaguesResponse.json();
+    const automatedMatch = activeLeagues[0].matches.find((match) => match.players.every((name) => state.players.indexOf(name) > 0));
+    assert.ok(automatedMatch, 'la semifinal entre bots debe arrancar sin conexiones de jugadores');
+    const controller = new AbortController(); controllers.push(controller);
+    const spectatorResponse = await fetch(`${base}/api/spectate?room=${automatedMatch.room}`, { signal: controller.signal });
+    assert.equal(spectatorResponse.status, 200);
+    const nextEvent = eventReader(spectatorResponse.body);
+    assert.equal((await nextEvent()).event, 'hello');
+    const initial = JSON.parse((await nextEvent()).data);
+    for (let i = 0; i < initial.names.length; i++) {
+      const index = state.players.indexOf(initial.names[i]);
+      assert.equal(initial.countries[i], state.countries[index]);
+    }
+    const round = await Promise.race([
+      nextEvent(),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('los bots no jugaron la ronda')), 3000)),
+    ]);
+    assert.equal(round.event, 'round');
+  } finally {
+    controllers.forEach((controller) => controller.abort());
+    if (child.exitCode === null && child.signalCode === null) {
+      const exited = new Promise((resolve) => child.once('exit', resolve));
+      child.kill();
+      await exited;
+    }
+  }
+});

@@ -144,7 +144,7 @@
   .mode-menu > button { min-height: 46px; margin: 0; text-align: left; }
   #vsBot { background: #187f67; }
   #create { background: #216da8; }
-  #leagueCreate { background: #b87819; }
+  #leagueCreate, #tournament4Create { background: #b87819; }
   .league-setup { display: grid; gap: 6px; margin-top: 4px; padding-top: 8px; border-top: 1px solid #ffffff33; }
   .league-setup input, .league-setup button { margin-top: 0; }
   .league-setup button { min-height: 42px; }
@@ -246,9 +246,10 @@
         <button id="create" type="button">2 jugadores · Invitar a un rival</button>
         <button id="joinRandom" type="button">Unirme a partida</button>
         <button id="leagueCreate" type="button">Liga · 8 jugadores</button>
+        <button id="tournament4Create" type="button">Torneo · 4 jugadores</button>
         <div id="leagueSetup" class="league-setup hidden">
-          <label for="leagueName">Nombre de la liga</label>
-          <input id="leagueName" maxlength="48" placeholder="Champions League">
+          <label for="leagueName">Nombre del torneo</label>
+          <input id="leagueName" maxlength="48" placeholder="Copa de verano">
           <button id="leagueConfirm" type="button">Crear torneo</button>
           <button id="leagueCancel" type="button">Cancelar</button>
         </div>
@@ -454,14 +455,21 @@ function renderLeagueState(state) {
   $('leagueBoard').classList.remove('hidden');
   $('leagueTitle').textContent = state.name;
   $('leagueCreator').textContent = `Creado por ${state.createdBy}`;
-  $('leagueCount').textContent = `${state.players.length}/8 jugadores`;
-  $('leaguePlayers').innerHTML = state.players.map((name) => `<li>${esc(name)}</li>`).join('');
+  $('leagueCount').textContent = `${state.players.length}/${state.size} jugadores`;
+  const difficultyNames = { easy: 'Fácil', normal: 'Medio', hard: 'Máximo' };
+  $('leaguePlayers').innerHTML = state.players.map((name, i) => {
+    const details = [state.countries?.[i] ? countryName(state.countries[i]) : '', state.difficulties?.[i] ? `Nivel ${difficultyNames[state.difficulties[i]]}` : ''].filter(Boolean);
+    return `<li>${esc(name)}${details.length ? ` · ${details.map(esc).join(' · ')}` : ''}</li>`;
+  }).join('');
   $('leagueRounds').innerHTML = state.rounds.map((round) => `<section class="league-round"><h4>${esc(round.name)}</h4><ol>${round.matches.map((match) =>
-    `<li>${esc(match.players[0])} vs ${esc(match.players[1])}${match.winner ? ` · ${esc(match.winner)}` : ''}</li>`).join('')}</ol></section>`).join('');
-  const status = state.status === 'registration' ? `Inscripciones: ${state.players.length}/8`
+    `<li><b>${esc(match.label)}</b>: ${esc(match.players[0])} vs ${esc(match.players[1])}${match.winner ? ` · Ganó ${esc(match.winner)}` : ''}</li>`).join('')}</ol></section>`).join('');
+  const status = state.status === 'registration' ? `Inscripciones: ${state.players.length}/${state.size}`
     : state.status === 'playing' ? `${state.match.roundName} · contra ${state.match.opponent}`
       : state.status === 'waiting' ? 'Clasificado, esperando al siguiente duelo'
-        : state.status === 'champion' ? `Campeón: ${state.champion}` : 'Eliminado del torneo';
+        : state.status === 'champion' ? `¡Campeón: ${state.champion}!`
+          : state.status === 'runnerUp' ? 'Segundo puesto'
+          : state.status === 'third' ? '¡Tercer puesto!'
+            : state.status === 'fourth' ? 'Cuarto puesto' : 'Eliminado del torneo';
   $('leagueStatus').textContent = status;
 }
 async function pollLeague() {
@@ -474,7 +482,9 @@ async function pollLeague() {
     const state = await response.json();
     renderLeagueState(state);
     if (state.status === 'registration') {
-      $('msg').textContent = `Esperando jugadores (${state.players.length}/8)`;
+      const seconds = Math.max(0, Math.ceil((state.registrationDeadline - Date.now()) / 1000));
+      const countdown = state.registrationDeadline ? ` Si faltan, entrarán bots en ${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}.` : '';
+      $('msg').textContent = `Esperando jugadores (${state.players.length}/${state.size}).${countdown}`;
     } else if (state.match) {
       $('invite').classList.add('hidden');
       if (room !== state.match.room && !playing) {
@@ -487,8 +497,12 @@ async function pollLeague() {
     } else {
       activeEvents?.close(); activeEvents = null;
       room = null; pid = null; key = null;
-      $('msg').textContent = state.status === 'champion' ? `¡Ganaste ${state.name}!` : state.status === 'eliminated' ? 'Terminó tu participación en la liga' : 'Esperando al siguiente duelo';
-      if (state.status === 'champion' || state.status === 'eliminated') localStorage.removeItem('game');
+      $('msg').textContent = state.status === 'champion' ? `¡Ganaste ${state.name}!`
+        : state.status === 'runnerUp' ? 'Terminaste en segundo puesto'
+        : state.status === 'third' ? '¡Terminaste en tercer puesto!'
+          : state.status === 'fourth' ? 'Terminaste en cuarto puesto'
+            : state.status === 'eliminated' ? 'Terminó tu participación en la liga' : 'Esperando al siguiente duelo';
+      if (['champion', 'runnerUp', 'third', 'fourth', 'eliminated'].includes(state.status)) localStorage.removeItem('game');
     }
   } catch (error) { $('lobbyMsg').textContent = error.message; }
   leaguePollTimer = setTimeout(pollLeague, 2000);
@@ -500,7 +514,7 @@ async function loadActiveLeagues() {
     const host = $('activeLeaguesList');
     if (!active.length) { host.innerHTML = '<p>No hay torneos en juego</p>'; return; }
     host.innerHTML = active.map((league) => `<article class="league-entry"><h4>${esc(league.name)}</h4>
-      <p>Creado por ${esc(league.createdBy)} · ${league.players.length}/8 jugadores</p>
+      <p>Creado por ${esc(league.createdBy)} · ${league.players.length}/${league.size} jugadores</p>
       ${league.matches.map((match) => `<p>${esc(match.roundName)}: ${esc(match.players[0])} vs ${esc(match.players[1])}
         <button type="button" data-watch="${esc(match.room)}" data-league="${esc(league.code)}" data-name="${esc(league.name)}">Ver como espectador (${match.spectators}/2)</button></p>`).join('')}</article>`).join('');
     host.querySelectorAll('[data-watch]').forEach((button) => {
@@ -700,14 +714,23 @@ $('tutorialBtn').onclick = () => {
   enter((auth) => post('/api/create', { ...auth, mode: 'bot', level: 'easy', tutorial: true, country: $('country').value }));
 };
 $('create').onclick = () => enter((auth) => post('/api/create', { ...auth, mode: 'pvp', country: $('country').value }));
-$('leagueCreate').onclick = () => {
-  $('leagueSetup').classList.remove('hidden'); $('leagueCreate').classList.add('hidden'); $('lobbyMsg').textContent = '';
+$('leagueCreate').onclick = () => showTournamentSetup('league');
+$('tournament4Create').onclick = () => showTournamentSetup('tournament4');
+let selectedTournamentMode = 'league';
+function showTournamentSetup(mode) {
+  selectedTournamentMode = mode;
+  $('leagueSetup').classList.remove('hidden');
+  $('leagueCreate').classList.add('hidden'); $('tournament4Create').classList.add('hidden');
+  $('lobbyMsg').textContent = '';
   $('leagueName').focus();
+}
+$('leagueCancel').onclick = () => {
+  $('leagueSetup').classList.add('hidden');
+  $('leagueCreate').classList.remove('hidden'); $('tournament4Create').classList.remove('hidden');
 };
-$('leagueCancel').onclick = () => { $('leagueSetup').classList.add('hidden'); $('leagueCreate').classList.remove('hidden'); };
 $('leagueConfirm').onclick = () => {
   if (!$('leagueName').value.trim()) { $('lobbyMsg').textContent = 'Escribe el nombre de la liga'; $('leagueName').focus(); return; }
-  enter((auth) => post('/api/create', { ...auth, mode: 'league', leagueName: $('leagueName').value, country: $('country').value }));
+  enter((auth) => post('/api/create', { ...auth, mode: selectedTournamentMode, leagueName: $('leagueName').value, country: $('country').value }));
 };
 $('join').onclick = () => enter((auth) => post('/api/join', { ...auth, token: inviteToken, country: $('country').value }));
 function showMatchmakingWait() {
