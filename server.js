@@ -137,10 +137,9 @@ function ensureCurrentWeek() {
   persistRanking([winner.sub, loser.sub]);
 }
 
-const MAX_LEVEL = 30;
 const RONALDO_SUB = 'tournament-bot-ronaldo'; // el único bot que sube de nivel: 1 punto por partida ganada
 const BOT_START_LEVELS = { 'tournament-bot-messi': ['Messi', 1], 'tournament-bot-lamine': ['Lamine', 5], [RONALDO_SUB]: ['Ronaldo', 20] };
-const levelForPoints = (points) => Math.min(MAX_LEVEL, Math.floor(points / 100) + 1);
+const levelForPoints = (points) => Math.floor(points / 100) + 1;
 function applyBotStartLevels() { // nivel inicial de los bots del torneo (Ronaldo supera el máximo de los jugadores)
   for (const [sub, [name, level]] of Object.entries(BOT_START_LEVELS)) {
     const entry = (ranking[sub] ||= { name, streak: 0, points: 0, wins: 0, level: 1 });
@@ -148,7 +147,7 @@ function applyBotStartLevels() { // nivel inicial de los bots del torneo (Ronald
   }
 }
 applyBotStartLevels();
-const pointsPerWin = (level) => (level >= MAX_LEVEL ? 10 : 50);
+const pointsPerWin = () => 50;
 function recordResult(winner, loser) {
   ensureCurrentWeek();
   const key = leaderboard.weekKey;
@@ -852,7 +851,7 @@ const server = http.createServer(async (req, res) => {
     if (!user) return json(res, 401, { error: 'Inicia sesión con Google' });
     const entry = ranking[user.sub] || {};
     const points = Number(entry.points) || 0;
-    return json(res, 200, { points, wins: Number(entry.wins) || 0, level: Math.min(MAX_LEVEL, Number(entry.level) || Math.floor(points / 100) + 1) });
+    return json(res, 200, { points, wins: Number(entry.wins) || 0, level: Number(entry.level) || Math.floor(points / 100) + 1 });
   }
   if (req.method === 'GET' && url.pathname === '/api/ranking') return json(res, 200, topRanking(url.searchParams.get('period')));
   if (req.method === 'GET' && url.pathname === '/api/games') return json(res, 200, games);
