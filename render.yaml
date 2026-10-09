@@ -7,6 +7,7 @@ services:
     buildCommand: npm ci
     startCommand: npm start
     healthCheckPath: /api/health
+    autoDeployTrigger: off # el despliegue lo lanza .github/workflows/deploy-render.yml cada madrugada
     envVars:
       - key: NODE_VERSION
         value: 22.22.1
