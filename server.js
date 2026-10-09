@@ -137,7 +137,13 @@ function ensureCurrentWeek() {
 }
 
 const MAX_LEVEL = 15;
+const RONALDO_SUB = 'tournament-bot-ronaldo'; // el único bot que sube de nivel: 1 punto por partida ganada
+const BOT_START_LEVELS = { 'tournament-bot-messi': ['Messi', 1], 'tournament-bot-lamine': ['Lamine', 5], [RONALDO_SUB]: ['Ronaldo', 20] };
 const levelForPoints = (points) => Math.min(MAX_LEVEL, Math.floor(points / 100) + 1);
+for (const [sub, [name, level]] of Object.entries(BOT_START_LEVELS)) { // nivel inicial de los bots del torneo (Ronaldo supera el máximo de los jugadores)
+  const entry = (ranking[sub] ||= { name, streak: 0, points: 0, wins: 0, level: 1 });
+  entry.name = name; entry.points = Math.max(entry.points || 0, (level - 1) * 100); entry.level = Math.max(entry.level || 1, level);
+}
 const pointsPerWin = (level) => (level >= MAX_LEVEL ? 10 : 50);
 function recordResult(winner, loser) {
   ensureCurrentWeek();
@@ -166,7 +172,6 @@ function recordBotWin(winner) {
   entry.level = levelForPoints(entry.points);
   persistRanking();
 }
-const RONALDO_SUB = 'tournament-bot-ronaldo'; // el único bot que sube de nivel: 1 punto por partida ganada
 const TOURNAMENT_POINTS = { champion: 200, runnerUp: 150, third: 100, fourth: 0 };
 function awardTournamentPoints(league) {
   if (league.awarded) return;
@@ -264,7 +269,7 @@ const validWave = (s) => Array.isArray(s) && s.length === 4 && s.every((n) => Nu
 const cleanName = (n) => String(n || '').trim().slice(0, 16) || 'Jugador';
 const cleanCountry = (c) => (/^[a-z]{2}$/i.test(String(c)) ? String(c).toLowerCase() : 'un'); // 'un' = bandera internacional
 function shipMaxHpForLevel(level) { return 100 + 5 * Math.max(1, Math.floor(Number(level) || 1)); }
-function maxShipHealthForPlayer(player) { return player?.bot ? (player.sub === RONALDO_SUB && ranking[RONALDO_SUB]?.level > 1 ? shipMaxHpForLevel(ranking[RONALDO_SUB].level) : 100) : shipMaxHpForLevel(ranking[player?.sub]?.level); }
+function maxShipHealthForPlayer(player) { return player?.bot ? (BOT_START_LEVELS[player.sub] ? shipMaxHpForLevel(ranking[player.sub]?.level) : 100) : shipMaxHpForLevel(ranking[player?.sub]?.level); }
 function setRoomPlayerMaxHealth(room, index) {
   room.maxShipHp[index] = maxShipHealthForPlayer(room.players[index]);
   if (room.hp[index]) room.hp[index].ship = room.maxShipHp[index];
@@ -707,7 +712,7 @@ function runRound(room) {
       else if (!winner.bot && !room.players[1 - result.winner].bot) recordResult(winner, room.players[1 - result.winner]);
       else if (winner.sub === RONALDO_SUB && room.leagueMatch) {
         const entry = (ranking[RONALDO_SUB] ||= { name: winner.name, streak: 0, points: 0, wins: 0, level: 1 });
-        entry.points = (entry.points || 0) + 1; entry.wins = (entry.wins || 0) + 1; entry.level = levelForPoints(entry.points);
+        entry.points = (entry.points || 0) + 1; entry.wins = (entry.wins || 0) + 1; entry.level = Math.floor(entry.points / 100) + 1;
         persistRanking([RONALDO_SUB]);
       }
       else if (!winner.bot && room.leagueMatch) recordBotWin(winner); // ganar a un bot de torneo también suma puntos
