@@ -1247,6 +1247,8 @@ function tournamentCelebration({ icon, title, text, tone = 'gold', fireworks = t
     if (fireworks) for (let t = 0.3; t < secs - 2; t += 0.6 + Math.random() * 0.7) boom(t);
     let parts = [], rockets = [];
     const launch = () => rockets.push({ x: innerWidth * (.15 + Math.random() * .7), y: innerHeight, ty: innerHeight * (.15 + Math.random() * .4), hue: Math.random() * 360 });
+    let finished = false;
+    const finish = () => { if (finished) return; finished = true; if (timer) clearInterval(timer); box.style.display = 'none'; ac.close().catch(() => {}); resolve(); };
     const start = Date.now();
     const timer = fireworks ? setInterval(launch, 450) : null;
     if (fireworks) launch();
@@ -1268,8 +1270,9 @@ function tournamentCelebration({ icon, title, text, tone = 'gold', fireworks = t
         ctx.fillStyle = `hsla(${p.hue},100%,60%,${p.life})`; ctx.fillRect(p.x, p.y, 3, 3);
       }
       if (Date.now() - start < ms) requestAnimationFrame(frame);
-      else { if (timer) clearInterval(timer); box.style.display = 'none'; ac.close(); resolve(); }
+      else finish();
     })();
+    setTimeout(finish, ms + 1500); // respaldo si la pestaña está en segundo plano y se pausan las animaciones
   });
 }
 async function leagueCelebration(won, op) {
@@ -1282,7 +1285,21 @@ async function leagueCelebration(won, op) {
   if (round === '3er puesto' && won) return tournamentCelebration({ icon: '🥉', title: 'MEDALLA DE BRONCE', text: `Medalla de bronce para ${mine}`, tone: 'bronze', fireworks: false });
 }
 
+// Ninguna animación puede bloquear la partida: si se cuelga o falla, se continúa igualmente
+const guard = (promise, ms = 12000) => Promise.race([Promise.resolve(promise).catch(console.error), wait(ms)]);
 async function playRound(r, replay = false) {
+  try { await Promise.race([playRoundInner(r, replay), wait(SHOT_MS * 4 + 45000).then(() => { throw new Error('animación atascada'); })]); }
+  catch (error) {
+    console.error(error);
+    playing = false;
+    try { scene.moveShip('me', 0); scene.moveShip('op', 0); } catch {}
+    if (replay || spectatorMode) return;
+    setHp(r.hp, r.maxShipHp); setCannons(r.cannons);
+    curRound = r.round; blockRound = r.round % 10 === 0; $('round').textContent = r.round;
+    if (r.winner === null) { $('msg').textContent = promptMsg(); setupForm(); scene.setWeather(r.round); showInputs(true); countdown(); }
+  }
+}
+async function playRoundInner(r, replay = false) {
   playing = true; if (!replay) heliAsked = false; renderHeli();
   tutorialUnlimited = !!r.tutorial;
   renderWave();
@@ -1300,7 +1317,7 @@ async function playRound(r, replay = false) {
     const slotEnd = Date.now() + SHOT_MS;
     $('msg').textContent = `Disparo ${ev.step + 1}/4`;
     // Las aletas y los obstáculos se colocan antes de disparar
-    await Promise.all([
+    await guard(Promise.all([
       scene.moveFin('me', ev.def[me]), scene.moveFin('op', ev.def[op]),
       ...(ev.swell ? [scene.moveShip('me', ev.pos[me]), scene.moveShip('op', ev.pos[op])] : []),
       ...(ev.whale != null ? [scene.moveFin('mid', (ev.whale + 5) / 2)] : []),
@@ -1312,7 +1329,7 @@ async function playRound(r, replay = false) {
       ...(ev.squid ? [scene.squidShow(ev.squid.x * 1.5, ev.squid.up, side(ev.squid.owner))] : squidOn ? [scene.squidLeave()] : []),
       ...(ev.log ? [scene.logShow(ev.log.x * 1.5)] : logOn ? [scene.logLeave()] : []),
       ...(ev.ice ? ev.ice.map((x, id) => (x === null ? Promise.resolve() : scene.iceShow(id, x * 1.5))) : []),
-    ]);
+    ]));
     subOn = !!ev.sub; octopusOn = !!ev.octopus; medkitOn = !!ev.medkit; gullOn = !!ev.gull; squidOn = !!ev.squid; logOn = !!ev.log; bucketOn = !!ev.bucket;
     const impacts = ev.shots.map(async (s) => {
       if (s.target === 'broken' || s.target === 'blocked') { scene.dud(side(s.from), s.lane); sfx('dud'); return Promise.resolve(); }
@@ -1339,7 +1356,7 @@ async function playRound(r, replay = false) {
       sf.done.then(() => { if (ev.sub.target !== 'miss') sfx(impactSfx(ev.sub.target)); });
       impacts.push(sf.done);
     }
-    await Promise.all(impacts);
+    await guard(Promise.all(impacts), 20000);
     await wait(60);
     const prev = lastHp, prevC = lastCan;
     setHp(ev.hp, ev.maxShipHp); setCannons(ev.cannons);

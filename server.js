@@ -732,7 +732,8 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'OPTIONS') { res.writeHead(204); return res.end(); }
   }
   if (req.method === 'POST') {
-    const ip = req.socket.remoteAddress, now = Date.now();
+    const ip = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.socket.remoteAddress, now = Date.now(); // tras el proxy de Render la IP real va en x-forwarded-for
+    if (hits.size > 5000) for (const [key, value] of hits) if (now - value.t > 60000) hits.delete(key);
     const h = hits.get(ip);
     if (!h || now - h.t > 60000) hits.set(ip, { t: now, n: 1 });
     else if (++h.n > (Number(process.env.RATE_LIMIT) || 240)) return json(res, 429, { error: 'Demasiadas peticiones, espera un momento' });
