@@ -137,7 +137,7 @@ function ensureCurrentWeek() {
   persistRanking([winner.sub, loser.sub]);
 }
 
-const MAX_LEVEL = 15;
+const MAX_LEVEL = 30;
 const RONALDO_SUB = 'tournament-bot-ronaldo'; // el único bot que sube de nivel: 1 punto por partida ganada
 const BOT_START_LEVELS = { 'tournament-bot-messi': ['Messi', 1], 'tournament-bot-lamine': ['Lamine', 5], [RONALDO_SUB]: ['Ronaldo', 20] };
 const levelForPoints = (points) => Math.min(MAX_LEVEL, Math.floor(points / 100) + 1);
