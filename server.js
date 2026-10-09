@@ -423,7 +423,7 @@ function resolveRound(room) {
   });
   // un cañón roto se regenera con 15 de vida para la siguiente ronda
   for (const k of [0, 1]) for (let l = 0; l < 4; l++) if (cann[k][l] === 0) cann[k][l] = 15;
-  room.round++;
+  room.round = room.leagueMatch ? 1 + Math.floor(Math.random() * 37) : room.round + 1; // en torneos y ligas las rondas son aleatorias (1-37)
   return { events, winner, seqs };
 }
 
@@ -504,6 +504,7 @@ function createLeagueMatch(league, round, players) {
   setRoomPlayerMaxHealth(room, 1);
   room.startedAt = Date.now();
   room.leagueMatch = { code: league.code, round, match: matchIndex };
+  room.round = 1 + Math.floor(Math.random() * 37);
   const code = newRoomCode();
   rooms.set(code, room);
   const label = league.size === 4 ? (round === 0 ? `Semifinal ${matchIndex + 1}` : matchIndex === 0 ? 'Final' : '3er puesto') : LEAGUE_ROUNDS[round];
@@ -734,7 +735,7 @@ const server = http.createServer(async (req, res) => {
     const ip = req.socket.remoteAddress, now = Date.now();
     const h = hits.get(ip);
     if (!h || now - h.t > 60000) hits.set(ip, { t: now, n: 1 });
-    else if (++h.n > 240) return json(res, 429, { error: 'Demasiadas peticiones, espera un momento' });
+    else if (++h.n > (Number(process.env.RATE_LIMIT) || 240)) return json(res, 429, { error: 'Demasiadas peticiones, espera un momento' });
   }
   if (req.method === 'POST' && url.pathname === '/api/matchmaking/join') {
     const b = await body(req);

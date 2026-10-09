@@ -142,7 +142,7 @@ test('el torneo de cuatro crea semifinales, final y partido por el tercer puesto
   const projectDir = fileURLToPath(new URL('..', import.meta.url));
   const child = spawn(process.execPath, ['server.js'], {
     cwd: projectDir,
-    env: { ...process.env, PORT: String(port), START_ROUND: '36', GOOGLE_CLIENT_ID: '', ALLOW_DEVELOPMENT_LOGIN: 'true' },
+    env: { ...process.env, PORT: String(port), START_ROUND: '36', RATE_LIMIT: '100000', GOOGLE_CLIENT_ID: '', ALLOW_DEVELOPMENT_LOGIN: 'true' },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   const controllers = [];
@@ -201,17 +201,13 @@ test('el torneo de cuatro crea semifinales, final y partido por el tercer puesto
       }
       for (const next of readers) assert.equal((await next()).event, 'state');
       let result;
-      for (let round = 0; round < 40; round++) {
+      for (let round = 0; round < 1500; round++) {
         for (let pid = 0; pid < 2; pid++) {
-          const lane = pid === 0 ? 1 : 4;
+          const rnd = () => [0, 1, 2, 3].map(() => 1 + Math.floor(Math.random() * 4));
           await post('/api/submit', {
             room: group[pid].room, pid, key: group[pid].key,
-            attack: [lane, lane, lane, lane],
-            defense: [pid === 0 ? 4 : 2, pid === 0 ? 4 : 2, pid === 0 ? 4 : 2, pid === 0 ? 4 : 2],
-            wave: [0, 0, 0, 0],
-            block: [pid === 0 ? 4 : 1, pid === 0 ? 4 : 1, pid === 0 ? 4 : 1, pid === 0 ? 4 : 1],
+            attack: rnd(), defense: rnd(), wave: [0, 0, 0, 0], block: rnd(),
           });
-
         }
         const updates = await Promise.all(readers.map(async (next) => {
           let event = await next();

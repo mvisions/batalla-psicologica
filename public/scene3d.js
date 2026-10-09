@@ -123,7 +123,7 @@ export function createScene(container) {
   let flashIdx = 0;
 
   // ---------- Agua ----------
-  const WAVE = `uniform float uStorm; uniform float uRough; uniform float uRiver;
+  const WAVE = `uniform float uStorm; uniform float uRough; uniform float uRiver; uniform float uMud;
     float wave(vec2 p){ float a = 1. + uStorm*.9 + uRough*1.7;
       float swell = sin(p.x*.55+uTime*1.1)*.13 + sin(p.y*.8-uTime*1.4)*.1;
       float chop = sin((p.x+p.y)*1.2+uTime*1.9)*.05 + sin((p.x-p.y)*2.1-uTime*2.4)*.025;
@@ -131,7 +131,7 @@ export function createScene(container) {
       return a*(swell + chop + ripples); }`;
   const waterMat = new THREE.ShaderMaterial({
     transparent: true, depthWrite: false,
-    uniforms: { uTime: { value: 0 }, uStorm: { value: 0 }, uRough: { value: 0 }, uRiver: { value: 0 }, uSun: { value: new THREE.Vector3(-0.5, 0.7, 0.4).normalize() } },
+    uniforms: { uTime: { value: 0 }, uStorm: { value: 0 }, uRough: { value: 0 }, uRiver: { value: 0 }, uMud: { value: 0 }, uSun: { value: new THREE.Vector3(-0.5, 0.7, 0.4).normalize() } },
     vertexShader: `uniform float uTime; varying vec3 vW; varying float vH; ${WAVE}
       void main(){ vec4 w = modelMatrix*vec4(position,1.); float h = wave(w.xz); w.y += h; vH = h; vW = w.xyz; gl_Position = projectionMatrix*viewMatrix*w; }`,
     fragmentShader: `uniform float uTime; uniform vec3 uSun; varying vec3 vW; varying float vH; ${WAVE}
@@ -144,6 +144,7 @@ export function createScene(container) {
         float fres = pow(1. - max(dot(n,V),0.), 3.);
         vec3 col = mix(vec3(.01,.13,.30), vec3(.06,.44,.64), .5 + vH*1.6);
         col = mix(col, mix(vec3(.05,.17,.07), vec3(.24,.44,.15), .5 + vH*1.6), uRiver);
+        col = mix(col, mix(vec3(.16,.09,.04), vec3(.42,.27,.14), .5 + vH*1.6), uMud);
         col = mix(col, vec3(.12,.2,.27), uStorm*.55);
         col = mix(col, vec3(.62,.8,.94)*(1.-uStorm*.5), fres*.65);
         vec3 R = reflect(-uSun, n);
@@ -705,13 +706,19 @@ export function createScene(container) {
 
   // Tiempo según la ronda: lluvia cada 5, oleaje cada 6 y ballena extra cada 7
   let stormOn = false, roughOn = false, whaleOn = false, snowOn = false, lightningOn = false, fogOn = false, snowAmount = 0;
-  let riverOn = false;
+  let riverOn = false, mudOn = false;
   function setWeather(round) {
     const rv = round >= 20 || (round >= 5 && round <= 10);
     if (rv !== riverOn) {
       riverOn = rv;
       const from = waterMat.uniforms.uRiver.value, to = rv ? 1 : 0;
       tween(1800, (t) => { waterMat.uniforms.uRiver.value = from + (to - from) * t; }, easeInOut);
+    }
+    const md = round >= 35 && round <= 40;
+    if (md !== mudOn) {
+      mudOn = md;
+      const from = waterMat.uniforms.uMud.value, to = md ? 1 : 0;
+      tween(1800, (t) => { waterMat.uniforms.uMud.value = from + (to - from) * t; }, easeInOut);
     }
     const st = round % 5 === 0 && round !== 15, ro = round % 6 === 0, wh = round % 7 === 0;
     const sn = round === 15, bolt = round === 25, fg = round === 35;

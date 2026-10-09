@@ -506,6 +506,7 @@ async function pollLeague() {
         room = state.match.room; pid = state.match.pid; key = state.match.key; isBot = false;
         leagueRoundName = state.match.roundName;
         saveGame({ room, pid, key });
+        $('emotes').classList.remove('hidden');
         $('msg').textContent = `${state.match.roundName} · contra ${state.match.opponent}`;
         connect();
       }
@@ -666,7 +667,7 @@ async function resume() {
       isLeague = true;
       $('lobby').classList.add('hidden'); $('game').classList.remove('hidden'); $('leagueBoard').classList.remove('hidden');
       if (saved.link && leaguePid === 0) showInvite(saved.link);
-      if (room && key) connect();
+      if (room && key) { $('emotes').classList.remove('hidden'); connect(); }
       pollLeague();
       return;
     }
