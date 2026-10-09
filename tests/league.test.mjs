@@ -201,7 +201,7 @@ test('el torneo de cuatro crea semifinales, final y partido por el tercer puesto
       }
       for (const next of readers) assert.equal((await next()).event, 'state');
       let result;
-      for (let round = 0; round < 12; round++) {
+      for (let round = 0; round < 40; round++) {
         for (let pid = 0; pid < 2; pid++) {
           const lane = pid === 0 ? 1 : 4;
           await post('/api/submit', {
