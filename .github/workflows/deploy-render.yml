@@ -2,7 +2,8 @@ name: Deploy Render (nightly)
 
 on:
   schedule:
-    - cron: '0 2 * * *' # 02:00 UTC = 04:00 en España en verano, 03:00 en invierno
+    - cron: '0 23 * * *' # 01:00 en España en verano (UTC+2)
+    - cron: '0 0 * * *' # 01:00 en España en invierno (UTC+1)
   workflow_dispatch:
 
 jobs:
@@ -13,6 +14,9 @@ jobs:
         env:
           RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
         run: |
+          if [ "${{ github.event_name }}" = "schedule" ] && [ "$(TZ=Europe/Madrid date +%H)" != "01" ]; then
+            echo "No es la 01:00 en Madrid, se omite"; exit 0
+          fi
           if [ -z "$RENDER_DEPLOY_HOOK_URL" ]; then
             echo "Falta el secreto RENDER_DEPLOY_HOOK_URL" >&2
             exit 1
