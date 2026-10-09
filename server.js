@@ -166,6 +166,7 @@ function recordBotWin(winner) {
   entry.level = levelForPoints(entry.points);
   persistRanking();
 }
+const RONALDO_SUB = 'tournament-bot-ronaldo'; // el único bot que sube de nivel: 1 punto por partida ganada
 const TOURNAMENT_POINTS = { champion: 200, runnerUp: 150, third: 100, fourth: 0 };
 function awardTournamentPoints(league) {
   if (league.awarded) return;
@@ -263,7 +264,7 @@ const validWave = (s) => Array.isArray(s) && s.length === 4 && s.every((n) => Nu
 const cleanName = (n) => String(n || '').trim().slice(0, 16) || 'Jugador';
 const cleanCountry = (c) => (/^[a-z]{2}$/i.test(String(c)) ? String(c).toLowerCase() : 'un'); // 'un' = bandera internacional
 function shipMaxHpForLevel(level) { return 100 + 5 * Math.max(1, Math.floor(Number(level) || 1)); }
-function maxShipHealthForPlayer(player) { return player?.bot ? 100 : shipMaxHpForLevel(ranking[player?.sub]?.level); }
+function maxShipHealthForPlayer(player) { return player?.bot ? (player.sub === RONALDO_SUB && ranking[RONALDO_SUB]?.level > 1 ? shipMaxHpForLevel(ranking[RONALDO_SUB].level) : 100) : shipMaxHpForLevel(ranking[player?.sub]?.level); }
 function setRoomPlayerMaxHealth(room, index) {
   room.maxShipHp[index] = maxShipHealthForPlayer(room.players[index]);
   if (room.hp[index]) room.hp[index].ship = room.maxShipHp[index];
@@ -552,7 +553,7 @@ function fillFourPlayerTournament(league) {
   const bots = [
     { name: 'Lamine', sub: 'tournament-bot-lamine', country: 'es', botDifficulty: 'normal' },
     { name: 'Messi', sub: 'tournament-bot-messi', country: 'ar', botDifficulty: 'easy' },
-    { name: 'Ronaldo', sub: 'tournament-bot-ronaldo', country: 'pt', botDifficulty: 'hard' },
+    { name: 'Ronaldo', sub: RONALDO_SUB, country: 'pt', botDifficulty: 'hard' },
   ];
   while (league.players.length < league.size) {
     const bot = bots[league.players.filter((player) => player.bot).length];
@@ -704,6 +705,11 @@ function runRound(room) {
       const winner = room.players[result.winner];
       if (room.bot) { if (!winner.bot) recordBotWin(winner); }
       else if (!winner.bot && !room.players[1 - result.winner].bot) recordResult(winner, room.players[1 - result.winner]);
+      else if (winner.sub === RONALDO_SUB && room.leagueMatch) {
+        const entry = (ranking[RONALDO_SUB] ||= { name: winner.name, streak: 0, points: 0, wins: 0, level: 1 });
+        entry.points = (entry.points || 0) + 1; entry.wins = (entry.wins || 0) + 1; entry.level = levelForPoints(entry.points);
+        persistRanking([RONALDO_SUB]);
+      }
       else if (!winner.bot && room.leagueMatch) recordBotWin(winner); // ganar a un bot de torneo también suma puntos
     }
   } else {
