@@ -269,7 +269,8 @@ function resolveRound(room) {
   const hpRatio = (k) => room.hp[k].ship / room.maxShipHp[k];
   const squidOwner = !squidRound ? null : hpRatio(0) === hpRatio(1) ? Math.floor(Math.random() * 2) : hpRatio(0) < hpRatio(1) ? 0 : 1; // protege al más perjudicado
   let squidAlive = squidRound;
-  const logRound = wild && room.round >= 20 && Math.random() < 0.5; // desde la ronda 20 pueden flotar troncos
+  const logRound = wild && (room.round === 7 || (room.round >= 20 && Math.random() < 0.5)); // tronco en la ronda 7 y, desde la 20, al azar
+  let bucketAlive = wild && room.round >= 8 && (room.round - 8) % 3 === 0; // desde la ronda 8 y cada 3 rondas flota un cubo en un carril al azar que se hunde de un disparo y cura 10
   const firstSubmitter = (P[0].submittedAt ?? Infinity) <= (P[1].submittedAt ?? Infinity) ? 0 : 1; // se lleva la vida de la gaviota si ambos la alcanzan
   const heliFor = [0, 1].map((k) => room.hp[k].ship > 0 && room.hp[k].ship <= 5 && Boolean(P[k].heli || P[k].bot));
   // cañón del barco k más cercano al punto de impacto x
@@ -290,13 +291,14 @@ function resolveRound(room) {
     const medkitX = medkitRound && !medkitCollected ? medkitPosts[i] : null;
     const gullX = gullAlive ? medkitPosts[Math.floor(Math.random() * 4)] : null;
     const squidX = squidAlive ? medkitPosts[Math.floor(Math.random() * 4)] : null;
+    const bucketX = bucketAlive ? medkitPosts[Math.floor(Math.random() * 4)] : null;
     const logX = logRound ? medkitPosts[Math.floor(Math.random() * 4)] : null;
     const squidUp = squidAlive && Math.random() < 0.5; // bajo el agua no detiene el disparo
     // icebergs (lluvia): dos, derivan a carriles al azar en cada disparo; la primera bala que da a uno lo destruye
     const lanePool = [-3, -1, 1, 3].sort(() => Math.random() - 0.5);
     const iceX = rain ? [iceAlive[0] ? lanePool[0] : null, iceAlive[1] ? lanePool[1] : null] : null;
     const iceAt = (x) => (iceX ? iceX.findIndex((v) => v !== null && v === x) : -1);
-    const ev = { step: i, atk, def, pos: [...pos], swell, whale: whaleX, ice: iceX, sub: subRound ? { x: subX, toward: Math.floor(Math.random() * 2) } : null, octopus: octopusX === null ? null : { x: octopusX, release: null }, medkit: medkitX === null ? null : { x: medkitX }, gull: gullX === null ? null : { x: gullX }, squid: squidX === null ? null : { x: squidX, up: squidUp, owner: squidOwner }, log: logX === null ? null : { x: logX }, shots: [] };
+    const ev = { step: i, atk, def, pos: [...pos], swell, whale: whaleX, ice: iceX, sub: subRound ? { x: subX, toward: Math.floor(Math.random() * 2) } : null, octopus: octopusX === null ? null : { x: octopusX, release: null }, medkit: medkitX === null ? null : { x: medkitX }, gull: gullX === null ? null : { x: gullX }, squid: squidX === null ? null : { x: squidX, up: squidUp, owner: squidOwner }, log: logX === null ? null : { x: logX }, bucket: bucketX === null ? null : { x: bucketX }, shots: [] };
     const heal = [0, 0], heliHeal = [0, 0];
     if (i === 0) {
       for (const k of [0, 1]) if (heliFor[k]) {
@@ -367,6 +369,7 @@ function resolveRound(room) {
         else if (subX !== null && x === subX) {
           target = 'sub'; heal[from] += 5; crepair[from][atk[from] - 1] += 5;
         }
+        else if (bucketX !== null && bucketAlive && x === bucketX) { target = 'bucket'; bucketAlive = false; heal[from] += 10; }
         else if (gullX !== null && gullAlive && x === gullX) { target = 'gull'; gullHits.push(from); }
         else if (whaleX !== null && x === whaleX) { target = 'whale'; owner = from; } // la orca rebota la bala contra el barco que disparó
         else if (sharkAt(other)) { target = 'shark'; owner = other; }
@@ -473,7 +476,7 @@ function resetState(room) {
   room.maxShipHp = [0, 1].map((index) => maxShipHealthForPlayer(room.players[index]));
   room.hp = room.maxShipHp.map((ship) => ({ ship, shark: 50 }));
   room.cannons = [[25, 25, 25, 25], [25, 25, 25, 25]];
-  room.medkitMatch = Math.random() < 1 / 3;
+  room.medkitMatch = true;
   room.octopusLane = 1 + Math.floor(Math.random() * 4);
   room.octopusUsed = false;
   room.round = START_ROUND; room.over = false; room.hist = [[], []]; room.startedAt = Date.now();

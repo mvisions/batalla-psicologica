@@ -707,7 +707,7 @@ export function createScene(container) {
   let stormOn = false, roughOn = false, whaleOn = false, snowOn = false, lightningOn = false, fogOn = false, snowAmount = 0;
   let riverOn = false;
   function setWeather(round) {
-    const rv = round >= 20;
+    const rv = round >= 20 || (round >= 5 && round <= 10);
     if (rv !== riverOn) {
       riverOn = rv;
       const from = waterMat.uniforms.uRiver.value, to = rv ? 1 : 0;
@@ -1026,6 +1026,45 @@ export function createScene(container) {
     medkit.g.visible = false;
   }
 
+  // ---------- Cubo flotante (ronda 8): se hunde al recibir un disparo ----------
+  const bucket = (() => {
+    const g = new THREE.Group();
+    const body = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.4, 0.7, 20, 1, true), new THREE.MeshStandardMaterial({ color: 0xd9531e, roughness: 0.5, metalness: 0.3, side: THREE.DoubleSide }));
+    body.position.y = 0.35; g.add(body);
+    const bottom = new THREE.Mesh(new THREE.CircleGeometry(0.4, 20).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0x8a3513 }));
+    bottom.position.y = 0.02; g.add(bottom);
+    const rim = new THREE.Mesh(new THREE.TorusGeometry(0.55, 0.045, 8, 24).rotateX(Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0xb8bcc0, metalness: 0.7, roughness: 0.3 }));
+    rim.position.y = 0.7; g.add(rim);
+    const handle = new THREE.Mesh(new THREE.TorusGeometry(0.5, 0.03, 8, 20, Math.PI), new THREE.MeshStandardMaterial({ color: 0xb8bcc0, metalness: 0.7, roughness: 0.3 }));
+    handle.position.y = 0.7; g.add(handle);
+    g.visible = false; g.scale.setScalar(0.01); scene.add(g);
+    return { g, present: false, x: 0 };
+  })();
+  async function bucketShow(wx) {
+    if (!bucket.present) {
+      bucket.present = true; bucket.x = wx; bucket.g.position.set(wx, -0.1, 0); bucket.g.rotation.set(0, 0, 0);
+      bucket.g.scale.setScalar(0.01); bucket.g.visible = true;
+      ripple(wx, 0, 2);
+      await tween(400, (t) => { bucket.g.scale.setScalar(0.01 + 1.09 * t); }, easeOut);
+    } else if (bucket.x !== wx) {
+      const from = bucket.x; bucket.x = wx;
+      await tween(300, (t) => { bucket.g.position.x = from + (wx - from) * t; }, easeInOut);
+    }
+  }
+  function bucketSink() {
+    if (!bucket.present) return;
+    bucket.present = false;
+    const p = V(bucket.x, 0.4, 0);
+    sparks(p, 14, 4, 0xbfe8ff); ripple(bucket.x, 0, 4);
+    tween(700, (t) => { bucket.g.position.y = -0.1 - 1.2 * t; bucket.g.rotation.z = 0.9 * t; }, easeIn).then(() => { bucket.g.visible = false; });
+  }
+  async function bucketLeave() {
+    if (!bucket.present) return;
+    bucket.present = false;
+    await tween(280, (t) => { bucket.g.scale.setScalar(Math.max(0.01, 1.1 - t)); }, easeIn);
+    bucket.g.visible = false;
+  }
+
   // ---------- Gaviota, calamar y helicóptero ----------
   const frameHooks = [];
   const gull = (() => {
@@ -1304,7 +1343,7 @@ export function createScene(container) {
     const x = xu !== undefined ? xu * UNIT : LANE_X[lane - 1], y = fromSub ? 0.9 : 1.3;
     const startX = fromOctopus && fromX !== undefined ? fromX * UNIT : x;
     const startZ = fromSub ? dir * 1.0 : fromOctopus ? 0 : -dir * MUZZLE_Z;
-    const endZ = ['collision', 'whale', 'sub', 'ice', 'octopus', 'medkit', 'gull', 'log'].includes(target) ? 0 : target === 'squid' ? zOf(owner) * 11 : target === 'shark' ? zOf(owner) * FIN_Z : zOf(owner) * HIT_SHIP_Z;
+    const endZ = ['collision', 'whale', 'sub', 'ice', 'octopus', 'medkit', 'bucket', 'gull', 'log'].includes(target) ? 0 : target === 'squid' ? zOf(owner) * 11 : target === 'shark' ? zOf(owner) * FIN_Z : zOf(owner) * HIT_SHIP_Z;
     const finalZ = target === 'miss' ? zOf(owner) * OUT_Z : endZ;
     const flight = ((Math.abs(endZ - startZ) + (target === 'whale' ? Math.abs(zOf(owner) * HIT_SHIP_Z - endZ) : 0)) / SPEED) * 1000;
 
@@ -1345,6 +1384,7 @@ export function createScene(container) {
     else if (b.target === 'sub') { clash(V(b.x, 0.9, 0)); sub.hitT = 0.5; }
     else if (b.target === 'octopus') { clash(V(b.x, 0.8, 0)); shake(0.12, 0.25); }
     else if (b.target === 'medkit') medkitCollect();
+    else if (b.target === 'bucket') bucketSink();
     else if (b.target === 'gull') gullShot();
     else if (b.target === 'log') logHit(b.x);
     else if (b.target === 'squid') squidBlock();
@@ -1648,7 +1688,7 @@ export function createScene(container) {
       m.map = tex; m.color.set(0xffffff); m.needsUpdate = true;
     };
     img.onerror = () => { if (code !== 'un') setFlag(who, 'un'); };
-    img.src = `/flags/${code}.svg`;
+    img.src = `./flags/${code}.svg`;
   }
 
   // Números sobre las torretas: visibles al elegir, casi transparentes mientras se ejecuta la secuencia
@@ -1675,6 +1715,6 @@ export function createScene(container) {
     return best;
   }
 
-  Object.assign(api, { setHealth, setCannons, setCannonLabels, setShipLevel, pickFlag, subMove, subLeave, iceShow, iceClear, octopusShow, octopusSpin, octopusLeave, medkitShow, medkitLeave, gullFly, gullLeave, logShow, logLeave, squidShow, squidLeave, heliSupport, dud, labelCannon, moveFin, moveShip, fire, label, trackLabel, trackPoint, trackShip, setWeather, setFlag, SHIP_Z });
+  Object.assign(api, { setHealth, setCannons, setCannonLabels, setShipLevel, pickFlag, subMove, subLeave, iceShow, iceClear, octopusShow, octopusSpin, octopusLeave, medkitShow, medkitLeave, bucketShow, bucketLeave, gullFly, gullLeave, logShow, logLeave, squidShow, squidLeave, heliSupport, dud, labelCannon, moveFin, moveShip, fire, label, trackLabel, trackPoint, trackShip, setWeather, setFlag, SHIP_Z });
   return api;
 }

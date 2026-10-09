@@ -99,16 +99,8 @@ test('romper un cañón rival cura 5 de vida', () => {
   assert.deepEqual(events[1].heal, [0, 0]);
 });
 
-test('el botiquín aparece en una de cada tres partidas y solo en rondas 3, 6, 9…', () => {
-  const originalRandom = Math.random;
-  try {
-    Math.random = () => 0.2;
-    const enabled = makeRoom({ name: 'A', sub: 'a' }, false);
-    Math.random = () => 0.8;
-    const disabled = makeRoom({ name: 'B', sub: 'b' }, false);
-    assert.equal(enabled.medkitMatch, true);
-    assert.equal(disabled.medkitMatch, false);
-  } finally { Math.random = originalRandom; }
+test('el botiquín aparece en todas las partidas y solo en rondas 3, 6, 9…', () => {
+  assert.equal(makeRoom({ name: 'A', sub: 'a' }, false).medkitMatch, true);
 
   for (const round of [1, 2, 4, 5, 7]) {
     const room = setup({ round, a: { attack: seq(2), defense: seq(4), wave: seq(0) }, b: { attack: seq(4), defense: seq(1), wave: seq(0) } });
@@ -298,7 +290,7 @@ test('el calamar sale una ronda sí y otra no', () => {
 test('el calamar fuera del agua detiene cualquier bala y bajo el agua la deja pasar', () => {
   let blockedRuns = 0, downRuns = 0;
   for (let n = 0; n < 400; n++) {
-    const room = setup({ round: 11, a: { attack: seq(4), defense: seq(1) }, b: { attack: seq(3), defense: seq(3) } });
+    const room = setup({ round: 13, a: { attack: seq(4), defense: seq(1) }, b: { attack: seq(3), defense: seq(3) } });
     room.wildlife = true;
     const weak = n % 2; // alterna cuál de los dos jugadores es el más perjudicado
     room.hp[weak].ship = 40;
@@ -347,7 +339,10 @@ test('desde la ronda 20 el tronco bloquea los disparos de ambos lados', () => {
   assert.ok(withLog > 0);
 });
 
-test('antes de la ronda 20 no hay troncos', () => {
+test('antes de la ronda 20 no hay troncos salvo en la ronda 7', () => {
+  const seven = setup({ round: 7, a: { attack: seq(1), defense: seq(2) }, b: { attack: seq(4), defense: seq(2) } });
+  seven.wildlife = true;
+  assert.ok(resolveRound(seven).events.every((ev) => ev.log));
   const room = setup({ round: 19, a: { attack: seq(1), defense: seq(2) }, b: { attack: seq(4), defense: seq(2) } });
   room.wildlife = true;
   assert.ok(resolveRound(room).events.every((ev) => !ev.log));
@@ -371,4 +366,22 @@ test('si ambos alcanzan la gaviota, la vida es para quien envió antes la secuen
     }
   }
   assert.ok(both > 0);
+});
+
+test('el cubo flotante (rondas 8, 11, 14…) se hunde con un disparo y cura 10', () => {
+  let healed = 0;
+  for (let n = 0; n < 200; n++) {
+    const room = setup({ round: 8, a: { attack: [1, 2, 3, 4], defense: seq(2) }, b: { attack: seq(1), defense: seq(2) } });
+    room.wildlife = true;
+    const { events } = resolveRound(room);
+    const hits = events.flatMap((ev) => ev.shots).filter((shot) => shot.target === 'bucket');
+    assert.ok(hits.length <= 1);
+    healed += hits.length;
+  }
+  assert.ok(healed > 0);
+  for (const [round, expected] of [[7, false], [9, false], [10, false], [11, true], [14, true]]) {
+    const other = setup({ round, a: { attack: seq(1), defense: seq(2) }, b: { attack: seq(4), defense: seq(2) } });
+    other.wildlife = true;
+    assert.equal(resolveRound(other).events[0].bucket !== null, expected);
+  }
 });

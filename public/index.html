@@ -90,6 +90,16 @@
   #win h1 { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); margin: 0; font-size: 56px; text-align: center;
     color: #ffd54f; text-shadow: 0 0 20px #ff9800, 0 4px 8px #000; animation: pop 1s ease-out; }
   @keyframes pop { from { transform: translate(-50%, -50%) scale(.1); } to { transform: translate(-50%, -50%) scale(1); } }
+  #tcel { position: fixed; inset: 0; z-index: 60; display: none; place-items: center; background: #03111d99; pointer-events: none; }
+  #tcel canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+  #tcel .box { position: relative; text-align: center; animation: pop2 1s ease-out; }
+  #tcel .icon { font-size: min(34vw, 190px); line-height: 1; filter: drop-shadow(0 0 24px #ffc107); animation: bob 1.6s ease-in-out infinite; }
+  #tcel.silver .icon { filter: drop-shadow(0 0 24px #cfd8dc); }
+  #tcel.bronze .icon { filter: drop-shadow(0 0 24px #cd7f32); }
+  #tcel h2 { margin: 6px 0; font-size: min(9vw, 52px); color: #ffd54f; text-shadow: 0 0 20px #ff9800, 0 4px 8px #000; }
+  #tcel p { margin: 0; font-size: min(5vw, 26px); color: #fff; text-shadow: 0 3px 8px #000; }
+  @keyframes pop2 { from { transform: scale(.1); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+  @keyframes bob { 50% { transform: translateY(-12px) scale(1.04); } }
   #levelUp { position: fixed; inset: 0; z-index: 80; display: grid; place-items: center; padding: 18px; background: #03111dcc; pointer-events: none; }
   .level-up-card { position: relative; display: grid; justify-items: center; gap: 7px; width: min(88vw, 340px); padding: 23px 24px 21px;
     overflow: hidden; border: 1px solid #ffe08a; border-radius: 12px; color: #fff; text-align: center;
@@ -323,6 +333,7 @@
     <div id="lastRound" class="panel hidden"><b>Última ronda</b><div id="lrTxt"></div><button id="replay" type="button">Ver repetición</button></div>
   </div>
 </div>
+<div id="tcel"><canvas></canvas><div class="box"><div class="icon"></div><h2></h2><p></p></div></div>
 <div id="win"><canvas></canvas><h1>¡VICTORIA!</h1></div>
 <script type="module">
 import { createScene } from './scene3d.js';
@@ -336,6 +347,7 @@ const SHOT_MS = 5000; // 4 disparos x 5 s = 20 s por tanda
 let room, pid, key, isBot = false, names = ['', ''], playing = false, lastHp = null, lastMaxShipHp = [100, 100], curRound = 1, blockRound = false, heliAsked = false;
 let lastRound = null, endAt = 0, queue = Promise.resolve();
 let tutorialMode = false, tutorialStep = null, tutorialUnlimited = false;
+let celebrating = false, leagueRoundName = '';
 let isLeague = false, leagueCode = null, leaguePid = null, leagueKey = null, leaguePollTimer = null;
 let activeEvents = null, spectatorAbort = null, spectatorMode = false, spectatorLeague = null, watchedRoom = null;
 let matchmaking = null, matchmakingPollTimer = null;
@@ -481,6 +493,8 @@ async function pollLeague() {
     if (!response.ok) throw new Error('No se pudo actualizar el torneo');
     const state = await response.json();
     renderLeagueState(state);
+    if (celebrating) { leaguePollTimer = setTimeout(pollLeague, 2000); return; }
+    if (state.match && state.match.room === room && !leagueRoundName) leagueRoundName = state.match.roundName;
     if (state.status === 'registration') {
       const seconds = Math.max(0, Math.ceil((state.registrationDeadline - Date.now()) / 1000));
       const countdown = state.registrationDeadline ? ` Si faltan, entrarán bots en ${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}.` : '';
@@ -490,6 +504,7 @@ async function pollLeague() {
       if (room !== state.match.room && !playing) {
         activeEvents?.close();
         room = state.match.room; pid = state.match.pid; key = state.match.key; isBot = false;
+        leagueRoundName = state.match.roundName;
         saveGame({ room, pid, key });
         $('msg').textContent = `${state.match.roundName} · contra ${state.match.opponent}`;
         connect();
@@ -1196,6 +1211,76 @@ function celebrate() {
   })();
 }
 
+// Celebración de torneo de ~15 s: cohetes opcionales, aplausos y cartel con icono
+function tournamentCelebration({ icon, title, text, tone = 'gold', fireworks = true, ms = 15000 }) {
+  return new Promise((resolve) => {
+    const box = $('tcel'), cv = box.querySelector('canvas'), ctx = cv.getContext('2d');
+    cv.width = innerWidth; cv.height = innerHeight;
+    box.className = tone; box.style.display = 'grid';
+    box.querySelector('.icon').textContent = icon;
+    box.querySelector('h2').textContent = title;
+    box.querySelector('p').textContent = text || '';
+    const ac = new (window.AudioContext || window.webkitAudioContext)();
+    const level = muted ? 0 : volume;
+    const out = ac.createGain(); out.gain.value = level; out.connect(ac.destination);
+    const noise = ac.createBuffer(1, ac.sampleRate, ac.sampleRate);
+    const nd = noise.getChannelData(0);
+    for (let i = 0; i < nd.length; i++) nd[i] = Math.random() * 2 - 1;
+    const clap = (t, g) => {
+      const s = ac.createBufferSource(), f = ac.createBiquadFilter(), e = ac.createGain();
+      s.buffer = noise; f.type = 'bandpass'; f.frequency.value = 1200 + Math.random() * 2200; f.Q.value = 0.8;
+      e.gain.setValueAtTime(g, ac.currentTime + t); e.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + t + 0.07);
+      s.connect(f); f.connect(e); e.connect(out); s.start(ac.currentTime + t, Math.random() * 0.8, 0.08);
+    };
+    const boom = (t) => {
+      const o = ac.createOscillator(), e = ac.createGain();
+      o.type = 'triangle'; o.frequency.setValueAtTime(140, ac.currentTime + t); o.frequency.exponentialRampToValueAtTime(40, ac.currentTime + t + 0.4);
+      e.gain.setValueAtTime(0.5, ac.currentTime + t); e.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + t + 0.45);
+      o.connect(e); e.connect(out); o.start(ac.currentTime + t); o.stop(ac.currentTime + t + 0.5);
+    };
+    const secs = ms / 1000;
+    for (let t = 0; t < secs - 1; t += 0.045) {
+      const envelope = Math.min(1, t / 1.2) * Math.min(1, (secs - t) / 2.5);
+      if (Math.random() < 0.35 + 0.6 * envelope) clap(t, 0.25 + 0.55 * envelope * Math.random());
+    }
+    if (fireworks) for (let t = 0.3; t < secs - 2; t += 0.6 + Math.random() * 0.7) boom(t);
+    let parts = [], rockets = [];
+    const launch = () => rockets.push({ x: innerWidth * (.15 + Math.random() * .7), y: innerHeight, ty: innerHeight * (.15 + Math.random() * .4), hue: Math.random() * 360 });
+    const start = Date.now();
+    const timer = fireworks ? setInterval(launch, 450) : null;
+    if (fireworks) launch();
+    (function frame() {
+      ctx.globalCompositeOperation = 'destination-out';
+      ctx.fillStyle = 'rgba(0,0,0,0.2)'; ctx.fillRect(0, 0, cv.width, cv.height);
+      ctx.globalCompositeOperation = 'lighter';
+      for (const k of rockets) {
+        k.y -= 9; ctx.fillStyle = '#fff'; ctx.fillRect(k.x, k.y, 3, 10);
+        if (k.y <= k.ty) {
+          k.dead = true;
+          for (let i = 0; i < 80; i++) { const a = Math.random() * 6.283, v = 1 + Math.random() * 5; parts.push({ x: k.x, y: k.y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: 1, hue: k.hue + Math.random() * 40 }); }
+        }
+      }
+      rockets = rockets.filter((k) => !k.dead);
+      parts = parts.filter((p) => p.life > 0);
+      for (const p of parts) {
+        p.x += p.vx; p.y += p.vy; p.vy += 0.05; p.vx *= 0.99; p.life -= 0.012;
+        ctx.fillStyle = `hsla(${p.hue},100%,60%,${p.life})`; ctx.fillRect(p.x, p.y, 3, 3);
+      }
+      if (Date.now() - start < ms) requestAnimationFrame(frame);
+      else { if (timer) clearInterval(timer); box.style.display = 'none'; ac.close(); resolve(); }
+    })();
+  });
+}
+async function leagueCelebration(won, op) {
+  const round = leagueRoundName || '';
+  const mine = names[pid] || 'Jugador';
+  if (round.startsWith('Semifinal') && won) return tournamentCelebration({ icon: '🎆', title: '¡VAMOS A LA FINAL!', text: `${mine} pasa a la final` });
+  if (round === 'Final') return won
+    ? tournamentCelebration({ icon: '🏆', title: '¡CAMPEÓN!', text: `${mine} gana el torneo`, tone: 'gold' })
+    : tournamentCelebration({ icon: '🏆', title: 'SUBCAMPEÓN', text: `Trofeo de plata para ${mine}`, tone: 'silver' });
+  if (round === '3er puesto' && won) return tournamentCelebration({ icon: '🥉', title: 'MEDALLA DE BRONCE', text: `Medalla de bronce para ${mine}`, tone: 'bronze', fireworks: false });
+}
+
 async function playRound(r, replay = false) {
   playing = true; if (!replay) heliAsked = false; renderHeli();
   tutorialUnlimited = !!r.tutorial;
@@ -1209,7 +1294,7 @@ async function playRound(r, replay = false) {
   const side = (n) => (n === me ? 'me' : 'op');
   if (r.levels) { scene.setShipLevel('me', r.levels[me]); scene.setShipLevel('op', r.levels[op]); }
   const impactSfx = (t) => (t === 'ship' || t === 'whale' ? 'bomb' : t === 'shark' ? 'splash' : t === 'gull' ? 'gull' : 'clash');
-  let subOn = false, octopusOn = false, medkitOn = false, gullOn = false, squidOn = false, logOn = false;
+  let subOn = false, octopusOn = false, medkitOn = false, gullOn = false, squidOn = false, logOn = false, bucketOn = false;
   for (const ev of r.events) {
     const slotEnd = Date.now() + SHOT_MS;
     $('msg').textContent = `Disparo ${ev.step + 1}/4`;
@@ -1220,13 +1305,14 @@ async function playRound(r, replay = false) {
       ...(ev.whale != null ? [scene.moveFin('mid', (ev.whale + 5) / 2)] : []),
       ...(ev.sub ? [scene.subMove(ev.sub.x * 1.5)] : subOn ? [scene.subLeave()] : []),
       ...(ev.octopus ? [scene.octopusShow(ev.octopus.x * 1.5)] : octopusOn ? [scene.octopusLeave()] : []),
+      ...(ev.bucket ? [scene.bucketShow(ev.bucket.x * 1.5)] : bucketOn ? [scene.bucketLeave()] : []),
       ...(ev.medkit ? [scene.medkitShow(ev.medkit.x * 1.5)] : medkitOn ? [scene.medkitLeave()] : []),
       ...(ev.gull ? [scene.gullFly(ev.gull.x * 1.5)] : gullOn ? [scene.gullLeave()] : []),
       ...(ev.squid ? [scene.squidShow(ev.squid.x * 1.5, ev.squid.up, side(ev.squid.owner))] : squidOn ? [scene.squidLeave()] : []),
       ...(ev.log ? [scene.logShow(ev.log.x * 1.5)] : logOn ? [scene.logLeave()] : []),
       ...(ev.ice ? ev.ice.map((x, id) => (x === null ? Promise.resolve() : scene.iceShow(id, x * 1.5))) : []),
     ]);
-    subOn = !!ev.sub; octopusOn = !!ev.octopus; medkitOn = !!ev.medkit; gullOn = !!ev.gull; squidOn = !!ev.squid; logOn = !!ev.log;
+    subOn = !!ev.sub; octopusOn = !!ev.octopus; medkitOn = !!ev.medkit; gullOn = !!ev.gull; squidOn = !!ev.squid; logOn = !!ev.log; bucketOn = !!ev.bucket;
     const impacts = ev.shots.map(async (s) => {
       if (s.target === 'broken' || s.target === 'blocked') { scene.dud(side(s.from), s.lane); sfx('dud'); return Promise.resolve(); }
       const f = scene.fire({ from: side(s.from), x: s.x, lane: s.lane, target: s.target, ice: s.ice, owner: s.owner === undefined ? null : side(s.owner) });
@@ -1261,7 +1347,7 @@ async function playRound(r, replay = false) {
     showCannonRepair(prevC, ev.cannons, me, op);
     await wait(Math.max(0, slotEnd - Date.now()));
   }
-  scene.subLeave(); scene.octopusLeave(); scene.medkitLeave(); scene.gullLeave(); scene.squidLeave(); scene.logLeave(); scene.iceClear();
+  scene.subLeave(); scene.octopusLeave(); scene.medkitLeave(); scene.bucketLeave(); scene.gullLeave(); scene.squidLeave(); scene.logLeave(); scene.iceClear();
   setHp(r.hp, r.maxShipHp);
   { const before = lastCan; setCannons(r.cannons); showCannonRepair(before, r.cannons, me, op); }
   playing = false;
@@ -1292,6 +1378,10 @@ async function playRound(r, replay = false) {
     if (isLeague) {
       $('menu').classList.add('hidden'); $('rematch').classList.add('hidden');
       $('msg').textContent = r.winner === me ? 'Ganaste el duelo; actualizando el cuadro...' : `Perdiste el duelo. Ganó ${names[op]}`;
+      if (r.winner === me || r.winner === 'draw' || leagueRoundName === 'Final') {
+        celebrating = true;
+        leagueCelebration(r.winner === me, op).catch(() => {}).finally(() => { celebrating = false; pollLeague(); });
+      }
       return;
     }
     $('menu').classList.remove('hidden'); $('rematch').classList.remove('hidden'); $('rematch').disabled = false;
