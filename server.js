@@ -121,6 +121,7 @@ async function initializeRankingStore() {
     await firestoreRankingStore.save(rankingDocument(), structuredClone(ranking), Object.keys(ranking));
     rankingNeedsMigration = false;
   }
+  applyBotStartLevels();
   writeLocalRanking();
 }
 
@@ -140,10 +141,13 @@ const MAX_LEVEL = 15;
 const RONALDO_SUB = 'tournament-bot-ronaldo'; // el único bot que sube de nivel: 1 punto por partida ganada
 const BOT_START_LEVELS = { 'tournament-bot-messi': ['Messi', 1], 'tournament-bot-lamine': ['Lamine', 5], [RONALDO_SUB]: ['Ronaldo', 20] };
 const levelForPoints = (points) => Math.min(MAX_LEVEL, Math.floor(points / 100) + 1);
-for (const [sub, [name, level]] of Object.entries(BOT_START_LEVELS)) { // nivel inicial de los bots del torneo (Ronaldo supera el máximo de los jugadores)
-  const entry = (ranking[sub] ||= { name, streak: 0, points: 0, wins: 0, level: 1 });
-  entry.name = name; entry.points = Math.max(entry.points || 0, (level - 1) * 100); entry.level = Math.max(entry.level || 1, level);
+function applyBotStartLevels() { // nivel inicial de los bots del torneo (Ronaldo supera el máximo de los jugadores)
+  for (const [sub, [name, level]] of Object.entries(BOT_START_LEVELS)) {
+    const entry = (ranking[sub] ||= { name, streak: 0, points: 0, wins: 0, level: 1 });
+    entry.name = name; entry.points = Math.max(entry.points || 0, (level - 1) * 100); entry.level = Math.max(entry.level || 1, level);
+  }
 }
+applyBotStartLevels();
 const pointsPerWin = (level) => (level >= MAX_LEVEL ? 10 : 50);
 function recordResult(winner, loser) {
   ensureCurrentWeek();

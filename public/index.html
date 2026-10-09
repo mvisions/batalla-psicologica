@@ -32,6 +32,8 @@
   #hudOp { top: 6px; } #hudMe { bottom: 6px; }
   .hudtop { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
   .hudtop b { font-size: 13px; max-width: 38%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .lvl { display: inline-block; margin-right: 6px; padding: 0 6px; border-radius: 8px; background: #ffc857; color: #2a1d00; font-size: 11px; font-weight: 800; vertical-align: middle; }
+  .lvl:empty { display: none; }
   .flag { height: 14px; width: auto; border-radius: 2px; vertical-align: middle; margin-right: 6px; box-shadow: 0 0 0 1px #fff4; cursor: help; }
   #tip { position: absolute; z-index: 12; transform: translateX(-50%); background: #000d; border: 1px solid #fff5; border-radius: 8px;
     padding: 4px 10px; font-size: 13px; pointer-events: none; white-space: nowrap; }
@@ -289,7 +291,7 @@
   <div id="game" class="hidden">
     <div id="arena">
       <div class="hudin" id="hudOp">
-        <div class="hudtop"><b><img id="opFlag" class="flag" alt=""><span id="opName"></span></b><span id="opTxt"></span><span>Ronda <span id="round">1</span></span></div>
+        <div class="hudtop"><b><img id="opFlag" class="flag" alt=""><span id="opLvl" class="lvl"></span><span id="opName"></span></b><span id="opTxt"></span><span>Ronda <span id="round">1</span></span></div>
         <div class="bars"><div class="bar ship-bar"><i id="opShip"></i></div><div class="bar shark-bar"><i id="opShark"></i></div></div>
         <div class="cans" id="opCan"></div>
       </div>
@@ -324,7 +326,7 @@
         <div id="waveCtl" class="hidden"><span id="waveTxt"></span><button id="waveStay" type="button">Quieto</button></div>
         <div class="bars"><div class="bar ship-bar"><i id="meShip"></i></div><div class="bar shark-bar"><i id="meShark"></i></div></div>
         <div class="cans" id="meCan"></div>
-        <div class="hudtop"><b><img id="meFlag" class="flag" alt=""><span id="meName"></span></b><span id="meTxt"></span></div>
+        <div class="hudtop"><b><img id="meFlag" class="flag" alt=""><span id="meLvl" class="lvl"></span><span id="meName"></span></b><span id="meTxt"></span></div>
       </div>
     </div>
     <div id="msg"></div>
@@ -599,7 +601,7 @@ async function pollLeague() {
           : state.status === 'fourth' ? 'Terminaste en cuarto puesto'
             : state.status === 'eliminated' ? 'Terminó tu participación en la liga' : 'Esperando al siguiente duelo';
       if (state.reward) $('msg').textContent += ` · +${state.reward} puntos de nivel`;
-      if (['champion', 'runnerUp', 'third', 'fourth', 'eliminated'].includes(state.status)) localStorage.removeItem('game');
+      if (['champion', 'runnerUp', 'third', 'fourth', 'eliminated'].includes(state.status)) { localStorage.removeItem('game'); $('menu').classList.remove('hidden'); }
     }
   } catch (error) { $('lobbyMsg').textContent = error.message; if (isLeague) $('msg').textContent = 'Sin conexión con el servidor, reintentando...'; }
   leaguePollTimer = setTimeout(pollLeague, 2000);
@@ -1156,8 +1158,11 @@ function setNames(n, countries = ['un', 'un'], levels = [1, 1]) {
     $(who + 'Flag').title = countryName(countries[idx]);
     scene.setFlag(who, countries[idx]);
     scene.setShipLevel(who, levels?.[idx] || 1);
+    showLevel(who, levels?.[idx]);
   }
 }
+
+function showLevel(who, level) { $(who + 'Lvl').textContent = level ? `Nv ${level}` : ''; }
 
 // Nombre del país al pasar el ratón o tocar una bandera (en el panel o en el mástil del barco)
 const flagCodes = { me: 'un', op: 'un' };
@@ -1398,7 +1403,7 @@ async function playRoundInner(r, replay = false) {
   const pre = replay ? lastRound : { hp: lastHp, can: lastCan, maxShipHp: lastMaxShipHp };
   if (replay) { setHp(pre.hp, pre.maxShipHp); setCannons(pre.can); scene.setWeather(r.round - 1); }
   const side = (n) => (n === me ? 'me' : 'op');
-  if (r.levels) { scene.setShipLevel('me', r.levels[me]); scene.setShipLevel('op', r.levels[op]); }
+  if (r.levels) { scene.setShipLevel('me', r.levels[me]); scene.setShipLevel('op', r.levels[op]); showLevel('me', r.levels[me]); showLevel('op', r.levels[op]); }
   const impactSfx = (t) => (t === 'ship' || t === 'whale' ? 'bomb' : t === 'shark' ? 'splash' : t === 'gull' ? 'gull' : 'clash');
   let subOn = false, octopusOn = false, medkitOn = false, gullOn = false, squidOn = false, logOn = false, bucketOn = false;
   for (const ev of r.events) {
