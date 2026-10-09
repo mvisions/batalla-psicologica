@@ -563,6 +563,13 @@ async function pollLeague() {
   try {
     const query = new URLSearchParams({ code: leagueCode, pid: leaguePid, key: leagueKey });
     const response = await fetch(apiUrl(`/api/league/state?${query}`));
+    if (response.status === 404) { // el servidor se reinició y el torneo ya no existe
+      localStorage.removeItem('game'); activeEvents?.close(); activeEvents = null;
+      isLeague = false; leagueCode = null; room = null; pid = null; key = null;
+      $('game').classList.add('hidden'); $('leagueBoard').classList.add('hidden'); $('invite').classList.add('hidden');
+      $('lobby').classList.remove('hidden'); $('lobbyMsg').textContent = 'El torneo ya no existe (el servidor se reinició). Crea uno nuevo.';
+      return;
+    }
     if (!response.ok) throw new Error('No se pudo actualizar el torneo');
     const state = await response.json();
     renderLeagueState(state);
@@ -570,7 +577,7 @@ async function pollLeague() {
     if (state.match && state.match.room === room && !leagueRoundName) leagueRoundName = state.match.roundName;
     if (state.status === 'registration') {
       const seconds = Math.max(0, Math.ceil((state.registrationDeadline - Date.now()) / 1000));
-      const countdown = state.registrationDeadline ? ` Si faltan, entrarán bots en ${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}.` : '';
+      const countdown = state.registrationDeadline && seconds === 0 ? ' Entrando los bots...' : state.registrationDeadline ? ` Si faltan, entrarán bots en ${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}.` : '';
       $('msg').textContent = `Esperando jugadores (${state.players.length}/${state.size}).${countdown}`;
     } else if (state.match) {
       $('invite').classList.add('hidden');
@@ -594,7 +601,7 @@ async function pollLeague() {
       if (state.reward) $('msg').textContent += ` · +${state.reward} puntos de nivel`;
       if (['champion', 'runnerUp', 'third', 'fourth', 'eliminated'].includes(state.status)) localStorage.removeItem('game');
     }
-  } catch (error) { $('lobbyMsg').textContent = error.message; }
+  } catch (error) { $('lobbyMsg').textContent = error.message; if (isLeague) $('msg').textContent = 'Sin conexión con el servidor, reintentando...'; }
   leaguePollTimer = setTimeout(pollLeague, 2000);
 }
 async function loadActiveLeagues() {

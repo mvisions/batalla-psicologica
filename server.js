@@ -857,6 +857,7 @@ const server = http.createServer(async (req, res) => {
     const playerId = Number(url.searchParams.get('pid'));
     const player = league?.players[playerId];
     if (!player || player.key !== url.searchParams.get('key')) return json(res, 404, { error: 'Liga no encontrada' });
+    if (league.status === 'registration' && league.registrationDeadline && Date.now() >= league.registrationDeadline) fillFourPlayerTournament(league); // respaldo si el temporizador no llegó a ejecutarse
     return json(res, 200, leagueSnapshot(league, playerId));
   }
   if (req.method === 'GET' && url.pathname === '/api/leagues') {
