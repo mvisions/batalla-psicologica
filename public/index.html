@@ -200,6 +200,7 @@
     <button id="rankingBtn" type="button">Ranking</button>
     <button id="helpBtn" type="button">Ayuda</button>
     <button id="muteBtn" type="button">Sonido: sí</button>
+    <button id="musicBtn" type="button">Música: sí</button>
     <span id="profileStats" class="hidden"></span>
     <input id="vol" type="range" min="0" max="100" value="80" title="Volumen">
   </div>
@@ -389,6 +390,7 @@ function unlockAudio() {
   } catch { /* sin audio */ }
 }
 document.addEventListener('pointerdown', unlockAudio, { once: true });
+document.addEventListener('click', (e) => { if (e.target.closest('button, a')) sfx('click'); });
 $('vol').value = Math.round(volume * 100);
 $('muteBtn').textContent = muted ? 'Sonido: no' : 'Sonido: sí';
 $('vol').oninput = () => { volume = $('vol').value / 100; localStorage.setItem('vol', $('vol').value); applyVol(); };
@@ -440,12 +442,67 @@ function sfx(kind) {
     for (let k = 0; k < 14; k++) { filtered('lowpass', 500, 120, 0.12, 0.7, k * 0.13, 1); tone(70, 55, 0.1, 0.35, k * 0.13); }
   } else if (kind === 'gull') {
     tone(1500, 900, 0.18, 0.25); tone(1700, 1000, 0.2, 0.25, 0.22); tone(1400, 800, 0.25, 0.2, 0.46);
+  } else if (kind === 'click') {
+    tone(900, 600, 0.06, 0.12);
+  } else if (kind === 'round') {
+    tone(440, 440, 0.12, 0.2); tone(660, 660, 0.18, 0.2, 0.13);
+  } else if (kind === 'lose') {
+    [392, 349, 311, 261].forEach((f, k) => tone(f, f * 0.99, 0.4, 0.28, k * 0.28));
   } else if (kind === 'heal') {
     [523, 659, 784, 1047].forEach((f, k) => tone(f, f * 1.01, 0.25, 0.3, k * 0.09));
   } else {
     filtered('lowpass', 1400, 120, 1.1, 0.9); tone(90, 30, 1.1, 1);
   }
 }
+
+// ---------- Música y ambiente generativos (sin archivos de audio) ----------
+let musicOn = localStorage.getItem('music') !== '0', musicGain, musicTimer = null, musicStep = 0, musicMood = 'calm', oceanStarted = false;
+const SCALE = [0, 2, 3, 5, 7, 8, 10]; // menor natural: tono de aventura marinera
+const midi = (n) => 440 * 2 ** ((n - 69) / 12);
+function startOcean() {
+  if (oceanStarted || !sfxCtx) return;
+  oceanStarted = true;
+  const ac = sfxCtx, buf = ac.createBuffer(1, ac.sampleRate * 4, ac.sampleRate), d = buf.getChannelData(0);
+  for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+  const src = ac.createBufferSource(); src.buffer = buf; src.loop = true;
+  const f = ac.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 500;
+  const g = ac.createGain(); g.gain.value = 0.05;
+  const lfo = ac.createOscillator(), lg = ac.createGain(); lfo.frequency.value = 0.12; lg.gain.value = 0.035;
+  lfo.connect(lg); lg.connect(g.gain); src.connect(f); f.connect(g); g.connect(musicGain); src.start(); lfo.start();
+}
+function musicTick() {
+  if (!sfxCtx || !musicOn || document.hidden) return;
+  const ac = sfxCtx, t = ac.currentTime + 0.05, tense = musicMood === 'tense';
+  const bar = Math.floor(musicStep / 8) % 4, root = [57, 53, 55, 52][bar]; // La-Fa-Sol-Mi graves
+  const note = (n, at, dur, type, vol) => {
+    const o = ac.createOscillator(), g = ac.createGain();
+    o.type = type; o.frequency.value = midi(n);
+    g.gain.setValueAtTime(0.0001, t + at); g.gain.exponentialRampToValueAtTime(vol, t + at + 0.03); g.gain.exponentialRampToValueAtTime(0.0001, t + at + dur);
+    o.connect(g); g.connect(musicGain); o.start(t + at); o.stop(t + at + dur + 0.05);
+  };
+  const beat = musicStep % 8;
+  if (beat === 0) { note(root - 12, 0, 2.6, 'sine', 0.22); note(root, 0, 2.6, 'triangle', 0.07); note(root + 7, 0, 2.6, 'triangle', 0.05); }
+  if (tense && beat % 2 === 0) note(root - 12, 0, 0.3, 'sine', 0.18);
+  if (beat % 2 === 0 || tense) {
+    const deg = SCALE[Math.floor(Math.random() * SCALE.length)];
+    if (Math.random() < (tense ? 0.7 : 0.45)) note(root + 12 + deg, 0, tense ? 0.4 : 1.1, tense ? 'square' : 'sine', tense ? 0.035 : 0.07);
+  }
+  musicStep++;
+}
+function startMusic() {
+  if (!sfxCtx || musicTimer) return;
+  musicGain = sfxCtx.createGain(); musicGain.gain.value = musicOn ? 0.5 : 0; musicGain.connect(master);
+  startOcean();
+  musicTimer = setInterval(musicTick, 480);
+}
+function setMusicMood(mood) { musicMood = mood; if (musicTimer) { clearInterval(musicTimer); musicTimer = setInterval(musicTick, mood === 'tense' ? 300 : 480); } }
+$('musicBtn').textContent = musicOn ? 'Música: sí' : 'Música: no';
+$('musicBtn').onclick = () => {
+  musicOn = !musicOn; localStorage.setItem('music', musicOn ? '1' : '0');
+  $('musicBtn').textContent = musicOn ? 'Música: sí' : 'Música: no';
+  if (musicGain) musicGain.gain.value = musicOn ? 0.5 : 0;
+};
+document.addEventListener('pointerdown', () => setTimeout(startMusic, 50), { once: true });
 
 // ---------- Red y acceso ----------
 async function post(url, data) {
@@ -877,6 +934,7 @@ $('tutorialClose').onclick = () => {
 function badge(n) {
   const el = $('x2');
   const lines = [];
+  setMusicMood(n % 4 === 0 || n % 5 === 0 || n >= 35 ? 'tense' : 'calm');
   if (n % 4 === 0 || n >= 36) lines.push(`RONDA ${n} x2`);
   if (n % 5 === 0 && n !== 15) lines.push('LLUVIA · ICEBERGS');
   if (n % 6 === 0) lines.push('OLEAJE');
@@ -1417,6 +1475,7 @@ async function playRoundInner(r, replay = false) {
     if (googleOn && !spectatorMode) loadProfile();
     if (isLeague) {
       $('menu').classList.add('hidden'); $('rematch').classList.add('hidden');
+      if (r.winner !== me) sfx('lose');
       $('msg').textContent = r.winner === me ? 'Ganaste el duelo; actualizando el cuadro...' : `Perdiste el duelo. Ganó ${names[op]}`;
       if (r.winner === me || r.winner === 'draw' || leagueRoundName === 'Final') {
         celebrating = true;
@@ -1426,6 +1485,7 @@ async function playRoundInner(r, replay = false) {
     }
     $('menu').classList.remove('hidden'); $('rematch').classList.remove('hidden'); $('rematch').disabled = false;
     if (r.winner === me) celebrate();
+    if (r.winner !== me && r.winner !== 'draw') sfx('lose');
     $('msg').textContent = r.winner === 'draw' ? 'Empate' : r.winner === me ? `¡Ganaste, ${names[me]}!` : `Perdiste. Ganó ${names[op]}`;
   } else {
     $('msg').textContent = promptMsg();
