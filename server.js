@@ -166,6 +166,27 @@ function recordBotWin(winner) {
   entry.level = levelForPoints(entry.points);
   persistRanking();
 }
+const TOURNAMENT_POINTS = { champion: 200, runnerUp: 150, third: 100, fourth: 0 };
+function awardTournamentPoints(league) {
+  if (league.awarded) return;
+  league.awarded = true;
+  const placements = { champion: league.champion, runnerUp: league.runnerUp, third: league.third, fourth: league.fourth };
+  if (league.size !== 4) { // liga de 8: solo campeón y finalista
+    const final = league.rounds[2]?.[0];
+    placements.runnerUp = final ? final.players.find((id) => id !== final.winner) : undefined;
+    delete placements.third; delete placements.fourth;
+  }
+  league.rewards = {};
+  for (const [place, id] of Object.entries(placements)) {
+    const player = league.players[id];
+    if (id === undefined || id === null || !player || player.bot || !player.sub) continue;
+    const entry = (ranking[player.sub] ||= { name: player.name, streak: 0, points: 0, wins: 0, level: 1 });
+    entry.points = (entry.points || 0) + TOURNAMENT_POINTS[place];
+    entry.level = levelForPoints(entry.points);
+    league.rewards[id] = TOURNAMENT_POINTS[place];
+    persistRanking([player.sub]);
+  }
+}
 const GAMES_FILE = path.join(DATA, 'games.json');
 const games = fs.existsSync(GAMES_FILE) ? JSON.parse(fs.readFileSync(GAMES_FILE, 'utf8')) : [];
 function recordGame(room, winner) {
@@ -582,11 +603,13 @@ function completeLeagueMatch(room, winner) {
     league.third = roundMatches[1].winner;
     league.fourth = roundMatches[1].players.find((player) => player !== roundMatches[1].winner);
     league.status = 'complete';
+    awardTournamentPoints(league);
     return;
   }
   if (ref.round === 2) {
     league.champion = match.winner;
     league.status = 'complete';
+    awardTournamentPoints(league);
     return;
   }
   const winners = roundMatches.map((entry) => entry.winner);
@@ -609,6 +632,7 @@ function leagueSnapshot(league, playerId) {
   return {
     name: league.name, createdBy: league.createdBy, size: league.size, status, registrationDeadline: league.registrationDeadline || null,
     players: league.players.map((p) => p.name), countries: league.players.map((p) => p.country), difficulties: league.players.map((p) => p.botDifficulty || null),
+    reward: league.rewards?.[playerId] ?? null,
     champion: league.champion === null ? null : league.players[league.champion].name,
     rounds: league.rounds.map((round, i) => ({ name: league.size === 4 ? (i === 0 ? 'Semifinales' : 'Final y tercer puesto') : LEAGUE_ROUNDS[i], matches: round.map((entry) => ({
       label: entry.label,
@@ -680,6 +704,7 @@ function runRound(room) {
       const winner = room.players[result.winner];
       if (room.bot) { if (!winner.bot) recordBotWin(winner); }
       else if (!winner.bot && !room.players[1 - result.winner].bot) recordResult(winner, room.players[1 - result.winner]);
+      else if (!winner.bot && room.leagueMatch) recordBotWin(winner); // ganar a un bot de torneo también suma puntos
     }
   } else {
     armTimer(room, result.events.length * SHOT_MS + INPUT_MS);

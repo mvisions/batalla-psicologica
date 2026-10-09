@@ -591,6 +591,7 @@ async function pollLeague() {
         : state.status === 'third' ? '¡Terminaste en tercer puesto!'
           : state.status === 'fourth' ? 'Terminaste en cuarto puesto'
             : state.status === 'eliminated' ? 'Terminó tu participación en la liga' : 'Esperando al siguiente duelo';
+      if (state.reward) $('msg').textContent += ` · +${state.reward} puntos de nivel`;
       if (['champion', 'runnerUp', 'third', 'fourth', 'eliminated'].includes(state.status)) localStorage.removeItem('game');
     }
   } catch (error) { $('lobbyMsg').textContent = error.message; }

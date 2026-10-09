@@ -261,6 +261,7 @@ test('el torneo de cuatro crea semifinales, final y partido por el tercer puesto
     assert.equal(completed.filter((state) => state.status === 'third').length, 1);
     assert.equal(completed.filter((state) => state.status === 'fourth').length, 1);
     assert.equal(completed.filter((state) => state.status === 'eliminated').length, 0);
+    assert.deepEqual([finalWinner.reward, runnerUp.reward, thirdPlace.reward, fourthPlace.reward], [200, 150, 100, 0]);
   } finally {
     controllers.forEach((controller) => controller.abort());
     if (child.exitCode === null && child.signalCode === null) {
