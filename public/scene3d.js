@@ -1376,6 +1376,28 @@ export function createScene(container) {
     explodeShip(V(x1, 1.1, z1)); hitShip(to);
   }
 
+  // cúpula: burbuja translúcida sobre un cañón; domeBlock la hace destellar al absorber un impacto
+  const domes = { me: null, op: null };
+  function setDome(who, lane) {
+    const cur = domes[who];
+    if (cur && cur.lane === lane) return;
+    if (cur) { cur.node.remove(cur.mesh); domes[who] = null; }
+    if (!lane) return;
+    const mesh = new THREE.Mesh(new THREE.SphereGeometry(1.25, 24, 14, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0x4fc3f7, transparent: true, opacity: 0.32, side: THREE.DoubleSide, depthWrite: false }));
+    mesh.position.y = 0.05;
+    const node = ships[who].turrets[lane - 1].node;
+    node.add(mesh);
+    domes[who] = { lane, mesh, node };
+    sparks(node.getWorldPosition(new THREE.Vector3()), 14, 3, 0x81d4fa);
+  }
+  function domeBlock(who, lane) {
+    const d = domes[who];
+    if (!d || d.lane !== lane) return;
+    d.mesh.material.opacity = 0.85;
+    sparks(d.node.getWorldPosition(new THREE.Vector3()).add(V(0, 0.8, 0)), 22, 5, 0xb3e5fc);
+    tween(450, (t) => { d.mesh.material.opacity = 0.85 - 0.53 * t; }, easeOut);
+  }
+
   // x en unidades de 1,5 (posición real del cañón); 'miss' = la bala se pierde fuera de la pantalla
   function fire({ from, x: xu, lane, target, owner, fromX, sub: fromSub = false, octopus: fromOctopus = false, toward, ice }) {
     const dir = fromSub ? (toward === 'me' ? 1 : -1) : fromOctopus ? Math.sign(zOf(owner)) : (from === 'me' ? -1 : 1);
@@ -1754,6 +1776,6 @@ export function createScene(container) {
     return best;
   }
 
-  Object.assign(api, { setHealth, setCannons, setCannonLabels, setShipLevel, pickFlag, subMove, subLeave, iceShow, iceClear, octopusShow, octopusSpin, octopusLeave, medkitShow, medkitLeave, bucketShow, bucketLeave, gullFly, gullLeave, logShow, logLeave, squidShow, squidLeave, heliSupport, troopShip, dud, labelCannon, moveFin, moveShip, fire, label, trackLabel, trackPoint, trackShip, setWeather, setFlag, SHIP_Z });
+  Object.assign(api, { setHealth, setCannons, setCannonLabels, setShipLevel, pickFlag, subMove, subLeave, iceShow, iceClear, octopusShow, octopusSpin, octopusLeave, medkitShow, medkitLeave, bucketShow, bucketLeave, gullFly, gullLeave, logShow, logLeave, squidShow, squidLeave, heliSupport, troopShip, setDome, domeBlock, dud, labelCannon, moveFin, moveShip, fire, label, trackLabel, trackPoint, trackShip, setWeather, setFlag, SHIP_Z });
   return api;
 }

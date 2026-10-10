@@ -196,11 +196,13 @@
   .tabs button.on { background: #1e88e5; }
   .danger { background: #c0392b; color: #fff; }
   #leaveLeague { width: auto; margin-top: 8px; }
-  .hudbtns { display: flex; gap: 26px; flex: none; }
+  .hudbtns { display: flex; gap: 8px; flex: none; }
   #troops { width: auto; margin: 0; padding: 3px 9px; flex: none; border-radius: 6px; border: 1px solid #fff8; background: #2e7d32; line-height: 0; }
+  #dome { width: auto; margin: 0; padding: 3px 9px; flex: none; border-radius: 6px; border: 1px solid #fff8; background: #1e88e5; line-height: 0; }
+  #dome.cooldown { background: #5b6670; opacity: .75; }
   #troops.cooldown { background: #5b6670; opacity: .75; }
   .hudact { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-top: 3px; }
-  #resign { width: auto; margin: 0; padding: 4px 10px; font-size: 12px; font-weight: 700; background: #c0392b; color: #fff; border: 1px solid #fff8; border-radius: 6px; flex: none; }
+  #resign { width: auto; margin: 0 0 0 18px; padding: 4px 10px; font-size: 12px; font-weight: 700; background: #c0392b; color: #fff; border: 1px solid #fff8; border-radius: 6px; flex: none; }
   body[data-over] #resign { display: none; }
   #emotes { display: flex; flex-wrap: wrap; gap: 4px; }
   #emotes button { width: auto; margin: 0; padding: 3px 7px; font-size: 11px; background: #2a4a6e; }
@@ -346,7 +348,7 @@
         <div id="waveCtl" class="hidden"><span id="waveTxt"></span><button id="waveStay" type="button">Quieto</button></div>
         <div class="bars"><div class="bar ship-bar"><i id="meShip"></i><em id="meShipTxt"></em></div><div class="bar shark-bar"><i id="meShark"></i><em id="meSharkTxt"></em></div></div>
         <div class="cans" id="meCan"></div>
-        <div class="hudact"><div id="emotes" class="hidden"></div><span class="hudbtns"><button id="troops" class="hidden" type="button" aria-label="Mandar el dron contra el cañón más débil del rival" title="Dron de ataque"><svg viewBox="0 0 24 16" width="24" height="16" aria-hidden="true"><g fill="#fff"><rect x="8.5" y="6.5" width="7" height="3.5" rx="1.2"/><rect x="1" y="4" width="7" height="1.6" rx=".8"/><rect x="16" y="4" width="7" height="1.6" rx=".8"/><rect x="4" y="5.4" width="1.4" height="3"/><rect x="18.6" y="5.4" width="1.4" height="3"/><circle cx="12" cy="12.5" r="1.3"/></g></svg></button><button id="resign" class="hidden" type="button">Retirarse</button></span></div>
+        <div class="hudact"><div id="emotes" class="hidden"></div><span class="hudbtns"><button id="troops" class="hidden" type="button" aria-label="Mandar el dron contra el cañón más débil del rival" title="Dron de ataque"><svg viewBox="0 0 24 16" width="24" height="16" aria-hidden="true"><g fill="#fff"><rect x="8.5" y="6.5" width="7" height="3.5" rx="1.2"/><rect x="1" y="4" width="7" height="1.6" rx=".8"/><rect x="16" y="4" width="7" height="1.6" rx=".8"/><rect x="4" y="5.4" width="1.4" height="3"/><rect x="18.6" y="5.4" width="1.4" height="3"/><circle cx="12" cy="12.5" r="1.3"/></g></svg></button><button id="dome" class="hidden" type="button" aria-label="Activar la cúpula sobre tu cañón más débil" title="Cúpula"><svg viewBox="0 0 24 16" width="22" height="16" aria-hidden="true"><path d="M2 14a10 10 0 0 1 20 0z" fill="none" stroke="#fff" stroke-width="1.8"/><rect x="9" y="9" width="6" height="5" rx="1" fill="#fff"/></svg></button><button id="resign" class="hidden" type="button">Retirarse</button></span></div>
         <div class="hudtop"><b><img id="meFlag" class="flag" alt=""><span id="meLvl" class="lvl"></span><span id="meName"></span></b></div>
       </div>
     </div>
@@ -1141,7 +1143,7 @@ function connect() {
   es.addEventListener('state', (e) => {
     const s = JSON.parse(e.data);
     if (playing) return; // una reconexión durante la animación no debe romperla
-    tutorialUnlimited = !!s.tutorial; heliAsked = !!s.heli; troopsCd = s.troopsCd || [0, 0]; troopsSent = !!s.troops;
+    tutorialUnlimited = !!s.tutorial; heliAsked = !!s.heli; troopsCd = s.troopsCd || [0, 0]; troopsSent = !!s.troops; domeCd = s.domeCd || [0, 0]; domeSent = !!s.dome;
     if (tutorialMode && !tutorialStep) setTutorialStep(s.submitted ? 'watch' : 'attack');
     inputMs = s.inputMs; curRound = s.round; blockRound = !!s.blockRound; $('round').textContent = s.round; badge(s.round); setNames(s.names, s.countries, s.levels); setHp(s.hp, s.maxShipHp); setCannons(s.cannons); scene.setWeather(s.round); setupForm();
     $('invite').classList.add('hidden');
@@ -1198,17 +1200,26 @@ $('resign').onclick = async () => {
   try { await post('/api/resign', { room, pid, key }); } catch (e) { $('msg').textContent = e.message; }
   $('resign').disabled = false;
 };
-let troopsCd = [0, 0], troopsSent = false;
+let troopsCd = [0, 0], troopsSent = false, domeCd = [0, 0], domeSent = false;
 function updateTroops() {
   const left = troopsCd[pid] || 0, ready = !troopsSent && left === 0 && !playing;
   const b = $('troops');
   b.classList.toggle('hidden', !!document.body.dataset.over || tutorialMode || spectatorMode || !room);
   b.classList.toggle('cooldown', !ready);
   b.disabled = !ready;
+  const dl = domeCd[pid] || 0, dready = !domeSent && dl === 0 && !playing, d = $('dome');
+  d.classList.toggle('hidden', b.classList.contains('hidden'));
+  d.classList.toggle('cooldown', !dready);
+  d.disabled = !dready;
+  d.title = domeSent ? 'Cúpula activada' : dl > 0 ? `Cúpula lista en ${dl} ${dl === 1 ? 'ronda' : 'rondas'}` : 'Activar la cúpula sobre tu cañón más débil';
   b.title = troopsSent ? 'Dron enviado' : left > 0 ? `Dron listo en ${left} ${left === 1 ? 'ronda' : 'rondas'}` : 'Mandar el dron contra el cañón más débil del rival';
 }
 $('troops').onclick = async () => {
   try { await post('/api/troops', { room, pid, key }); troopsSent = true; updateTroops(); $('msg').textContent = 'Dron en camino: atacará el cañón más débil del rival al empezar los disparos'; }
+  catch (e) { $('msg').textContent = e.message; }
+};
+$('dome').onclick = async () => {
+  try { await post('/api/dome', { room, pid, key }); domeSent = true; updateTroops(); $('msg').textContent = 'Cúpula activada: protegerá tu cañón más débil durante toda la ronda'; }
   catch (e) { $('msg').textContent = e.message; }
 };
 const updateResign = (over) => { $('resign').classList.toggle('hidden', !!over || tutorialMode || spectatorMode || !room); updateTroops(); };
@@ -1464,7 +1475,7 @@ async function playRound(r, replay = false) {
   }
 }
 async function playRoundInner(r, replay = false) {
-  playing = true; if (!replay) { heliAsked = false; troopsSent = false; troopsCd = r.troopsCd || [0, 0]; } renderHeli(); updateTroops();
+  playing = true; if (!replay) { heliAsked = false; troopsSent = false; domeSent = false; troopsCd = r.troopsCd || [0, 0]; domeCd = r.domeCd || [0, 0]; } renderHeli(); updateTroops();
   tutorialUnlimited = !!r.tutorial;
   renderWave();
   $('x2').style.display = 'none'; // el cartel solo se ve al elegir la secuencia
@@ -1514,6 +1525,11 @@ async function playRoundInner(r, replay = false) {
       sfx('heli');
       impacts.push((async () => { for (const h of ev.heli) await scene.heliSupport(side(h.owner)); })());
     }
+    if (ev.dome) {
+      for (const [k, idx] of ev.dome.entries()) scene.setDome(side(k), idx === null ? 0 : idx + 1);
+      if (ev.step === 0 && ev.dome.some((v) => v !== null)) sfx('heal');
+    }
+    for (const b of ev.domeBlocks || []) scene.domeBlock(side(b.owner), b.lane);
     if (ev.troops) {
       impacts.push((async () => { for (const t of ev.troops) { await scene.troopShip(side(t.owner), side(t.target), t.x); sfx('clash'); } })());
     }
@@ -1535,7 +1551,7 @@ async function playRoundInner(r, replay = false) {
   scene.subLeave(); scene.octopusLeave(); scene.medkitLeave(); scene.bucketLeave(); scene.gullLeave(); scene.squidLeave(); scene.logLeave(); scene.iceClear();
   setHp(r.hp, r.maxShipHp);
   { const before = lastCan; setCannons(r.cannons); showCannonRepair(before, r.cannons, me, op); }
-  playing = false; updateTroops();
+  playing = false; updateTroops(); scene.setDome('me', 0); scene.setDome('op', 0);
   scene.moveShip('me', 0); scene.moveShip('op', 0);
   if (replay) { // la repetición no cambia el estado de la partida
     scene.setWeather(curRound); badge(curRound); $('msg').textContent = promptMsg();

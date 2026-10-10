@@ -287,7 +287,8 @@ function setRoomPlayerMaxHealth(room, index) {
   if (room.hp[index]) room.hp[index].ship = room.maxShipHp[index];
 }
 
-const TROOP_DMG = 10, TROOP_COOLDOWN = 2; // el barquito vuelve a estar listo dos rondas después
+const DOME_COOLDOWN = 2;
+const TROOP_DMG = 15, TROOP_COOLDOWN = 2; // el barquito vuelve a estar listo dos rondas después
 function resolveRound(room) {
   const medkitPosts = [-3, -1, 1, 3];
   const medkitRound = room.medkitMatch && room.round >= 3 && (room.round - 3) % 3 === 0;
@@ -316,6 +317,14 @@ function resolveRound(room) {
   const troopsFor = [0, 1].map((k) => (room.troopsCd?.[k] || 0) === 0 && Boolean(P[k].troops || (P[k].bot && !room.tutorial && Math.random() < 0.5)));
   room.troopsCd ||= [0, 0];
   for (const k of [0, 1]) if (troopsFor[k]) room.troopsCd[k] = TROOP_COOLDOWN;
+  room.domeCd ||= [0, 0];
+  const domeFor = [0, 1].map((k) => room.domeCd[k] === 0 && Boolean(P[k].dome || (P[k].bot && !room.tutorial && Math.random() < 0.5)));
+  const domeIdx = [null, null]; // la cúpula cubre durante toda la ronda al cañón más débil que sigue en pie
+  for (const k of [0, 1]) if (domeFor[k]) {
+    let weak = -1;
+    for (let l = 0; l < 4; l++) if (cann[k][l] > 0 && (weak < 0 || cann[k][l] < cann[k][weak])) weak = l;
+    if (weak >= 0) { domeIdx[k] = weak; room.domeCd[k] = DOME_COOLDOWN; }
+  }
   // cañón del barco k más cercano al punto de impacto x
   const nearestCannon = (k, x) => {
     let best = 0;
@@ -342,6 +351,7 @@ function resolveRound(room) {
     const iceX = rain ? [iceAlive[0] ? lanePool[0] : null, iceAlive[1] ? lanePool[1] : null] : null;
     const iceAt = (x) => (iceX ? iceX.findIndex((v) => v !== null && v === x) : -1);
     const ev = { step: i, atk, def, pos: [...pos], swell, whale: whaleX, ice: iceX, sub: subRound ? { x: subX, toward: Math.floor(Math.random() * 2) } : null, octopus: octopusX === null ? null : { x: octopusX, release: null }, medkit: medkitX === null ? null : { x: medkitX }, gull: gullX === null ? null : { x: gullX }, squid: squidX === null ? null : { x: squidX, up: squidUp, owner: squidOwner }, log: logX === null ? null : { x: logX }, bucket: bucketX === null ? null : { x: bucketX }, shots: [] };
+    ev.dome = [...domeIdx];
     const heal = [0, 0], heliHeal = [0, 0];
     if (i === 0) {
       for (const k of [0, 1]) if (heliFor[k]) {
@@ -354,14 +364,20 @@ function resolveRound(room) {
     const cdmg = [[0, 0, 0, 0], [0, 0, 0, 0]]; // daño a cada cañón en este disparo
     const crepair = [[0, 0, 0, 0], [0, 0, 0, 0]];
     const hitBy = [[null, null, null, null], [null, null, null, null]]; // quién golpeó cada cañón
+    const shielded = (k, c) => { // la cúpula absorbe cualquier impacto sobre su cañón
+      if (domeIdx[k] !== c) return false;
+      (ev.domeBlocks ||= []).push({ owner: k, lane: c + 1 });
+      return true;
+    };
     if (i === 0) { // el barquito esquiva todo y se estrella contra el cañón más débil del rival
       for (const k of [0, 1]) if (troopsFor[k]) {
         const t = 1 - k;
         let weak = -1;
         for (let l = 0; l < 4; l++) if (cann[t][l] > 0 && (weak < 0 || cann[t][l] < cann[t][weak])) weak = l;
         if (weak < 0) continue;
-        dmg[t].ship += TROOP_DMG; cdmg[t][weak] += TROOP_DMG; hitBy[t][weak] = k;
-        (ev.troops ||= []).push({ owner: k, target: t, lane: weak + 1, x: 2 * (weak + 1) - 5 + pos[t] });
+        const blocked = shielded(t, weak);
+        if (!blocked) { dmg[t].ship += TROOP_DMG; cdmg[t][weak] += TROOP_DMG; hitBy[t][weak] = k; }
+        (ev.troops ||= []).push({ owner: k, target: t, lane: weak + 1, x: 2 * (weak + 1) - 5 + pos[t], blocked });
       }
     }
     const live = [cann[0][atk[0] - 1] > 0, cann[1][atk[1] - 1] > 0]; // un cañón roto no dispara
@@ -405,10 +421,12 @@ function resolveRound(room) {
           const amount = DMG * mult;
           if (returnTarget === 'shark') dmg[other].shark += amount;
           else if (returnTarget === 'ship') {
-            dmg[other].ship += amount;
             const cannon = nearestCannon(other, returnX);
-            cdmg[other][cannon] += amount;
-            hitBy[other][cannon] = from;
+            if (!shielded(other, cannon)) {
+              dmg[other].ship += amount;
+              cdmg[other][cannon] += amount;
+              hitBy[other][cannon] = from;
+            }
           }
           ev.octopus.release = { from, lane: returnLane, x: returnX, target: returnTarget, owner: other };
         }
@@ -430,10 +448,14 @@ function resolveRound(room) {
         else if (Math.abs(x - pos[other]) <= 4) { target = 'ship'; owner = other; }
         else { target = 'miss'; owner = other; }
         const amount = DMG * mult;
-        if (target === 'ship' || target === 'shark') dmg[owner][target] += amount;
-        else if (target === 'whale') dmg[from].ship += amount;
-        if (target === 'ship') { const c = nearestCannon(owner, x); cdmg[owner][c] += amount; hitBy[owner][c] = from; }
-        else if (target === 'whale') cdmg[from][nearestCannon(from, x)] += amount;
+        if (target === 'ship') {
+          const c = nearestCannon(owner, x);
+          if (!shielded(owner, c)) { dmg[owner].ship += amount; cdmg[owner][c] += amount; hitBy[owner][c] = from; }
+        } else if (target === 'shark') dmg[owner].shark += amount;
+        else if (target === 'whale') {
+          const c = nearestCannon(from, x);
+          if (!shielded(from, c)) { dmg[from].ship += amount; cdmg[from][c] += amount; }
+        }
         ev.shots.push({ from, lane: atk[from], x, target, owner, ice: iceId });
       }
       if (gullHits.length) { gullAlive = false; heal[gullHits.includes(firstSubmitter) ? firstSubmitter : gullHits[0]] += 15; }
@@ -444,7 +466,9 @@ function resolveRound(room) {
       ev.sub.owner = k;
       if (!rain && room.hp[k].shark > 0 && 2 * def[k] - 5 === subX) { ev.sub.target = 'shark'; dmg[k].shark += amount; }
       else if (Math.abs(subX - pos[k]) <= 4) {
-        ev.sub.target = 'ship'; dmg[k].ship += amount; cdmg[k][nearestCannon(k, subX)] += amount; // sin hitBy: no cura a nadie
+        ev.sub.target = 'ship';
+        const c = nearestCannon(k, subX);
+        if (!shielded(k, c)) { dmg[k].ship += amount; cdmg[k][c] += amount; } // sin hitBy: no cura a nadie
       } else ev.sub.target = 'miss';
     }
     for (const k of [0, 1]) {
@@ -472,9 +496,10 @@ function resolveRound(room) {
   P.forEach((p, k) => {
     room.hist[k].push({ attack: p.attack, defense: p.defense });
     if (room.hist[k].length > 10) room.hist[k].shift();
-    p.attack = null; p.defense = null; p.wave = null; p.block = null; p.heli = false; p.troops = false; p.submittedAt = null;
+    p.attack = null; p.defense = null; p.wave = null; p.block = null; p.heli = false; p.troops = false; p.dome = false; p.submittedAt = null;
   });
   room.troopsCd = room.troopsCd.map((n) => Math.max(0, n - 1));
+  room.domeCd = room.domeCd.map((n) => Math.max(0, n - 1));
   // un cañón roto se regenera con 15 de vida para la siguiente ronda
   for (const k of [0, 1]) for (let l = 0; l < 4; l++) if (cann[k][l] === 0) cann[k][l] = 15;
   room.round = room.leagueMatch ? 1 + Math.floor(Math.random() * 37) : room.round + 1; // en torneos y ligas las rondas son aleatorias (1-37)
@@ -488,7 +513,7 @@ function broadcast(room, event, data) {
   room.players.forEach((p) => p.stream && send(p.stream, event, data));
   room.spectators?.forEach((stream) => send(stream, event, data));
 }
-const info = (room) => ({ names: room.players.map((p) => p.name), countries: room.players.map((p) => p.country || 'un'), levels: room.players.map((p) => Number(ranking[p.sub]?.level) || 1), maxShipHp: room.players.map(maxShipHealthForPlayer), blockRound: room.round % 10 === 0, hp: room.hp, cannons: room.cannons, round: room.round, over: room.over, tutorial: room.tutorial, inputMs: room.tutorial ? null : INPUT_MS, troopsCd: room.troopsCd || [0, 0] });
+const info = (room) => ({ names: room.players.map((p) => p.name), countries: room.players.map((p) => p.country || 'un'), levels: room.players.map((p) => Number(ranking[p.sub]?.level) || 1), maxShipHp: room.players.map(maxShipHealthForPlayer), blockRound: room.round % 10 === 0, hp: room.hp, cannons: room.cannons, round: room.round, over: room.over, tutorial: room.tutorial, inputMs: room.tutorial ? null : INPUT_MS, troopsCd: room.troopsCd || [0, 0], domeCd: room.domeCd || [0, 0] });
 
 // Secuencia aleatoria usando solo cañones que funcionan
 const workingSeq = (room, k) => {
@@ -749,7 +774,7 @@ function armTimer(room, delay) {
 }
 
 const stateFor = (room, k) => ({
-  ...info(room), submitted: !!room.players[k].attack, heli: !!room.players[k].heli, troops: !!room.players[k].troops,
+  ...info(room), submitted: !!room.players[k].attack, heli: !!room.players[k].heli, troops: !!room.players[k].troops, dome: !!room.players[k].dome,
   inputMs: room.tutorial ? null : Math.max(1000, Math.min(INPUT_MS, room.deadline - Date.now())),
 });
 
@@ -1041,8 +1066,8 @@ const server = http.createServer(async (req, res) => {
     me.rematch = true;
     if (room.players.every((p) => p.rematch || p.bot)) {
       resetState(room);
-      room.players.forEach((p) => { p.rematch = false; p.attack = null; p.defense = null; p.wave = null; p.block = null; p.heli = false; p.troops = false; p.submittedAt = null; });
-      room.troopsCd = [0, 0];
+      room.players.forEach((p) => { p.rematch = false; p.attack = null; p.defense = null; p.wave = null; p.block = null; p.heli = false; p.troops = false; p.dome = false; p.submittedAt = null; });
+      room.troopsCd = [0, 0]; room.domeCd = [0, 0];
       armTimer(room, INPUT_MS);
       broadcast(room, 'rematch', {});
       room.players.forEach((p, k) => p.stream && send(p.stream, 'state', stateFor(room, k)));
@@ -1083,6 +1108,15 @@ const server = http.createServer(async (req, res) => {
     if (!me || me.key !== key || room.players.length < 2 || room.over || room.tutorial) return json(res, 400, { error: 'Inválido' });
     if ((room.troopsCd?.[pid] || 0) > 0) return json(res, 409, { error: 'Las tropas aún no están listas' });
     me.troops = true;
+    return json(res, 200, { ok: true });
+  }
+  if (req.method === 'POST' && url.pathname === '/api/dome') {
+    const { room: code, pid, key } = await body(req);
+    const room = rooms.get(String(code));
+    const me = room?.players[pid];
+    if (!me || me.key !== key || room.players.length < 2 || room.over || room.tutorial) return json(res, 400, { error: 'Inválido' });
+    if ((room.domeCd?.[pid] || 0) > 0) return json(res, 409, { error: 'La cúpula aún no está lista' });
+    me.dome = true;
     return json(res, 200, { ok: true });
   }
   if (req.method === 'POST' && url.pathname === '/api/submit') {
