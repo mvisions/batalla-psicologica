@@ -1058,7 +1058,7 @@ const server = http.createServer(async (req, res) => {
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   initializeRankingStore()
-    .then(() => restoreLeagues())
+    .then(() => restoreLeagues().catch((error) => console.error('No se pudieron restaurar los torneos:', error.message)))
     .then(() => server.listen(PORT, '0.0.0.0', () => console.log(`Servidor en http://localhost:${PORT} · invitaciones: ${EXPLICIT_URL || lanUrl()}`)))
     .catch((error) => {
       console.error('No se pudo inicializar el almacenamiento del ranking:', error);
