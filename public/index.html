@@ -193,7 +193,8 @@
   .tabs { display: flex; gap: 6px; }
   .tabs button { margin: 0; padding: 6px; font-size: 13px; background: #2a4a6e; }
   .tabs button.on { background: #1e88e5; }
-  #resign { width: auto; margin: 0 0 10px; padding: 6px 12px; font-size: 13px; background: #6e2a2a; }
+  #resign { position: fixed; top: 10px; right: 10px; z-index: 50; width: auto; margin: 0; padding: 10px 16px; font-size: 15px; font-weight: 700; background: #c0392b; color: #fff; border: 2px solid #fff; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,.5); }
+  #resign.hidden { display: none; }
   body[data-over] #resign { display: none; }
   #emotes { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
   #emotes button { width: auto; margin: 0; padding: 6px 10px; font-size: 13px; background: #2a4a6e; }
