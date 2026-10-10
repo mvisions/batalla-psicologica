@@ -1376,6 +1376,34 @@ export function createScene(container) {
     explodeShip(V(x1, 1.1, z1)); hitShip(to);
   }
 
+  // desde el barco se lanzan peces a la ballena (el tiburón) del mismo bando
+  async function feedShark(who) {
+    const z0 = zOf(who) * (SHIP_Z - 2), z1 = zOf(who) * FIN_Z, x0 = ships[who].g.position.x, x1 = sharks[who].root.position.x;
+    const fishMat = new THREE.MeshStandardMaterial({ color: 0xff8a65, roughness: 0.4 });
+    const throws = [];
+    for (let k = 0; k < 5; k++) {
+      const fish = new THREE.Mesh(new THREE.SphereGeometry(0.22, 10, 8), fishMat);
+      fish.scale.set(1.8, 0.7, 0.7);
+      fish.visible = false; scene.add(fish);
+      throws.push((async () => {
+        await tween(k * 160, () => {});
+        fish.visible = true;
+        const dx = rnd(-0.8, 0.8), dz = rnd(-0.6, 0.6);
+        await tween(900, (t) => {
+          fish.position.set(x0 + (x1 + dx - x0) * t, 1.6 + Math.sin(t * Math.PI) * 4.5 * (1 - 0.3 * t) - 1.2 * t, z0 + (z1 + dz - z0) * t);
+          fish.rotation.z = t * 9;
+        });
+        splash(V(fish.position.x, 0.2, fish.position.z));
+        scene.remove(fish);
+      })());
+    }
+    await Promise.all(throws);
+    api.onHeal?.();
+    const p = V(x1, 0.8, z1);
+    sparks(p, 24, 4, 0x69f0ae);
+    for (let k = 0; k < 14; k++) spawn({ pos: V(x1 + rnd(-1, 1), 0.6, z1 + rnd(-1, 1)), tex: glowTex, vel: V(0, rnd(1.5, 3.5), 0), life: rnd(0.9, 1.4), s0: 0.4, s1: 0.1, add: true, color: 0x69f0ae, op: 0.9 });
+  }
+
   // cúpula: burbuja translúcida sobre un cañón; domeBlock la hace destellar al absorber un impacto
   const domes = { me: null, op: null };
   function setDome(who, lane) {
@@ -1776,6 +1804,6 @@ export function createScene(container) {
     return best;
   }
 
-  Object.assign(api, { setHealth, setCannons, setCannonLabels, setShipLevel, pickFlag, subMove, subLeave, iceShow, iceClear, octopusShow, octopusSpin, octopusLeave, medkitShow, medkitLeave, bucketShow, bucketLeave, gullFly, gullLeave, logShow, logLeave, squidShow, squidLeave, heliSupport, troopShip, setDome, domeBlock, dud, labelCannon, moveFin, moveShip, fire, label, trackLabel, trackPoint, trackShip, setWeather, setFlag, SHIP_Z });
+  Object.assign(api, { setHealth, setCannons, setCannonLabels, setShipLevel, pickFlag, subMove, subLeave, iceShow, iceClear, octopusShow, octopusSpin, octopusLeave, medkitShow, medkitLeave, bucketShow, bucketLeave, gullFly, gullLeave, logShow, logLeave, squidShow, squidLeave, heliSupport, troopShip, setDome, domeBlock, feedShark, dud, labelCannon, moveFin, moveShip, fire, label, trackLabel, trackPoint, trackShip, setWeather, setFlag, SHIP_Z });
   return api;
 }
