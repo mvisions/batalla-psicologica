@@ -91,3 +91,10 @@ El servidor crea `data/` para la clave local de sesiones, las listas del ranking
 - `public/scene3d.js`: escena y animación Three.js
 - `public/vendor/`: módulos Three.js servidos localmente
 - `tests/`: pruebas de reglas y flujos HTTP
+
+## Progreso, torneos y despliegue
+
+- **Niveles:** cada 100 puntos subes un nivel, sin tope. Una victoria da 50 puntos (10 a partir del nivel 15). El barco cambia en los niveles 5 (dragón), 10 (góndola), 15 (Papá Noel), 20 (hielo), 25 (lava) y 30 (oro). El menú muestra la barra de progreso, el siguiente barco y un reto diario de 3 victorias.
+- **Torneos:** premio de 200, 150, 100 y 0 puntos (puestos 1º a 4º). Ronaldo sube 1 punto por victoria. Niveles iniciales de los bots: Messi 1, Lamine 5, Ronaldo 20.
+- **Torneos persistentes:** con `RANKING_STORAGE=firestore`, los torneos se guardan en la colección `activeLeagues` y se restauran al reiniciar el servidor (las partidas en curso empiezan de nuevo).
+- **Despliegue de Render:** lo lanza `.github/workflows/deploy-render.yml` cada día a la 01:00 de Madrid, con el secreto `RENDER_DEPLOY_HOOK_URL`. Se puede ejecutar a mano desde la pestaña Actions.

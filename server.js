@@ -264,6 +264,15 @@ const START_ROUND = Number(process.env.START_ROUND) || 1; // solo para pruebas
 const DMG = 5;
 const rooms = new Map();
 const leagues = new Map();
+let leagueWriteQueue = Promise.resolve();
+const leagueRecord = (league) => { const { registrationTimer, ...rest } = league; return rest; };
+function saveLeague(league) { // los torneos sobreviven a reinicios del servidor (solo con Firestore)
+  if (!firestoreRankingStore) return;
+  const record = league.status === 'complete' ? null : structuredClone(leagueRecord(league));
+  leagueWriteQueue = leagueWriteQueue // en orden, para que un guardado antiguo no resucite un torneo ya terminado
+    .then(() => (record ? firestoreRankingStore.saveLeague(league.code, record) : firestoreRankingStore.deleteLeague(league.code)))
+    .catch((error) => console.error('No se pudo guardar el torneo:', error.message));
+}
 const matchQueue = [];
 const matchTickets = new Map();
 
@@ -524,8 +533,7 @@ const newRoomCode = () => {
   do { code = String(Math.floor(1000 + Math.random() * 9000)); } while (rooms.has(code));
   return code;
 };
-function createLeagueMatch(league, round, players) {
-  const matchIndex = league.rounds[round].length;
+function buildLeagueRoom(league, round, matchIndex, players) {
   const [first, second] = players.map((id) => league.players[id]);
   const room = makeRoom(first, false);
   Object.assign(room.players[0], { bot: Boolean(first.bot), botDifficulty: first.botDifficulty });
@@ -537,12 +545,32 @@ function createLeagueMatch(league, round, players) {
   room.round = 1 + Math.floor(Math.random() * 37);
   const code = newRoomCode();
   rooms.set(code, room);
-  const label = league.size === 4 ? (round === 0 ? `Semifinal ${matchIndex + 1}` : matchIndex === 0 ? 'Final' : '3er puesto') : LEAGUE_ROUNDS[round];
-  league.rounds[round].push({ players, room: code, winner: null, label });
   if (room.players.every((player) => player.bot)) {
     room.started = true;
     armTimer(room, Number(process.env.BOT_TURN_MS) || 250);
   }
+  return code;
+}
+function createLeagueMatch(league, round, players) {
+  const matchIndex = league.rounds[round].length;
+  const code = buildLeagueRoom(league, round, matchIndex, players);
+  const label = league.size === 4 ? (round === 0 ? `Semifinal ${matchIndex + 1}` : matchIndex === 0 ? 'Final' : '3er puesto') : LEAGUE_ROUNDS[round];
+  league.rounds[round].push({ players, room: code, winner: null, label });
+}
+function armRegistrationTimer(league) {
+  league.registrationTimer = setTimeout(() => fillFourPlayerTournament(league), Math.max(0, league.registrationDeadline - Date.now()));
+}
+async function restoreLeagues() {
+  if (!firestoreRankingStore) return;
+  for (const league of await firestoreRankingStore.loadLeagues()) {
+    if (league.status === 'complete' || leagues.has(league.code)) continue;
+    leagues.set(league.code, league);
+    if (league.status === 'registration' && league.registrationDeadline) armRegistrationTimer(league);
+    league.rounds.forEach((round, r) => round.forEach((match, m) => { // las partidas en curso se reinician con las mismas claves de jugador
+      if (match.winner === null) match.room = buildLeagueRoom(league, r, m, match.players);
+    }));
+  }
+  console.log(`Torneos restaurados: ${leagues.size}`);
 }
 function startLeague(league) {
   clearTimeout(league.registrationTimer);
@@ -555,6 +583,7 @@ function startLeague(league) {
   league.status = 'running';
   league.rounds = league.size === 4 ? [[], []] : [[], [], []];
   for (let i = 0; i < league.size; i += 2) createLeagueMatch(league, 0, order.slice(i, i + 2));
+  saveLeague(league);
 }
 function fillFourPlayerTournament(league) {
   if (league.size !== 4 || league.status !== 'registration') return;
@@ -576,6 +605,7 @@ function addLeaguePlayer(league, who, country) {
   const player = { name: cleanName(who.name), sub: who.sub, country: cleanCountry(country), key: newKey() };
   league.players.push(player);
   if (league.players.length === league.size) startLeague(league);
+  else saveLeague(league);
   return player;
 }
 function createLeague(who, country, name, size = 8) {
@@ -586,8 +616,9 @@ function createLeague(who, country, name, size = 8) {
   const player = addLeaguePlayer(league, who, country);
   if (size === 4 && league.status === 'registration') {
     league.registrationDeadline = Date.now() + (Number(process.env.TOURNAMENT_FILL_MS) || 5 * 60 * 1000);
-    league.registrationTimer = setTimeout(() => fillFourPlayerTournament(league), league.registrationDeadline - Date.now());
+    armRegistrationTimer(league);
   }
+  saveLeague(league);
   return { league, player };
 }
 function completeLeagueMatch(room, winner) {
@@ -597,6 +628,7 @@ function completeLeagueMatch(room, winner) {
   if (!match || match.winner !== null) return;
   const winnerIndex = winner === 'draw' ? Math.floor(Math.random() * 2) : winner;
   match.winner = match.players[winnerIndex];
+  saveLeague(league);
   const roundMatches = league.rounds[ref.round];
   if (!roundMatches.every((entry) => entry.winner !== null)) return;
   if (league.size === 4 && ref.round === 0) {
@@ -604,6 +636,7 @@ function completeLeagueMatch(room, winner) {
     const losers = roundMatches.map((entry) => entry.players.find((player) => player !== entry.winner));
     createLeagueMatch(league, 1, winners);
     createLeagueMatch(league, 1, losers);
+    saveLeague(league);
     return;
   }
   if (league.size === 4 && ref.round === 1) {
@@ -613,16 +646,19 @@ function completeLeagueMatch(room, winner) {
     league.fourth = roundMatches[1].players.find((player) => player !== roundMatches[1].winner);
     league.status = 'complete';
     awardTournamentPoints(league);
+    saveLeague(league);
     return;
   }
   if (ref.round === 2) {
     league.champion = match.winner;
     league.status = 'complete';
     awardTournamentPoints(league);
+    saveLeague(league);
     return;
   }
   const winners = roundMatches.map((entry) => entry.winner);
   for (let i = 0; i < winners.length; i += 2) createLeagueMatch(league, ref.round + 1, winners.slice(i, i + 2));
+  saveLeague(league);
 }
 function leagueSnapshot(league, playerId) {
   let active = null;
@@ -1022,6 +1058,7 @@ const server = http.createServer(async (req, res) => {
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   initializeRankingStore()
+    .then(() => restoreLeagues())
     .then(() => server.listen(PORT, '0.0.0.0', () => console.log(`Servidor en http://localhost:${PORT} · invitaciones: ${EXPLICIT_URL || lanUrl()}`)))
     .catch((error) => {
       console.error('No se pudo inicializar el almacenamiento del ranking:', error);

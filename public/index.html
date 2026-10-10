@@ -51,6 +51,10 @@
   #waveCtl button { width: auto; margin: 0; padding: 4px 10px; font-size: 12px; }
   .hud { font-size: 13px; }
   .hud b { font-size: 15px; }
+  #progress { margin: 4px 0 10px; font-size: 12px; color: #c4e4ed; }
+  #progress .bar { height: 8px; border-radius: 6px; background: #ffffff22; overflow: hidden; margin-bottom: 5px; }
+  #progress .bar i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #ffc857, #ff8f3a); transition: width .6s ease-out; }
+  #progress p { margin: 2px 0; }
   #user { display: flex; align-items: center; gap: 10px; margin: 8px 0; }
   #user img { width: 36px; height: 36px; border-radius: 50%; }
   #user a { margin-left: auto; color: #90caf9; font-size: 13px; }
@@ -130,6 +134,7 @@
   @keyframes levelUpBadge { 0% { transform: scale(.5) rotate(-35deg); } 65% { transform: scale(1.14) rotate(8deg); } 100% { transform: scale(1) rotate(0); } }
   @keyframes levelUpRays { to { transform: rotate(360deg); } }
   @keyframes levelUpSpark { to { opacity: 0; transform: rotate(var(--spark-angle)) translateX(var(--spark-distance)) scale(.15); } }
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; } }
   @media (prefers-reduced-motion: reduce) { .level-up-card::before, .level-up-badge, .level-up-spark { animation-duration: .01ms; animation-iteration-count: 1; } }
   select { font-size: 16px; padding: 10px; border-radius: 8px; border: 0; width: 100%; margin-top: 6px; background: #fff; color: #111; }
   #topbar { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
@@ -204,7 +209,7 @@
     <button id="muteBtn" type="button">Sonido: sí</button>
     <button id="musicBtn" type="button">Música: sí</button>
     <span id="profileStats" class="hidden"></span>
-    <input id="vol" type="range" min="0" max="100" value="80" title="Volumen">
+    <input id="vol" type="range" min="0" max="100" value="80" title="Volumen" aria-label="Volumen">
   </div>
   <div id="levelUp" class="hidden" role="status" aria-live="polite" aria-atomic="true">
     <div class="level-up-card">
@@ -255,6 +260,11 @@
       <div id="gbtn"></div>
     </div>
     <div id="user" class="hidden"><img id="avatar" alt="" referrerpolicy="no-referrer"><b id="uname"></b><a id="logout" href="#">Salir</a></div>
+    <div id="progress" class="hidden" aria-live="polite">
+      <div class="bar"><i id="progressFill"></i></div>
+      <p id="progressNext"></p>
+      <p id="progressDaily"></p>
+    </div>
     <div id="menuBtns" class="hidden">
       <label for="level">Dificultad de la máquina</label>
       <select id="level"><option value="easy">Fácil</option><option value="normal" selected>Normal</option><option value="hard">Difícil</option></select>
@@ -365,7 +375,10 @@ const isRain = () => curRound % 5 === 0 && curRound !== 15;
 const isSwell = () => curRound % 6 === 0;
 navigator.serviceWorker?.register('./sw.js').catch(() => {});
 // El servidor gratuito de Render se duerme: se despierta nada más abrir el juego
-fetch(apiUrl('/api/health')).catch(() => {});
+{
+  const wake = setTimeout(() => { if (!$('lobbyMsg').textContent) $('lobbyMsg').textContent = 'Despertando el servidor, puede tardar hasta un minuto...'; }, 3000);
+  fetch(apiUrl('/api/health')).then(() => { if ($('lobbyMsg').textContent.startsWith('Despertando')) $('lobbyMsg').textContent = ''; }).catch(() => {}).finally(() => clearTimeout(wake));
+}
 // Al volver a la pestaña o recuperar la conexión, se reengancha a la partida si la conexión en vivo se cayó
 const reconnectIfDropped = () => {
   if (document.visibilityState === 'visible' && room && key && !spectatorMode && activeEvents && activeEvents.readyState === EventSource.CLOSED) connect();
@@ -637,7 +650,7 @@ function showLoggedIn(u) {
 }
 function showLoggedOut() {
   $('user').classList.add('hidden'); $('menuBtns').classList.add('hidden'); $('join').classList.add('hidden');
-  $('profileStats').classList.add('hidden'); $('profileStats').textContent = '';
+  $('profileStats').classList.add('hidden'); $('profileStats').textContent = ''; $('progress').classList.add('hidden');
   $('gbtn').classList.remove('hidden');
 }
 function profileLevelKey() {
@@ -666,11 +679,27 @@ function showLevelUp(level) {
     overlay.querySelectorAll('.level-up-spark').forEach((spark) => spark.remove());
   }, 2600);
 }
+const SHIP_UNLOCKS = [[5, 'Dragón'], [10, 'Góndola'], [15, 'Papá Noel'], [20, 'Hielo'], [25, 'Lava'], [30, 'Oro']];
+const DAILY_WINS = 3;
+function showProgress(profile) {
+  const points = Number(profile.points) || 0, level = Number(profile.level) || 1, into = points % 100;
+  $('progressFill').style.width = `${into}%`;
+  const unlock = SHIP_UNLOCKS.find(([lv]) => lv > level);
+  $('progressNext').textContent = `Te faltan ${100 - into} pts para el nivel ${level + 1}` + (unlock ? ` · Nivel ${unlock[0]}: barco ${unlock[1]}` : ' · Ya tienes el barco de oro');
+  const today = new Date().toISOString().slice(0, 10), wins = Number(profile.wins) || 0;
+  let daily = JSON.parse(localStorage.getItem('daily') || 'null');
+  if (!daily || daily.day !== today || wins < daily.base) daily = { day: today, base: wins };
+  localStorage.setItem('daily', JSON.stringify(daily));
+  const done = Math.min(DAILY_WINS, wins - daily.base);
+  $('progressDaily').textContent = done >= DAILY_WINS ? '🏆 Reto de hoy completado' : `Reto de hoy: gana ${DAILY_WINS} partidas (${done}/${DAILY_WINS})`;
+  $('progress').classList.remove('hidden');
+}
 async function loadProfile() {
   if (!session) return;
   try {
     const profile = await post('/api/profile', { session });
     $('profileStats').textContent = `Nivel ${profile.level} · ${profile.points} pts`;
+    showProgress(profile);
     const key = profileLevelKey(), previous = localStorage.getItem(key), level = Number(profile.level) || 1;
     scene.setShipLevel('me', level);
     if (previous !== null && level > Number(previous)) showLevelUp(level);
@@ -810,7 +839,9 @@ async function enterLeague(r) {
   pollLeague();
 }
 $('vsBot').onclick = () => enter((auth) => post('/api/create', { ...auth, mode: 'bot', level: $('level').value, country: $('country').value }));
+if (!localStorage.getItem('tutorialSeen')) $('tutorialBtn').classList.add('tutorial-target'); // se resalta a quien entra por primera vez
 $('tutorialBtn').onclick = () => {
+  localStorage.setItem('tutorialSeen', '1'); $('tutorialBtn').classList.remove('tutorial-target');
   tutorialMode = true;
   tutorialUnlimited = true;
   setTutorialStep('attack');
