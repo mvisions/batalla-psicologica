@@ -1518,7 +1518,8 @@ async function playRoundInner(r, replay = false) {
     ]));
     subOn = !!ev.sub; octopusOn = !!ev.octopus; medkitOn = !!ev.medkit; gullOn = !!ev.gull; squidOn = !!ev.squid; logOn = !!ev.log; bucketOn = !!ev.bucket;
     const impacts = ev.shots.map(async (s) => {
-      if (s.target === 'broken' || s.target === 'blocked') { scene.dud(side(s.from), s.lane); sfx('dud'); return Promise.resolve(); }
+      if (s.target === 'blocked') { scene.lightningStrike(side(s.from), s.lane); scene.dud(side(s.from), s.lane); sfx('bomb'); return Promise.resolve(); }
+      if (s.target === 'broken') { scene.dud(side(s.from), s.lane); sfx('dud'); return Promise.resolve(); }
       const f = scene.fire({ from: side(s.from), x: s.x, lane: s.lane, target: s.target, ice: s.ice, owner: s.owner === undefined ? null : side(s.owner) });
       sfx('shot');
       await f.done;

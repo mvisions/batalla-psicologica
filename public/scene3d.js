@@ -1546,6 +1546,29 @@ export function createScene(container) {
     }
   }
   // Disparo con un cañón roto: solo sale humo
+  // rayo del cielo sobre un cañón bloqueado
+  function lightningStrike(who, lane) {
+    const base = ships[who].turrets[lane - 1].node.getWorldPosition(new THREE.Vector3()); base.y += 0.6;
+    const mat = new THREE.LineBasicMaterial({ color: 0xe1f5fe, transparent: true, opacity: 1 });
+    const bolts = [0, 1, 2].map(() => {
+      const pts = [];
+      for (let i = 0; i <= 9; i++) {
+        const k = i / 9;
+        pts.push(V(base.x + (i === 9 ? 0 : rnd(-0.5, 0.5)) * (1 - k * 0.4), base.y + 9 * (1 - k), base.z + (i === 9 ? 0 : rnd(-0.5, 0.5))));
+      }
+      const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), mat);
+      scene.add(line); return line;
+    });
+    const halo = new THREE.Mesh(new THREE.SphereGeometry(1.1, 16, 12), new THREE.MeshBasicMaterial({ color: 0x81d4fa, transparent: true, opacity: 0.7, depthWrite: false }));
+    halo.position.copy(base); scene.add(halo);
+    flashLight(base.clone().add(V(0, 1.5, 0)), 9, 0xbfe9ff);
+    sparks(base, 26, 6, 0xe1f5fe); sparks(base, 14, 3, 0x4fc3f7);
+    shake(0.25, 0.35);
+    tween(700, (t) => {
+      mat.opacity = t < 0.5 ? (Math.floor(t * 24) % 2 ? 0.35 : 1) : 1 - (t - 0.5) * 2;
+      halo.material.opacity = 0.7 * (1 - t); halo.scale.setScalar(1 + t * 0.8);
+    }).then(() => { bolts.forEach((b) => { scene.remove(b); b.geometry.dispose(); }); scene.remove(halo); mat.dispose(); });
+  }
   function dud(who, lane) {
     const p = ships[who].turrets[lane - 1].node.getWorldPosition(new THREE.Vector3()); p.y += 1.1;
     for (let i = 0; i < 4; i++) spawn({ pos: p, tex: smokeTex, vel: V(rnd(-0.3, 0.3), rnd(0.5, 1), rnd(-0.3, 0.3)), life: 1.4, s0: 0.4, s1: 1.6, color: 0x333333, op: 0.6 });
@@ -1804,6 +1827,6 @@ export function createScene(container) {
     return best;
   }
 
-  Object.assign(api, { setHealth, setCannons, setCannonLabels, setShipLevel, pickFlag, subMove, subLeave, iceShow, iceClear, octopusShow, octopusSpin, octopusLeave, medkitShow, medkitLeave, bucketShow, bucketLeave, gullFly, gullLeave, logShow, logLeave, squidShow, squidLeave, heliSupport, troopShip, setDome, domeBlock, feedShark, dud, labelCannon, moveFin, moveShip, fire, label, trackLabel, trackPoint, trackShip, setWeather, setFlag, SHIP_Z });
+  Object.assign(api, { lightningStrike, setHealth, setCannons, setCannonLabels, setShipLevel, pickFlag, subMove, subLeave, iceShow, iceClear, octopusShow, octopusSpin, octopusLeave, medkitShow, medkitLeave, bucketShow, bucketLeave, gullFly, gullLeave, logShow, logLeave, squidShow, squidLeave, heliSupport, troopShip, setDome, domeBlock, feedShark, dud, labelCannon, moveFin, moveShip, fire, label, trackLabel, trackPoint, trackShip, setWeather, setFlag, SHIP_Z });
   return api;
 }
