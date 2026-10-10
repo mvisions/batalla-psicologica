@@ -738,28 +738,37 @@ const stateFor = (room, k) => ({
   inputMs: room.tutorial ? null : Math.max(1000, Math.min(INPUT_MS, room.deadline - Date.now())),
 });
 
+function finishMatch(room, winner) {
+  room.over = true;
+  clearTimeout(room.timer);
+  recordGame(room, winner);
+  if (room.leagueMatch) completeLeagueMatch(room, winner);
+  if (winner === 'draw') return;
+  const won = room.players[winner];
+  if (room.bot) { if (!won.bot) recordBotWin(won); }
+  else if (!won.bot && !room.players[1 - winner].bot) recordResult(won, room.players[1 - winner]);
+  else if (won.sub === RONALDO_SUB && room.leagueMatch) {
+    const entry = (ranking[RONALDO_SUB] ||= { name: won.name, streak: 0, points: 0, wins: 0, level: 1 });
+    entry.points = (entry.points || 0) + 1; entry.wins = (entry.wins || 0) + 1; entry.level = Math.floor(entry.points / 100) + 1;
+    persistRanking([RONALDO_SUB]);
+  }
+  else if (!won.bot && room.leagueMatch) recordBotWin(won); // ganar a un bot de torneo también suma puntos
+}
+
 function runRound(room) {
   const result = resolveRound(room);
-  if (result.winner !== null) {
-    room.over = true;
-    clearTimeout(room.timer);
-    recordGame(room, result.winner);
-    if (room.leagueMatch) completeLeagueMatch(room, result.winner);
-    if (result.winner !== 'draw') {
-      const winner = room.players[result.winner];
-      if (room.bot) { if (!winner.bot) recordBotWin(winner); }
-      else if (!winner.bot && !room.players[1 - result.winner].bot) recordResult(winner, room.players[1 - result.winner]);
-      else if (winner.sub === RONALDO_SUB && room.leagueMatch) {
-        const entry = (ranking[RONALDO_SUB] ||= { name: winner.name, streak: 0, points: 0, wins: 0, level: 1 });
-        entry.points = (entry.points || 0) + 1; entry.wins = (entry.wins || 0) + 1; entry.level = Math.floor(entry.points / 100) + 1;
-        persistRanking([RONALDO_SUB]);
-      }
-      else if (!winner.bot && room.leagueMatch) recordBotWin(winner); // ganar a un bot de torneo también suma puntos
-    }
-  } else {
-    armTimer(room, result.events.length * SHOT_MS + INPUT_MS);
-  }
+  if (result.winner !== null) finishMatch(room, result.winner);
+  else armTimer(room, result.events.length * SHOT_MS + INPUT_MS);
   const update = { ...result, ...info(room) };
+  room.lastRound = update;
+  broadcast(room, 'round', update);
+}
+
+// Retirarse: el rival gana al instante
+function resign(room, pid) {
+  const update = { events: [], seqs: [], winner: 1 - pid, resigned: pid, ...info(room) };
+  finishMatch(room, 1 - pid);
+  update.over = true;
   room.lastRound = update;
   broadcast(room, 'round', update);
 }
@@ -1007,6 +1016,14 @@ const server = http.createServer(async (req, res) => {
       broadcast(room, 'rematch', {});
       room.players.forEach((p, k) => p.stream && send(p.stream, 'state', stateFor(room, k)));
     } else broadcast(room, 'rematchWait', { pid });
+    return json(res, 200, { ok: true });
+  }
+  if (req.method === 'POST' && url.pathname === '/api/resign') {
+    const { room: code, pid, key } = await body(req);
+    const room = rooms.get(String(code));
+    const me = room?.players[pid];
+    if (!me || me.key !== key || room.players.length < 2 || room.over || room.tutorial || !room.started) return json(res, 400, { error: 'Inválido' });
+    resign(room, pid);
     return json(res, 200, { ok: true });
   }
   if (req.method === 'POST' && url.pathname === '/api/emote') {

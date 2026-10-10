@@ -339,3 +339,49 @@ test('tras cinco minutos completa los puestos del torneo con bots y estos juegan
     }
   }
 });
+
+test('retirarse da la victoria al rival y cierra la partida', async () => {
+  const port = await unusedPort();
+  const projectDir = fileURLToPath(new URL('..', import.meta.url));
+  const child = spawn(process.execPath, ['server.js'], {
+    cwd: projectDir,
+    env: { ...process.env, PORT: String(port), GOOGLE_CLIENT_ID: '', ALLOW_DEVELOPMENT_LOGIN: 'true' },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  const controllers = [];
+  try {
+    await waitForServer(child);
+    const base = `http://127.0.0.1:${port}`;
+    const post = async (route, value) => {
+      const response = await fetch(`${base}${route}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(value) });
+      return { status: response.status, body: await response.json() };
+    };
+    const created = (await post('/api/create', { name: 'Ana', mode: 'pvp', country: 'es' })).body;
+    const joined = (await post('/api/join', { name: 'Beto', token: created.token, country: 'pt' })).body;
+    const open = async (pid, key) => {
+      const controller = new AbortController();
+      controllers.push(controller);
+      const response = await fetch(`${base}/api/events?room=${created.room}&pid=${pid}&key=${key}`, { signal: controller.signal });
+      return eventReader(response.body);
+    };
+    const next0 = await open(0, created.key);
+    await open(1, joined.key);
+    const early = await post('/api/resign', { room: created.room, pid: 0, key: 'mala' });
+    assert.equal(early.status, 400);
+    const resigned = await post('/api/resign', { room: created.room, pid: 0, key: created.key });
+    assert.equal(resigned.status, 200);
+    let round;
+    for (let i = 0; i < 10 && !round; i++) {
+      const message = await next0();
+      if (message.event === 'round') round = JSON.parse(message.data);
+    }
+    assert.equal(round.winner, 1);
+    assert.equal(round.resigned, 0);
+    assert.equal(round.over, true);
+    const again = await post('/api/resign', { room: created.room, pid: 0, key: created.key });
+    assert.equal(again.status, 400);
+  } finally {
+    controllers.forEach((c) => c.abort());
+    child.kill();
+  }
+});

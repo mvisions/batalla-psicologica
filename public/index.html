@@ -193,6 +193,8 @@
   .tabs { display: flex; gap: 6px; }
   .tabs button { margin: 0; padding: 6px; font-size: 13px; background: #2a4a6e; }
   .tabs button.on { background: #1e88e5; }
+  #resign { width: auto; margin: 0 0 10px; padding: 6px 12px; font-size: 13px; background: #6e2a2a; }
+  body[data-over] #resign { display: none; }
   #emotes { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
   #emotes button { width: auto; margin: 0; padding: 6px 10px; font-size: 13px; background: #2a4a6e; }
   #emoteMsg { position: absolute; top: 96px; left: 50%; transform: translateX(-50%); z-index: 8; background: #000c; border: 1px solid #ffd54f;
@@ -349,6 +351,7 @@
       <div id="leagueRounds"></div>
     </div>
     <button id="spectatorBack" class="hidden" type="button">Volver a torneos</button>
+    <button id="resign" class="hidden" type="button">Retirarse</button>
     <div id="emotes" class="hidden"></div>
     <div id="lastRound" class="panel hidden"><b>Última ronda</b><div id="lrTxt"></div><button id="replay" type="button">Ver repetición</button></div>
   </div>
@@ -1133,6 +1136,7 @@ function connect() {
     if (tutorialMode && !tutorialStep) setTutorialStep(s.submitted ? 'watch' : 'attack');
     inputMs = s.inputMs; curRound = s.round; blockRound = !!s.blockRound; $('round').textContent = s.round; badge(s.round); setNames(s.names, s.countries, s.levels); setHp(s.hp, s.maxShipHp); setCannons(s.cannons); scene.setWeather(s.round); setupForm();
     $('invite').classList.add('hidden');
+    updateResign(s.over);
     if (s.over) {
       document.body.dataset.over = 1; showInputs(false);
       $('menu').classList.remove('hidden'); $('rematch').classList.remove('hidden'); $('msg').textContent = 'La partida terminó';
@@ -1173,6 +1177,13 @@ $('rematch').onclick = async () => {
   b.onclick = () => post('/api/emote', { room, pid, key, i }).catch(() => {});
   $('emotes').appendChild(b);
 });
+$('resign').onclick = async () => {
+  if (!confirm('¿Seguro que quieres retirarte? Tu rival ganará la partida.')) return;
+  $('resign').disabled = true;
+  try { await post('/api/resign', { room, pid, key }); } catch (e) { $('msg').textContent = e.message; }
+  $('resign').disabled = false;
+};
+const updateResign = (over) => $('resign').classList.toggle('hidden', !!over || tutorialMode || spectatorMode || !room);
 $('replay').onclick = () => { if (lastRound && !playing) queue = queue.then(() => playRound(lastRound.r, true)).catch(console.error); };
 function showLastRound(r, me, op) {
   const f = (s) => `ataque ${s.attack.join('')} · defensa ${s.defense.join('')}` + (s.wave ? ` · oleaje ${s.wave.map((m) => (m === 1 ? '▶' : m === 2 ? '◀' : '●')).join(' ')}` : '') + (s.block ? ` · bloqueo ${s.block.join('')}` : '');
@@ -1515,12 +1526,12 @@ async function playRoundInner(r, replay = false) {
   }
   if (tutorialMode) setTutorialStep('complete');
   if (r.winner !== null) {
-    document.body.dataset.over = 1;
+    document.body.dataset.over = 1; updateResign(true);
     if (googleOn && !spectatorMode) loadProfile();
     if (isLeague) {
       $('menu').classList.add('hidden'); $('rematch').classList.add('hidden');
       if (r.winner !== me) sfx('lose');
-      $('msg').textContent = r.winner === me ? 'Ganaste el duelo; actualizando el cuadro...' : `Perdiste el duelo. Ganó ${names[op]}`;
+      $('msg').textContent = r.winner === me ? `${r.resigned === op ? 'Tu rival se retiró. ' : ''}Ganaste el duelo; actualizando el cuadro...` : `Perdiste el duelo. Ganó ${names[op]}`;
       if (r.winner === me || r.winner === 'draw' || leagueRoundName === 'Final') {
         celebrating = true;
         leagueCelebration(r.winner === me, op).catch(() => {}).finally(() => { celebrating = false; pollLeague(); });
@@ -1530,7 +1541,7 @@ async function playRoundInner(r, replay = false) {
     $('menu').classList.remove('hidden'); $('rematch').classList.remove('hidden'); $('rematch').disabled = false;
     if (r.winner === me) celebrate();
     if (r.winner !== me && r.winner !== 'draw') sfx('lose');
-    $('msg').textContent = r.winner === 'draw' ? 'Empate' : r.winner === me ? `¡Ganaste, ${names[me]}!` : `Perdiste. Ganó ${names[op]}`;
+    $('msg').textContent = r.winner === 'draw' ? 'Empate' : r.winner === me ? `¡Ganaste, ${names[me]}!${r.resigned === op ? ' Tu rival se retiró' : ''}` : `Perdiste. Ganó ${names[op]}`;
   } else {
     $('msg').textContent = promptMsg();
     setupForm(); scene.setWeather(r.round); showLastRound(r, me, op);
