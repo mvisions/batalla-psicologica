@@ -903,10 +903,25 @@ const server = http.createServer(async (req, res) => {
   if (req.method === 'GET' && url.pathname === '/api/league/state') {
     const league = leagues.get(url.searchParams.get('code'));
     const playerId = Number(url.searchParams.get('pid'));
-    const player = league?.players[playerId];
+    const player = league?.players.find((p) => p.key === url.searchParams.get('key')) || league?.players[playerId];
     if (!player || player.key !== url.searchParams.get('key')) return json(res, 404, { error: 'Liga no encontrada' });
     if (league.status === 'registration' && league.registrationDeadline && Date.now() >= league.registrationDeadline) fillFourPlayerTournament(league); // respaldo si el temporizador no llegó a ejecutarse
-    return json(res, 200, leagueSnapshot(league, playerId));
+    return json(res, 200, leagueSnapshot(league, league.players.indexOf(player)));
+  }
+  if (req.method === 'POST' && url.pathname === '/api/league/leave') {
+    const b = await body(req);
+    const league = leagues.get(b.code);
+    const index = league ? league.players.findIndex((p) => p.key === b.key) : -1;
+    if (index < 0) return json(res, 404, { error: 'Torneo no encontrado' });
+    if (league.status !== 'registration') return json(res, 409, { error: 'El torneo ya ha empezado' });
+    league.players.splice(index, 1);
+    if (!league.players.length) {
+      clearTimeout(league.registrationTimer);
+      league.status = 'complete';
+      saveLeague(league);
+      leagues.delete(league.code);
+    } else saveLeague(league);
+    return json(res, 200, { ok: true });
   }
   if (req.method === 'GET' && url.pathname === '/api/leagues') {
     const active = Array.from(leagues.values()).filter((league) => league.status === 'running' && league.rounds.some((round) => round.some((match) => rooms.get(match.room)?.started))).map((league) => ({

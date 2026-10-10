@@ -194,6 +194,8 @@
   .tabs { display: flex; gap: 6px; }
   .tabs button { margin: 0; padding: 6px; font-size: 13px; background: #2a4a6e; }
   .tabs button.on { background: #1e88e5; }
+  .danger { background: #c0392b; color: #fff; }
+  #leaveLeague { width: auto; margin-top: 8px; }
   .hudact { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-top: 3px; }
   #resign { width: auto; margin: 0; padding: 4px 10px; font-size: 12px; font-weight: 700; background: #c0392b; color: #fff; border: 1px solid #fff8; border-radius: 6px; flex: none; }
   body[data-over] #resign { display: none; }
@@ -322,6 +324,7 @@
           <a id="waWeb" target="_blank" rel="noopener">WhatsApp Web</a>
           <a id="shareLink" class="hidden" href="#">Compartir enlace</a>
         </div>
+        <button id="cancelInvite" type="button" class="danger">Cancelar y volver al menú</button>
         <img id="inviteQr" width="180" height="180" alt="Código QR para unirse a la partida">
         <label for="link">Enlace de invitación</label>
         <div class="invite-link"><input id="link" readonly><button id="copyInvite" type="button">Copiar</button></div>
@@ -352,6 +355,7 @@
       <p id="leagueCount"></p>
       <ol id="leaguePlayers"></ol>
       <div id="leagueRounds"></div>
+      <button id="leaveLeague" class="hidden danger" type="button">Salir del torneo</button>
     </div>
     <button id="spectatorBack" class="hidden" type="button">Volver a torneos</button>
     <div id="lastRound" class="panel hidden"><b>Última ronda</b><div id="lrTxt"></div><button id="replay" type="button">Ver repetición</button></div>
@@ -575,6 +579,7 @@ function renderLeagueState(state) {
           : state.status === 'third' ? '¡Tercer puesto!'
             : state.status === 'fourth' ? 'Cuarto puesto' : 'Eliminado del torneo';
   $('leagueStatus').textContent = status;
+  $('leaveLeague').classList.toggle('hidden', state.status !== 'registration');
 }
 async function pollLeague() {
   clearTimeout(leaguePollTimer);
@@ -1167,6 +1172,12 @@ function connect() {
 }
 
 // Botones: revancha, volver al menú, frases rápidas y repetición de la última ronda
+$('cancelInvite').onclick = () => { activeEvents?.close(); localStorage.removeItem('game'); location.href = './'; };
+$('leaveLeague').onclick = async () => {
+  if (!confirm('¿Salir del torneo?')) return;
+  try { await post('/api/league/leave', { code: leagueCode, key: leagueKey }); } catch (e) { $('msg').textContent = e.message; return; }
+  localStorage.removeItem('game'); location.href = './';
+};
 $('menu').onclick = () => { localStorage.removeItem('game'); location.href = './'; };
 $('rematch').onclick = async () => {
   try { await post('/api/rematch', { room, pid, key }); $('rematch').disabled = true; $('msg').textContent = 'Esperando la revancha...'; }

@@ -385,3 +385,31 @@ test('retirarse da la victoria al rival y cierra la partida', async () => {
     child.kill();
   }
 });
+
+test('salir de un torneo en inscripción libera la plaza', async () => {
+  const port = await unusedPort();
+  const projectDir = fileURLToPath(new URL('..', import.meta.url));
+  const child = spawn(process.execPath, ['server.js'], {
+    cwd: projectDir,
+    env: { ...process.env, PORT: String(port), GOOGLE_CLIENT_ID: '', ALLOW_DEVELOPMENT_LOGIN: 'true' },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  try {
+    await waitForServer(child);
+    const base = `http://127.0.0.1:${port}`;
+    const post = async (route, value) => {
+      const response = await fetch(`${base}${route}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(value) });
+      return { status: response.status, body: await response.json() };
+    };
+    const a = (await post('/api/create', { name: 'Ana', mode: 'tournament4' })).body;
+    const b = (await post('/api/join', { name: 'Beto', token: a.token })).body;
+    assert.equal((await post('/api/league/leave', { code: a.league, key: a.leagueKey })).status, 200);
+    const query = new URLSearchParams({ code: a.league, pid: b.leaguePid, key: b.leagueKey });
+    const state = await (await fetch(`${base}/api/league/state?${query}`)).json();
+    assert.deepEqual(state.players.length, 1);
+    assert.equal((await post('/api/league/leave', { code: a.league, key: b.leagueKey })).status, 200);
+    assert.equal((await fetch(`${base}/api/league/state?${query}`)).status, 404);
+  } finally {
+    child.kill();
+  }
+});
