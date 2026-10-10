@@ -303,6 +303,8 @@ function resolveRound(room) {
   const P = [p0, p1];
   const events = [];
   const cann = room.cannons, mult = room.round % 4 === 0 || room.round >= 36 ? 2 : 1;
+  const hpScale = Math.max(1, (room.maxShipHp[0] + room.maxShipHp[1]) / 2 / 105); // los barcos de más nivel aguantan más, pero el daño crece igual para que no se alargue la partida
+  const hull = (n) => Math.round(n * hpScale);
   const iceAlive = [true, true]; // icebergs de la ronda de lluvia
   const wild = room.wildlife !== false;
   let gullAlive = wild; // la gaviota vuela a un carril al azar en cada disparo
@@ -383,7 +385,7 @@ function resolveRound(room) {
         for (let l = 0; l < 4; l++) if (cann[t][l] > 0 && (weak < 0 || cann[t][l] < cann[t][weak])) weak = l;
         if (weak < 0) continue;
         const blocked = shielded(t, weak);
-        if (!blocked) { dmg[t].ship += TROOP_DMG; cdmg[t][weak] += TROOP_DMG; hitBy[t][weak] = k; }
+        if (!blocked) { dmg[t].ship += hull(TROOP_DMG); cdmg[t][weak] += TROOP_DMG; hitBy[t][weak] = k; }
         (ev.troops ||= []).push({ owner: k, target: t, lane: weak + 1, x: 2 * (weak + 1) - 5 + pos[t], blocked });
       }
     }
@@ -430,7 +432,7 @@ function resolveRound(room) {
           else if (returnTarget === 'ship') {
             const cannon = nearestCannon(other, returnX);
             if (!shielded(other, cannon)) {
-              dmg[other].ship += amount;
+              dmg[other].ship += hull(amount);
               cdmg[other][cannon] += amount;
               hitBy[other][cannon] = from;
             }
@@ -457,11 +459,11 @@ function resolveRound(room) {
         const amount = DMG * mult;
         if (target === 'ship') {
           const c = nearestCannon(owner, x);
-          if (!shielded(owner, c)) { dmg[owner].ship += amount; cdmg[owner][c] += amount; hitBy[owner][c] = from; }
+          if (!shielded(owner, c)) { dmg[owner].ship += hull(amount); cdmg[owner][c] += amount; hitBy[owner][c] = from; }
         } else if (target === 'shark') dmg[owner].shark += amount;
         else if (target === 'whale') {
           const c = nearestCannon(from, x);
-          if (!shielded(from, c)) { dmg[from].ship += amount; cdmg[from][c] += amount; }
+          if (!shielded(from, c)) { dmg[from].ship += hull(amount); cdmg[from][c] += amount; }
         }
         ev.shots.push({ from, lane: atk[from], x, target, owner, ice: iceId });
       }
@@ -475,7 +477,7 @@ function resolveRound(room) {
       else if (Math.abs(subX - pos[k]) <= 4) {
         ev.sub.target = 'ship';
         const c = nearestCannon(k, subX);
-        if (!shielded(k, c)) { dmg[k].ship += amount; cdmg[k][c] += amount; } // sin hitBy: no cura a nadie
+        if (!shielded(k, c)) { dmg[k].ship += hull(amount); cdmg[k][c] += amount; } // sin hitBy: no cura a nadie
       } else ev.sub.target = 'miss';
     }
     for (const k of [0, 1]) {
