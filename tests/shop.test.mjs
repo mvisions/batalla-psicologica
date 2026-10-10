@@ -434,3 +434,65 @@ test('el barco vikingo se compra por 250, se alterna con la skin de nivel y cede
     fs.rmSync(dataDir, { recursive: true, force: true });
   }
 });
+
+test('la ruleta cuesta 350, se tira una sola vez y su premio se queda como si se hubiese comprado', async () => {
+  const { rouletteOdds, spinRoulette } = await import('../server.js');
+  const odds = rouletteOdds({});
+  const pct = Object.fromEntries(odds.map((o) => [o.id, o.pct]));
+  assert.equal(pct.lifebuoy, 25);
+  assert.ok(Math.abs(odds.reduce((s, o) => s + o.pct, 0) - 100) < 1e-9);
+  assert.ok(pct.swordfish > pct.viking && pct.viking > pct.infernal && pct.infernal > pct.fireballs && pct.fireballs > pct.fireDragon);
+  assert.equal(pct.fireDragon, pct.stormDragon);
+  assert.equal(spinRoulette({}, 0), 'swordfish');
+  assert.equal(spinRoulette({}, 0.999), 'lifebuoy');
+  assert.ok(!rouletteOdds({ swordfish: true }).some((o) => o.id === 'swordfish'));
+  assert.deepEqual(rouletteOdds({ swordfish: true, infernal: true, viking: true, fireballs: true, fireDragon: true, stormDragon: true }).map((o) => [o.id, o.pct]), [['lifebuoy', 100]]);
+
+  const port = await unusedPort();
+  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'bp-roulette-'));
+  fs.writeFileSync(path.join(dataDir, 'ranking.json'), JSON.stringify({ version: 2, allTime: [], weekly: [] }));
+  fs.writeFileSync(path.join(dataDir, 'profiles.json'), JSON.stringify({
+    'n:ana': { name: 'Ana', streak: 0, points: 0, wins: 0, level: 1, coins: 360 },
+    'n:beto': { name: 'Beto', streak: 0, points: 0, wins: 0, level: 1, coins: 100 },
+  }));
+  const projectDir = fileURLToPath(new URL('..', import.meta.url));
+  const child = spawn(process.execPath, ['server.js'], {
+    cwd: projectDir,
+    env: { ...process.env, PORT: String(port), DATA_DIR: dataDir, GOOGLE_CLIENT_ID: '', ALLOW_DEVELOPMENT_LOGIN: 'true', RATE_LIMIT: '100000' },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  const controller = new AbortController();
+  try {
+    await waitForServer(child);
+    const base = `http://127.0.0.1:${port}`;
+    const post = async (route, value) => {
+      const response = await fetch(`${base}${route}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(value) });
+      return { status: response.status, body: await response.json() };
+    };
+    const before = (await post('/api/profile', { name: 'Ana' })).body;
+    assert.equal(before.roulette.price, 350);
+    assert.equal(before.roulette.used, false);
+    assert.equal((await post('/api/roulette', { name: 'Beto' })).status, 402);
+
+    const spin = await post('/api/roulette', { name: 'Ana' });
+    assert.equal(spin.status, 200);
+    const ids = ['swordfish', 'infernal', 'viking', 'fireballs', 'fireDragon', 'stormDragon', 'lifebuoy'];
+    assert.ok(ids.includes(spin.body.prize));
+    assert.equal(spin.body.profile.coins, 10);
+    assert.equal(spin.body.profile[spin.body.prize], true);
+    assert.deepEqual({ ...spin.body.profile.roulette, odds: undefined }, { price: 350, used: true, prize: spin.body.prize, odds: undefined });
+    assert.equal(spin.body.profile.roulette.odds.length, 7);
+    assert.equal((await post('/api/roulette', { name: 'Ana' })).status, 409);
+
+    const a = (await post('/api/create', { name: 'Ana', mode: 'pvp' })).body;
+    const b = (await post('/api/join', { name: 'Beto', token: a.token })).body;
+    const next = eventReader((await fetch(`${base}/api/events?room=${a.room}&pid=0&key=${a.key}`, { signal: controller.signal })).body);
+    await fetch(`${base}/api/events?room=${a.room}&pid=1&key=${b.key}`, { signal: controller.signal });
+    const state = await next('state');
+    assert.deepEqual(state.lifebuoys, [spin.body.prize === 'lifebuoy', false]);
+  } finally {
+    controller.abort();
+    child.kill();
+    fs.rmSync(dataDir, { recursive: true, force: true });
+  }
+});

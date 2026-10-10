@@ -150,6 +150,22 @@ applyBotStartLevels();
 const pointsPerWin = (level) => (level >= 15 ? 10 : 50); // a partir del nivel 15 cada victoria da menos puntos
 const DAILY_WINS = 3, DAILY_COINS = 10;
 const SHOP = { swordfish: { name: 'Pez espada', price: 150 }, infernal: { name: 'Ataque infernal', price: 450 }, viking: { name: 'Barco vikingo', price: 250 }, fireballs: { name: 'Balas de fuego', price: 500 }, fireDragon: { name: 'Dragón de fuego', price: 1500 }, stormDragon: { name: 'Dragón de rayos', price: 1500 } };
+// Ruleta de una sola tirada: el salvavidas sale el 25 % de las veces; el 75 % restante se reparte
+// entre los artículos de la tienda que aún no tienes, en proporción inversa a su precio.
+const ROULETTE_PRICE = 350, LIFEBUOY_PCT = 25;
+function rouletteOdds(entry) {
+  const items = Object.entries(SHOP).filter(([id]) => !entry?.[id]);
+  const total = items.reduce((s, [, it]) => s + 1 / it.price, 0);
+  const odds = items.map(([id, it]) => ({ id, name: it.name, pct: ((100 - LIFEBUOY_PCT) * (1 / it.price)) / total }));
+  odds.push({ id: 'lifebuoy', name: 'Salvavidas', pct: items.length ? LIFEBUOY_PCT : 100 });
+  return odds;
+}
+function spinRoulette(entry, rnd = Math.random()) {
+  const odds = rouletteOdds(entry);
+  let acc = 0;
+  for (const o of odds) { acc += o.pct; if (rnd * 100 < acc) return o.id; }
+  return odds[odds.length - 1].id;
+}
 // las skins de nivel cambian en los niveles 5, 10, 15, 20, 25 y 30
 const skinTier = (level) => Math.min(30, Math.floor((Number(level) || 1) / 5) * 5);
 // el barco vikingo se mantiene mientras no se alcance un nivel con skin nueva
@@ -169,6 +185,8 @@ function profileView(entry) {
   return {
     points, wins: Number(entry.wins) || 0, level: Number(entry.level) || levelForPoints(points),
     coins: Number(entry.coins) || 0, swordfish: Boolean(entry.swordfish), infernal: Boolean(entry.infernal), viking: Boolean(entry.viking), fireballs: Boolean(entry.fireballs), fireDragon: Boolean(entry.fireDragon), stormDragon: Boolean(entry.stormDragon), skin: activeSkin(entry),
+    lifebuoy: Boolean(entry.lifebuoy),
+    roulette: { price: ROULETTE_PRICE, used: Boolean(entry.roulettePrize), prize: entry.roulettePrize || null, odds: rouletteOdds(entry.roulettePrize ? {} : entry) },
     daily: { wins: Math.min(DAILY_WINS, dailyProgress(entry)), goal: DAILY_WINS, reward: DAILY_COINS },
     shop: Object.entries(SHOP).map(([id, { name, price }]) => ({ id, name, price })),
   };
@@ -601,7 +619,7 @@ function broadcast(room, event, data) {
   room.players.forEach((p) => p.stream && send(p.stream, event, data));
   room.spectators?.forEach((stream) => send(stream, event, data));
 }
-const info = (room) => ({ names: room.players.map((p) => p.name), countries: room.players.map((p) => p.country || 'un'), levels: room.players.map((p) => Number(ranking[p.sub]?.level) || 1), skins: room.players.map((p) => (p.bot ? null : activeSkin(ranking[p.sub]))), maxShipHp: room.players.map(maxShipHealthForPlayer), blockRound: room.round % 10 === 0, hp: room.hp, cannons: room.cannons, round: room.round, over: room.over, tutorial: room.tutorial, inputMs: room.tutorial ? null : INPUT_MS, troopsCd: room.troopsCd || [0, 0], domeCd: room.domeCd || [0, 0], foodCd: room.foodCd || [0, 0], swordCd: room.swordCd || [0, 0], swordfish: room.players.map((p) => !p.bot && Boolean(ranking[p.sub]?.swordfish)), infernoCd: room.infernoCd || [0, 0], infernal: room.players.map((p) => !p.bot && Boolean(ranking[p.sub]?.infernal)), fireCd: room.fireCd || [0, 0], fireOn: room.fireOn || [false, false], fireballs: room.players.map((p) => !p.bot && Boolean(ranking[p.sub]?.fireballs)), dragonCd: room.dragonCd || [0, 0], dragons: room.players.map(dragonsOf) });
+const info = (room) => ({ names: room.players.map((p) => p.name), countries: room.players.map((p) => p.country || 'un'), levels: room.players.map((p) => Number(ranking[p.sub]?.level) || 1), skins: room.players.map((p) => (p.bot ? null : activeSkin(ranking[p.sub]))), maxShipHp: room.players.map(maxShipHealthForPlayer), blockRound: room.round % 10 === 0, hp: room.hp, cannons: room.cannons, round: room.round, over: room.over, tutorial: room.tutorial, inputMs: room.tutorial ? null : INPUT_MS, troopsCd: room.troopsCd || [0, 0], domeCd: room.domeCd || [0, 0], foodCd: room.foodCd || [0, 0], swordCd: room.swordCd || [0, 0], swordfish: room.players.map((p) => !p.bot && Boolean(ranking[p.sub]?.swordfish)), infernoCd: room.infernoCd || [0, 0], infernal: room.players.map((p) => !p.bot && Boolean(ranking[p.sub]?.infernal)), fireCd: room.fireCd || [0, 0], fireOn: room.fireOn || [false, false], fireballs: room.players.map((p) => !p.bot && Boolean(ranking[p.sub]?.fireballs)), dragonCd: room.dragonCd || [0, 0], dragons: room.players.map(dragonsOf), lifebuoys: room.players.map((p) => !p.bot && Boolean(ranking[p.sub]?.lifebuoy)) });
 
 // Secuencia aleatoria usando solo cañones que funcionan
 const workingSeq = (room, k) => {
@@ -1049,6 +1067,20 @@ const server = http.createServer(async (req, res) => {
     persistRanking([user.sub]);
     return json(res, 200, profileView(entry));
   }
+  if (req.method === 'POST' && url.pathname === '/api/roulette') {
+    const user = identify(await body(req));
+    if (!user) return json(res, 401, { error: 'Inicia sesión con Google' });
+    const entry = ranking[user.sub];
+    if (entry?.roulettePrize) return json(res, 409, { error: 'Ya has tirado de la ruleta' });
+    if (!entry || (Number(entry.coins) || 0) < ROULETTE_PRICE) return json(res, 402, { error: `Necesitas ${ROULETTE_PRICE} monedas` });
+    const odds = rouletteOdds(entry), prize = spinRoulette(entry);
+    entry.coins = Number(entry.coins) - ROULETTE_PRICE;
+    entry[prize] = true;
+    entry.roulettePrize = prize;
+    if (prize === 'viking') entry.vikingTier = skinTier(entry.level);
+    persistRanking([user.sub]);
+    return json(res, 200, { prize, odds, profile: profileView(entry) });
+  }
   if (req.method === 'GET' && url.pathname === '/api/ranking') return json(res, 200, topRanking(url.searchParams.get('period')));
   if (req.method === 'GET' && url.pathname === '/api/games') return json(res, 200, games);
   if (req.method === 'GET' && url.pathname === '/api/league/state') {
@@ -1324,4 +1356,4 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     });
 }
 
-export { resolveRound, makeRoom, botPlan, workingSeq, shipMaxHpForLevel };
+export { resolveRound, makeRoom, botPlan, workingSeq, shipMaxHpForLevel, rouletteOdds, spinRoulette };

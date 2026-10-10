@@ -247,6 +247,41 @@
   .shop-item button { margin-top: 6px; width: 100%; padding: 7px 4px; font-size: 14px; white-space: nowrap; background: #ffb300; color: #1b1b1b; font-weight: bold; }
   .shop-item button:disabled { background: #5b6670; color: #fff; }
   #shopMsg { min-height: 1.2em; font-size: 13px; }
+  .roulette-item { border-color: #ffd54f99; background: linear-gradient(160deg, #2a1748, #06182b); }
+  #rouletteScreen { position: fixed; inset: 0; z-index: 70; overflow: auto; display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 14px 12px 24px;
+    background: radial-gradient(circle at 50% 38%, #3b1f66 0%, #150a2b 55%, #04070f 100%); color: #fff; text-align: center; }
+  #rouletteScreen.hidden { display: none; }
+  #rouletteScreen h2 { margin: 18px 0 0; font-size: clamp(24px, 7vw, 34px); color: #ffd54f; text-shadow: 0 0 18px #ffb300aa; }
+  #rouletteInfo { margin: 0; font-size: 14px; color: #e3d7ff; max-width: 420px; }
+  #rouletteClose { position: absolute; top: 10px; right: 10px; width: 42px; height: 42px; margin: 0; padding: 0; border-radius: 50%; font-size: 20px; background: #ffffff22; }
+  .wheel-wrap { position: relative; width: min(84vw, 360px, 52vh); aspect-ratio: 1; margin-top: 10px; flex: none; }
+  #wheel { width: 100%; height: 100%; border-radius: 50%; box-shadow: 0 0 0 6px #ffd54f, 0 0 0 11px #6b3e00, 0 0 40px 12px #ffb30066; }
+  .wheel-pointer { position: absolute; top: -16px; left: 50%; z-index: 2; width: 0; height: 0; transform: translateX(-50%);
+    border-left: 17px solid transparent; border-right: 17px solid transparent; border-top: 34px solid #fff; filter: drop-shadow(0 3px 3px #000a); }
+  #spinBtn { position: absolute; top: 50%; left: 50%; width: 27%; aspect-ratio: 1; height: auto; margin: 0; padding: 0; transform: translate(-50%, -50%); border-radius: 50%;
+    border: 4px solid #6b3e00; background: radial-gradient(circle at 35% 30%, #fff3b0, #ffc107 55%, #e08e00); color: #3b2400; font: 900 clamp(13px, 4.4vw, 19px)/1 system-ui, sans-serif;
+    box-shadow: 0 4px 12px #000a; cursor: pointer; }
+  #spinBtn:not(:disabled) { animation: spinPulse 1.2s ease-in-out infinite; }
+  #spinBtn:disabled { filter: grayscale(.5) brightness(.85); cursor: default; }
+  @keyframes spinPulse { 50% { transform: translate(-50%, -50%) scale(1.08); } }
+  #wheelLegend { list-style: none; margin: 8px 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 4px 10px; width: min(100%, 440px); font-size: 13px; text-align: left; }
+  #wheelLegend li { display: flex; align-items: center; gap: 6px; }
+  #wheelLegend i { flex: none; width: 12px; height: 12px; border-radius: 3px; }
+  #wheelLegend b { margin-left: auto; color: #ffd54f; }
+  #rouletteMsg { min-height: 1.2em; margin: 4px 0 0; font-size: 14px; color: #ffcdd2; }
+  #prizeReveal { position: fixed; inset: 0; z-index: 3; display: grid; place-items: center; padding: 16px; background: #000a; }
+  #prizeReveal.hidden { display: none; }
+  .prize-card { position: relative; width: min(100%, 330px); padding: 22px 18px 18px; border-radius: 22px; overflow: hidden; border: 3px solid #ffd54f;
+    background: linear-gradient(170deg, #4a2a7a, #1a0d35); box-shadow: 0 0 60px #ffd54f88; animation: prizePop .7s cubic-bezier(.18,.9,.3,1.3) both; }
+  .prize-rays { position: absolute; inset: -60%; background: repeating-conic-gradient(#ffd54f2a 0 10deg, transparent 10deg 20deg); animation: levelUpRays 9s linear infinite; }
+  .prize-card > :not(.prize-rays) { position: relative; }
+  .prize-kicker { margin: 0; color: #ffe08a; font-weight: 800; font-size: 16px; letter-spacing: .5px; }
+  .prize-icon { font-size: 92px; line-height: 1.1; margin: 6px 0 2px; animation: prizeIcon 1.4s ease-in-out .6s infinite; }
+  .prize-card h3 { margin: 0; font-size: 26px; color: #fff; }
+  #prizeNote { margin: 6px 0 12px; font-size: 14px; color: #e3d7ff; }
+  #prizeOk { width: 100%; margin: 0; background: #ffc107; color: #2b1a00; font-weight: 900; }
+  @keyframes prizePop { from { opacity: 0; transform: scale(.3) rotate(-12deg); } to { opacity: 1; transform: scale(1) rotate(0); } }
+  @keyframes prizeIcon { 50% { transform: scale(1.12) rotate(6deg); } }
   #troops.cooldown { background: #5b6670; opacity: .75; }
   .hudact { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-top: 3px; }
   #resign { width: auto; margin: 0 0 0 18px; padding: 4px 10px; font-size: 12px; font-weight: 700; background: #c0392b; color: #fff; border: 1px solid #fff8; border-radius: 6px; flex: none; }
@@ -355,8 +390,36 @@
           <p>Vuela a la derecha de tu barco. Cada 6 rondas electrocuta los 4 cañones rivales: −25% a cada uno.</p>
           <button id="buyStormDragon" type="button">Comprar</button>
         </div>
+        <div class="shop-item roulette-item">
+          <svg viewBox="0 0 96 64" aria-hidden="true"><g transform="translate(48 32)"><circle r="29" fill="#3b2400"/><path d="M0 0 L0 -26 A26 26 0 0 1 22.5 -13 Z" fill="#e53935"/><path d="M0 0 L22.5 -13 A26 26 0 0 1 22.5 13 Z" fill="#fdd835"/><path d="M0 0 L22.5 13 A26 26 0 0 1 0 26 Z" fill="#43a047"/><path d="M0 0 L0 26 A26 26 0 0 1 -22.5 13 Z" fill="#1e88e5"/><path d="M0 0 L-22.5 13 A26 26 0 0 1 -22.5 -13 Z" fill="#8e24aa"/><path d="M0 0 L-22.5 -13 A26 26 0 0 1 0 -26 Z" fill="#fb8c00"/><circle r="6" fill="#ffd54f" stroke="#3b2400" stroke-width="2"/></g><path d="M48 0 L54 10 L42 10 Z" fill="#fff" stroke="#3b2400" stroke-width="1.5"/></svg>
+          <h4>Ruleta</h4>
+          <p>Una sola tirada. Puede tocarte cualquier artículo de la tienda (los caros, menos probables) o un salvavidas para tu barco (25%).</p>
+          <button id="openRoulette" type="button">Comprar</button>
+        </div>
       </div>
       <p id="shopMsg" role="status" aria-live="polite"></p>
+    </div>
+  </div>
+  <div id="rouletteScreen" class="hidden" role="dialog" aria-modal="true" aria-labelledby="rouletteTitle">
+    <button id="rouletteClose" type="button" aria-label="Cerrar la ruleta">✕</button>
+    <h2 id="rouletteTitle">🎡 Ruleta de la suerte</h2>
+    <p id="rouletteInfo"></p>
+    <div class="wheel-wrap">
+      <div class="wheel-pointer" aria-hidden="true"></div>
+      <canvas id="wheel" width="360" height="360" aria-label="Ruleta de premios"></canvas>
+      <button id="spinBtn" type="button">GIRAR</button>
+    </div>
+    <ul id="wheelLegend"></ul>
+    <p id="rouletteMsg" role="status" aria-live="polite"></p>
+    <div id="prizeReveal" class="hidden" role="status" aria-live="assertive">
+      <div class="prize-card">
+        <div class="prize-rays" aria-hidden="true"></div>
+        <p class="prize-kicker">¡Te ha tocado!</p>
+        <div id="prizeIcon" class="prize-icon"></div>
+        <h3 id="prizeName"></h3>
+        <p id="prizeNote"></p>
+        <button id="prizeOk" type="button">¡Genial!</button>
+      </div>
     </div>
   </div>
   <div id="lobby" class="panel">
@@ -667,7 +730,7 @@ $('rankingBtn').onclick = () => {
 function closeRanking() { $('rankingModal').classList.add('hidden'); }
 $('rankingClose').onclick = closeRanking;
 $('rankingModal').onclick = (event) => { if (event.target === $('rankingModal')) closeRanking(); };
-document.addEventListener('keydown', (event) => { if (event.key === 'Escape') { closeRanking(); $('shopModal').classList.add('hidden'); } });
+document.addEventListener('keydown', (event) => { if (event.key === 'Escape') { closeRanking(); $('shopModal').classList.add('hidden'); closeRoulette(); } });
 $('shopBtn').onclick = () => {
   $('shopMsg').textContent = '';
   $('shopModal').classList.remove('hidden');
@@ -696,6 +759,103 @@ $('skinBtn').onclick = async () => {
 };
 $('buyFireDragon').onclick = () => buyItem('fireDragon', 'buyFireDragon', 'el dragón de fuego', 1500, '¡Dragón de fuego comprado! Volará junto a tu barco; lánzalo con el botón del dragón.');
 $('buyStormDragon').onclick = () => buyItem('stormDragon', 'buyStormDragon', 'el dragón de rayos', 1500, '¡Dragón de rayos comprado! Volará junto a tu barco; lánzalo con el botón del dragón.');
+const PRIZES = {
+  swordfish: { icon: '🐟', color: '#1e88e5', short: 'Pez espada', name: 'Pez espada', note: 'Ya tienes su botón en la partida: cada 4 rondas embiste a la ballena rival (−10).' },
+  viking: { icon: '⛵', color: '#8d5524', short: 'Vikingo', name: 'Barco vikingo', note: 'Tu barco ya es un drakkar. Cámbialo con su botón en la partida.' },
+  infernal: { icon: '💥', color: '#e64a19', short: 'Infernal', name: 'Ataque infernal', note: 'Ya tienes su botón: cada 6 rondas tus 4 cañones disparan a la vez.' },
+  fireballs: { icon: '☄️', color: '#fb8c00', short: 'Balas fuego', name: 'Balas de fuego', note: 'Ya tienes su botón: tus balas arden y quitan 3 más de vida.' },
+  fireDragon: { icon: '🐉', color: '#c62828', name: 'Dragón de fuego', note: 'Ya vuela junto a tu barco. Lánzalo con el botón del dragón.' },
+  stormDragon: { icon: '⚡', color: '#3949ab', name: 'Dragón de rayos', note: 'Ya vuela junto a tu barco. Lánzalo con el botón del dragón.' },
+  lifebuoy: { icon: '🛟', color: '#eceff1', short: 'Salvavidas', name: 'Salvavidas', note: 'Tu barco luce ya un salvavidas en la popa, para siempre.' },
+};
+let wheelOdds = [], wheelRot = 0, wheelSpinning = false;
+function drawWheel(odds) {
+  wheelOdds = odds;
+  const cv = $('wheel'), dpr = Math.min(2, window.devicePixelRatio || 1), size = 360;
+  cv.width = size * dpr; cv.height = size * dpr;
+  const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const c = size / 2, r = c - 2;
+  g.clearRect(0, 0, size, size);
+  let a = -Math.PI / 2;
+  for (const o of odds) {
+    const da = (o.pct / 100) * Math.PI * 2, p = PRIZES[o.id];
+    g.beginPath(); g.moveTo(c, c); g.arc(c, c, r, a, a + da); g.closePath();
+    const grad = g.createRadialGradient(c, c, r * 0.15, c, c, r);
+    grad.addColorStop(0, '#ffffff55'); grad.addColorStop(0.35, p.color); grad.addColorStop(1, p.color);
+    g.fillStyle = grad; g.fill();
+    g.lineWidth = 2; g.strokeStyle = '#3b2400'; g.stroke();
+    g.save(); g.translate(c, c); g.rotate(a + da / 2);
+    const fs = Math.max(16, Math.min(40, da * r * 0.55));
+    g.font = `${fs}px system-ui, "Noto Color Emoji", sans-serif`; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.translate(r * 0.74, 0); g.rotate(Math.PI / 2); g.fillText(p.icon, 0, 0);
+    if (da > 0.5) { g.font = 'bold 12px system-ui, sans-serif'; g.fillStyle = o.id === 'lifebuoy' ? '#b71c1c' : '#fff'; g.fillText(p.short || p.name, 0, fs * 0.85); }
+    g.restore();
+    a += da;
+  }
+  for (let i = 0; i < 24; i++) { const t = (i / 24) * Math.PI * 2; g.beginPath(); g.arc(c + Math.cos(t) * (r - 6), c + Math.sin(t) * (r - 6), 3, 0, Math.PI * 2); g.fillStyle = i % 2 ? '#fff8d0' : '#ffb300'; g.fill(); }
+  $('wheelLegend').innerHTML = odds.map((o) => `<li><i style="background:${PRIZES[o.id].color}"></i>${PRIZES[o.id].icon} ${PRIZES[o.id].name}<b>${o.pct < 10 ? o.pct.toFixed(1) : Math.round(o.pct)}%</b></li>`).join('');
+}
+function segmentAt(rot) {
+  const at = (((-rot) % 360) + 360) % 360;
+  let acc = 0;
+  for (let i = 0; i < wheelOdds.length; i++) { acc += wheelOdds[i].pct * 3.6; if (at < acc) return i; }
+  return wheelOdds.length - 1;
+}
+function setWheelRot(deg) { wheelRot = deg; $('wheel').style.transform = `rotate(${deg}deg)`; }
+function renderRoulette() {
+  const rl = myProfile?.roulette, coins = Number(myProfile?.coins) || 0;
+  if (!rl) return;
+  if (!wheelSpinning) drawWheel(rl.odds);
+  const btn = $('spinBtn');
+  if (rl.used) {
+    btn.disabled = true; btn.textContent = '✔';
+    $('rouletteInfo').textContent = `Ya has tirado: te tocó ${PRIZES[rl.prize]?.icon || ''} ${PRIZES[rl.prize]?.name || rl.prize}.`;
+  } else {
+    btn.disabled = coins < rl.price || wheelSpinning; btn.textContent = 'GIRAR';
+    $('rouletteInfo').textContent = coins < rl.price ? `Tirar cuesta 🪙 ${rl.price}. Te faltan ${rl.price - coins}.` : `Una sola tirada por 🪙 ${rl.price}. ¡Pulsa GIRAR!`;
+  }
+}
+function closeRoulette() { if (!wheelSpinning) { $('rouletteScreen').classList.add('hidden'); $('prizeReveal').classList.add('hidden'); } }
+$('openRoulette').onclick = () => {
+  if (!session || !myProfile) { $('shopMsg').textContent = 'Inicia sesión para usar la ruleta'; return; }
+  $('rouletteMsg').textContent = '';
+  $('prizeReveal').classList.add('hidden');
+  renderRoulette();
+  if (myProfile.roulette.used) { const i = wheelOdds.findIndex((o) => o.id === myProfile.roulette.prize); if (i >= 0) { const start = wheelOdds.slice(0, i).reduce((t, o) => t + o.pct * 3.6, 0); setWheelRot(-(start + wheelOdds[i].pct * 1.8)); } }
+  $('rouletteScreen').classList.remove('hidden');
+};
+$('rouletteClose').onclick = closeRoulette;
+$('prizeOk').onclick = () => $('prizeReveal').classList.add('hidden');
+$('spinBtn').onclick = async () => {
+  if (wheelSpinning || myProfile?.roulette?.used) return;
+  wheelSpinning = true; $('spinBtn').disabled = true; $('rouletteClose').disabled = true; $('rouletteMsg').textContent = ''; $('rouletteInfo').textContent = '🍀 Girando… ¡suerte!';
+  let res;
+  try { res = await post('/api/roulette', { session }); } catch (e) { $('rouletteMsg').textContent = e.message; wheelSpinning = false; $('rouletteClose').disabled = false; renderRoulette(); return; }
+  drawWheel(res.odds);
+  const i = wheelOdds.findIndex((o) => o.id === res.prize);
+  const start = wheelOdds.slice(0, i).reduce((t, o) => t + o.pct * 3.6, 0), span = wheelOdds[i].pct * 3.6;
+  const target = start + span * (0.2 + Math.random() * 0.6);
+  const from = wheelRot, base = from - (((from % 360) + 360) % 360);
+  const to = base - 360 * 7 - target;
+  const dur = 6500, t0 = performance.now();
+  let lastSeg = segmentAt(from);
+  await new Promise((done) => {
+    const step = (now) => {
+      const t = Math.min(1, (now - t0) / dur), e = 1 - Math.pow(1 - t, 4);
+      setWheelRot(from + (to - from) * e);
+      const seg = segmentAt(wheelRot); if (seg !== lastSeg) { lastSeg = seg; sfx('click'); }
+      if (t < 1) requestAnimationFrame(step); else done();
+    };
+    requestAnimationFrame(step);
+  });
+  wheelSpinning = false; $('rouletteClose').disabled = false;
+  const p = PRIZES[res.prize];
+  $('prizeIcon').textContent = p.icon; $('prizeName').textContent = p.name; $('prizeNote').textContent = p.note;
+  $('prizeReveal').classList.remove('hidden');
+  sfx('coins');
+  renderCoins(res.profile);
+  $('shopMsg').textContent = `La ruleta te dio: ${p.icon} ${p.name}`;
+};
 $('buyFire').onclick = () => buyItem('fireballs', 'buyFire', 'las balas de fuego', 500, '¡Balas de fuego compradas! Enciéndelas en la partida con su botón, junto a la cúpula.');
 $('buyInfernal').onclick = () => buyItem('infernal', 'buyInfernal', 'el ataque infernal', 450, '¡Ataque infernal comprado! Aparecerá en tus partidas junto a la cúpula.');
 const fmt = (ms) => { const t = Math.round(ms / 1000), p = (n) => String(n).padStart(2, '0'); return `${Math.floor(t / 3600)}:${p(Math.floor(t / 60) % 60)}:${p(t % 60)}`; };
@@ -886,6 +1046,15 @@ function renderCoins(profile) {
     buy.title = owned ? 'Ya lo tienes' : coins < price ? `Te faltan ${price - coins} monedas` : `Comprar por ${price} monedas`;
   }
   if (!room) scene.setDragons('me', { fire: !!profile.fireDragon, storm: !!profile.stormDragon });
+  if (!room) scene.setLifebuoy('me', !!profile.lifebuoy);
+  const rl = profile.roulette;
+  if (rl) {
+    const ob = $('openRoulette');
+    ob.disabled = false;
+    ob.textContent = rl.used ? `✔ ${PRIZES[rl.prize]?.icon || ''} Usada` : `🪙 ${rl.price}`;
+    ob.title = rl.used ? `Te tocó ${PRIZES[rl.prize]?.name || rl.prize}` : `Tirar de la ruleta por ${rl.price} monedas`;
+    if (!$('rouletteScreen').classList.contains('hidden')) renderRoulette();
+  }
   updateTroops();
   scene.setShipLevel('me', Number(profile.level) || 1, profile.skin);
 }
@@ -1325,7 +1494,7 @@ function connect() {
     if (playing) return; // una reconexión durante la animación no debe romperla
     tutorialUnlimited = !!s.tutorial; heliAsked = !!s.heli; troopsCd = s.troopsCd || [0, 0]; troopsSent = !!s.troops; domeCd = s.domeCd || [0, 0]; domeSent = !!s.dome; foodCd = s.foodCd || [0, 0]; foodSent = !!s.food; swordCd = s.swordCd || [0, 0]; swordSent = !!s.sword; swordOwned = s.swordfish || [false, false]; infernoCd = s.infernoCd || [0, 0]; infernoSent = !!s.infernalSent; infernoOwned = s.infernal || [false, false]; fireCd = s.fireCd || [0, 0]; fireOn = s.fireOn || [false, false]; fireOwned = s.fireballs || [false, false]; dragonCd = s.dragonCd || [0, 0]; dragonSent = !!s.dragonSent; setDragonsOwned(s.dragons);
     if (tutorialMode && !tutorialStep) setTutorialStep(s.submitted ? 'watch' : 'attack');
-    inputMs = s.inputMs; curRound = s.round; blockRound = !!s.blockRound; $('round').textContent = s.round; badge(s.round); setNames(s.names, s.countries, s.levels, s.skins); setHp(s.hp, s.maxShipHp); setCannons(s.cannons); scene.setWeather(s.round); setupForm();
+    inputMs = s.inputMs; curRound = s.round; blockRound = !!s.blockRound; $('round').textContent = s.round; badge(s.round); setNames(s.names, s.countries, s.levels, s.skins, s.lifebuoys); setHp(s.hp, s.maxShipHp); setCannons(s.cannons); scene.setWeather(s.round); setupForm();
     $('invite').classList.add('hidden');
     updateResign(s.over);
     if (s.over) {
@@ -1473,7 +1642,7 @@ function showLastRound(r, me, op) {
   $('lrTxt').innerHTML = `Tú: ${f(r.seqs[me])}<br>Rival: ${f(r.seqs[op])}`;
   $('lastRound').classList.remove('hidden');
 }
-function setNames(n, countries = ['un', 'un'], levels = [1, 1], skins = [null, null]) {
+function setNames(n, countries = ['un', 'un'], levels = [1, 1], skins = [null, null], lifebuoys = [false, false]) {
   names = n; const o = 1 - pid;
   $('meName').textContent = n[pid];
   $('opName').textContent = n[o];
@@ -1483,6 +1652,7 @@ function setNames(n, countries = ['un', 'un'], levels = [1, 1], skins = [null, n
     $(who + 'Flag').title = countryName(countries[idx]);
     scene.setFlag(who, countries[idx]);
     scene.setShipLevel(who, levels?.[idx] || 1, skins?.[idx]);
+    scene.setLifebuoy(who, !!lifebuoys?.[idx]);
     showLevel(who, levels?.[idx]);
   }
 }
@@ -1729,7 +1899,7 @@ async function playRoundInner(r, replay = false) {
   const pre = replay ? lastRound : { hp: lastHp, can: lastCan, maxShipHp: lastMaxShipHp };
   if (replay) { setHp(pre.hp, pre.maxShipHp); setCannons(pre.can); scene.setWeather(r.round - 1); }
   const side = (n) => (n === me ? 'me' : 'op');
-  if (r.levels) { scene.setShipLevel('me', r.levels[me], r.skins?.[me]); scene.setShipLevel('op', r.levels[op], r.skins?.[op]); showLevel('me', r.levels[me]); showLevel('op', r.levels[op]); }
+  if (r.levels) { scene.setShipLevel('me', r.levels[me], r.skins?.[me]); scene.setShipLevel('op', r.levels[op], r.skins?.[op]); showLevel('me', r.levels[me]); showLevel('op', r.levels[op]); } if (r.lifebuoys) { scene.setLifebuoy('me', r.lifebuoys[me]); scene.setLifebuoy('op', r.lifebuoys[op]); }
   const impactSfx = (t) => (t === 'ship' || t === 'whale' ? 'bomb' : t === 'shark' ? 'splash' : t === 'gull' ? 'gull' : 'clash');
   let subOn = false, octopusOn = false, medkitOn = false, gullOn = false, squidOn = false, logOn = false, bucketOn = false;
   for (const ev of r.events) {

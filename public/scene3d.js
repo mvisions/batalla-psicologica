@@ -551,6 +551,27 @@ export function createScene(container) {
     wrap.add(flag);
     const flagBase = Float32Array.from(flagGeo.attributes.position.array);
 
+    // Salvavidas de la ruleta: aro blanco y rojo colgado en la popa, inclinado hacia fuera
+    const buoy = new THREE.Group(); buoy.visible = false; wrap.add(buoy);
+    {
+      const ringW = new THREE.MeshStandardMaterial({ color: 0xf5f5f0, roughness: 0.45 });
+      const ringR = new THREE.MeshStandardMaterial({ color: 0xe5262b, roughness: 0.45, emissive: 0x3a0505, emissiveIntensity: 0.25 });
+      const ring = new THREE.Group(); buoy.add(ring);
+      for (let i = 0; i < 8; i++) {
+        const arc = new THREE.Mesh(new THREE.TorusGeometry(0.42, 0.13, 10, 8, Math.PI / 4 + 0.01), i % 2 ? ringW : ringR);
+        arc.rotation.z = (i * Math.PI) / 4; ring.add(arc);
+      }
+      const rope = new THREE.Mesh(new THREE.TorusGeometry(0.56, 0.022, 5, 32), new THREE.MeshStandardMaterial({ color: 0xd8c08a, roughness: 0.9 }));
+      ring.add(rope);
+      for (let i = 0; i < 4; i++) {
+        const tie = new THREE.Mesh(new THREE.TorusGeometry(0.14, 0.02, 5, 10), rope.material);
+        const a = (i * Math.PI) / 2 + Math.PI / 4; tie.position.set(Math.cos(a) * 0.48, Math.sin(a) * 0.48, 0); tie.rotation.z = a; tie.rotation.x = Math.PI / 2; ring.add(tie);
+      }
+      ring.rotation.set(0, Math.PI / 2, 0); // plano del aro mirando a popa (-x)
+      buoy.rotation.z = 0.75; // se apoya hacia fuera para verse desde la cámara alta
+      buoy.position.set(-6.45, DY + 0.32, 0);
+    }
+
     // Casetas con ametralladoras antiaéreas
     box(1.0, 0.45, 1.0, steel, -5.3, DY + 0.22, 0);
     box(0.8, 0.3, 0.8, steel, 5.0, DY + 0.15, 0);
@@ -594,7 +615,7 @@ export function createScene(container) {
     if (who === 'op') g.rotation.y = Math.PI;
     scene.add(g);
     applyModelShadows(g);
-    return { g, wrap, hullMat, steel, turrets, radar, flag, flagBase, flagHome: flag.position.clone(), flagMast: V(0, DY + 4.95 * Math.cos(0.55), -sign * 4.95 * Math.sin(0.55)), modern, oars, sail, skins: { dragon: dragonSkin, gondola: gondolaSkin, santa: santaSkin, ice: iceSkin, lava: lavaSkin, gold: goldSkin, viking: vikingSkin }, palette, base, red, ratio: 1, smokeAcc: 0, puffAcc: 0, phase: who === 'me' ? 0 : 2, hitT: 0, off: 0 };
+    return { g, wrap, hullMat, steel, turrets, radar, flag, flagBase, buoy, flagHome: flag.position.clone(), flagMast: V(0, DY + 4.95 * Math.cos(0.55), -sign * 4.95 * Math.sin(0.55)), modern, oars, sail, skins: { dragon: dragonSkin, gondola: gondolaSkin, santa: santaSkin, ice: iceSkin, lava: lavaSkin, gold: goldSkin, viking: vikingSkin }, palette, base, red, ratio: 1, smokeAcc: 0, puffAcc: 0, phase: who === 'me' ? 0 : 2, hitT: 0, off: 0 };
   }
 
   // ---------- Tiburones ----------
@@ -723,6 +744,8 @@ export function createScene(container) {
       }
     }
   }
+
+  function setLifebuoy(who, on) { if (ships[who]) ships[who].buoy.visible = !!on; }
 
   function setShipLevel(who, level, skin = null) {
     const ship = ships[who];
@@ -2287,6 +2310,6 @@ export function createScene(container) {
     return best;
   }
 
-  Object.assign(api, { lightningStrike, setHealth, setCannons, setCannonLabels, setShipLevel, pickFlag, subMove, subLeave, iceShow, iceClear, octopusShow, octopusSpin, octopusLeave, medkitShow, medkitLeave, bucketShow, bucketLeave, gullFly, gullLeave, logShow, logLeave, squidShow, squidLeave, heliSupport, troopShip, swordfishAttack, setDragons, dragonAttack, setDome, domeBlock, feedShark, dud, labelCannon, moveFin, moveShip, fire, label, trackLabel, trackPoint, trackShip, setWeather, setFlag, setInsets, SHIP_Z });
+  Object.assign(api, { lightningStrike, setHealth, setCannons, setCannonLabels, setShipLevel, setLifebuoy, pickFlag, subMove, subLeave, iceShow, iceClear, octopusShow, octopusSpin, octopusLeave, medkitShow, medkitLeave, bucketShow, bucketLeave, gullFly, gullLeave, logShow, logLeave, squidShow, squidLeave, heliSupport, troopShip, swordfishAttack, setDragons, dragonAttack, setDome, domeBlock, feedShark, dud, labelCannon, moveFin, moveShip, fire, label, trackLabel, trackPoint, trackShip, setWeather, setFlag, setInsets, SHIP_Z });
   return api;
 }
