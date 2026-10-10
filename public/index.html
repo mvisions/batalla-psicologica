@@ -346,7 +346,7 @@
         <div id="waveCtl" class="hidden"><span id="waveTxt"></span><button id="waveStay" type="button">Quieto</button></div>
         <div class="bars"><div class="bar ship-bar"><i id="meShip"></i><em id="meShipTxt"></em></div><div class="bar shark-bar"><i id="meShark"></i><em id="meSharkTxt"></em></div></div>
         <div class="cans" id="meCan"></div>
-        <div class="hudact"><div id="emotes" class="hidden"></div><span class="hudbtns"><button id="troops" class="hidden" type="button" aria-label="Mandar un barquito contra el cañón más débil del rival" title="Barquito de ataque"><svg viewBox="0 0 24 16" width="22" height="15" aria-hidden="true"><path d="M12 1v8" stroke="#fff" stroke-width="1.4"/><path d="M12 1.5l6 6.5h-6z" fill="#fff"/><path d="M2 10h20l-3.5 5h-13z" fill="#fff" stroke="#0007" stroke-width=".6"/></svg></button><button id="resign" class="hidden" type="button">Retirarse</button></span></div>
+        <div class="hudact"><div id="emotes" class="hidden"></div><span class="hudbtns"><button id="troops" class="hidden" type="button" aria-label="Mandar el dron contra el cañón más débil del rival" title="Dron de ataque"><svg viewBox="0 0 24 16" width="24" height="16" aria-hidden="true"><g fill="#fff"><rect x="8.5" y="6.5" width="7" height="3.5" rx="1.2"/><rect x="1" y="4" width="7" height="1.6" rx=".8"/><rect x="16" y="4" width="7" height="1.6" rx=".8"/><rect x="4" y="5.4" width="1.4" height="3"/><rect x="18.6" y="5.4" width="1.4" height="3"/><circle cx="12" cy="12.5" r="1.3"/></g></svg></button><button id="resign" class="hidden" type="button">Retirarse</button></span></div>
         <div class="hudtop"><b><img id="meFlag" class="flag" alt=""><span id="meLvl" class="lvl"></span><span id="meName"></span></b></div>
       </div>
     </div>
@@ -1205,10 +1205,10 @@ function updateTroops() {
   b.classList.toggle('hidden', !!document.body.dataset.over || tutorialMode || spectatorMode || !room);
   b.classList.toggle('cooldown', !ready);
   b.disabled = !ready;
-  b.title = troopsSent ? 'Barquito enviado' : left > 0 ? `Barquito listo en ${left} ${left === 1 ? 'ronda' : 'rondas'}` : 'Mandar el barquito contra el cañón más débil del rival';
+  b.title = troopsSent ? 'Dron enviado' : left > 0 ? `Dron listo en ${left} ${left === 1 ? 'ronda' : 'rondas'}` : 'Mandar el dron contra el cañón más débil del rival';
 }
 $('troops').onclick = async () => {
-  try { await post('/api/troops', { room, pid, key }); troopsSent = true; updateTroops(); $('msg').textContent = 'Barquito en camino: atacará el cañón más débil del rival al empezar los disparos'; }
+  try { await post('/api/troops', { room, pid, key }); troopsSent = true; updateTroops(); $('msg').textContent = 'Dron en camino: atacará el cañón más débil del rival al empezar los disparos'; }
   catch (e) { $('msg').textContent = e.message; }
 };
 const updateResign = (over) => { $('resign').classList.toggle('hidden', !!over || tutorialMode || spectatorMode || !room); updateTroops(); };

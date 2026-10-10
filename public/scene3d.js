@@ -1344,30 +1344,34 @@ export function createScene(container) {
     heli.g.visible = false;
   }
 
-  // un barquito sale del barco de `from`, esquiva todo lo que hay en el mar y se estrella contra el cañón de `to` en la posición x
+  // un dron sale del barco de `from`, vuela por encima de todo y se lanza contra el cañón de `to` en la posición x
   async function troopShip(from, to, xu) {
     const g = new THREE.Group();
-    const hull = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.3, 1.5), new THREE.MeshStandardMaterial({ color: 0xb23a2e, roughness: 0.5 }));
-    hull.position.y = 0.2;
-    const bow = new THREE.Mesh(new THREE.ConeGeometry(0.35, 0.7, 4), new THREE.MeshStandardMaterial({ color: 0xb23a2e, roughness: 0.5 }));
-    bow.rotation.x = Math.PI / 2; bow.rotation.y = Math.PI / 4; bow.position.set(0, 0.2, 1.05); bow.scale.set(1, 1, 0.43);
-    const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 1.3, 6), new THREE.MeshStandardMaterial({ color: 0x4a3524 }));
-    mast.position.y = 1;
-    const sail = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 0.95), new THREE.MeshStandardMaterial({ color: 0xffffff, side: THREE.DoubleSide }));
-    sail.rotation.y = Math.PI / 2; sail.position.set(0, 1.05, -0.1);
-    g.add(hull, bow, mast, sail);
+    const dark = new THREE.MeshStandardMaterial({ color: 0x2b3238, metalness: 0.5, roughness: 0.4 });
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.22, 0.7), new THREE.MeshStandardMaterial({ color: 0xd32f2f, metalness: 0.3, roughness: 0.4 }));
+    g.add(body);
+    const rotors = [];
+    for (const [dx, dz] of [[-0.6, -0.6], [0.6, -0.6], [-0.6, 0.6], [0.6, 0.6]]) {
+      const arm = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.06, 0.1), dark);
+      arm.position.set(dx / 2, 0, dz / 2); arm.scale.set(Math.abs(dx) * 10, 1, Math.abs(dz) * 10);
+      const rotor = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.34, 0.03, 16), new THREE.MeshBasicMaterial({ color: 0xcfd8dc, transparent: true, opacity: 0.45 }));
+      rotor.position.set(dx, 0.14, dz);
+      g.add(arm, rotor); rotors.push(rotor);
+    }
+    const led = new THREE.Mesh(new THREE.SphereGeometry(0.08, 8, 6), new THREE.MeshBasicMaterial({ color: 0xff3030 })); led.position.set(0, 0.16, 0.36); g.add(led);
+    g.scale.setScalar(1.3);
     const z0 = zOf(from) * (SHIP_Z - 2.6), z1 = zOf(to) * HIT_SHIP_Z, x0 = ships[from].g.position.x, x1 = xu * UNIT;
     scene.add(g);
     const place = (t) => {
-      const sway = Math.sin(t * Math.PI * 5) * 1.7 * (1 - t); // zigzag que esquiva lo que haya por el camino
-      g.position.set(x0 + (x1 - x0) * t + sway, 0.15 + Math.sin(t * 40) * 0.05, z0 + (z1 - z0) * t);
-      const dx = (x1 - x0) + Math.cos(t * Math.PI * 5) * 1.7 * Math.PI * 5 * (1 - t) - Math.sin(t * Math.PI * 5) * 1.7;
-      g.rotation.y = Math.atan2(dx, (z1 - z0));
+      g.position.set(x0 + (x1 - x0) * t, 0.6 + Math.sin(Math.min(1, t * 1.4) * Math.PI) * 3.2 * (1 - t) + 1.1 * t, z0 + (z1 - z0) * t);
+      g.rotation.y = Math.atan2(x1 - x0, z1 - z0);
+      g.rotation.x = 0.35 * Math.sin(t * Math.PI); // cabecea al lanzarse en picado
     };
     place(0);
-    const wake = setInterval(() => ripple(g.position.x, g.position.z, 2.2, 0, 0.9), 140);
-    await tween(2600, place, easeInOut);
-    clearInterval(wake);
+    const spin = setInterval(() => { for (const r of rotors) r.rotation.y += 1.2; }, 30);
+    const shadow = setInterval(() => ripple(g.position.x, g.position.z, 1.8, 0, 0.8), 160);
+    await tween(2400, place, easeInOut);
+    clearInterval(spin); clearInterval(shadow);
     scene.remove(g);
     explodeShip(V(x1, 1.1, z1)); hitShip(to);
   }
