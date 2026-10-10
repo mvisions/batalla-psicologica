@@ -338,14 +338,24 @@ const FIRE_COOLDOWN = 6, FIRE_DMG = 3; // las balas de fuego quitan 3 más; sigu
 const DRAGON_COOLDOWN = 6, DRAGON_PCT = 0.25; // dragones de la tienda: el de fuego quita el 25% de la vida actual del barco rival y el de rayos el 25% de cada cañón rival
 const dragonsOf = (p) => ({ fire: !p?.bot && Boolean(ranking[p?.sub]?.fireDragon), storm: !p?.bot && Boolean(ranking[p?.sub]?.stormDragon) });
 const INFERNO_COOLDOWN = 6; // el ataque infernal comprado en la tienda dispara los 4 cañones en los 4 disparos, cada 6 rondas
+// barco de guerra pirata (solo rondas 11, 22 y 33): espanta a los animales, absorbe las balas y quita a cada barco el 20 % de su vida en la ronda
+const WARSHIP_ROUNDS = [11, 22, 33], WARSHIP_PCT = 0.2, WARSHIP_BONUS = 250;
+const isWarshipRound = (room) => !room.tutorial && WARSHIP_ROUNDS.includes(room.round);
+// isla de los monos (solo ronda 9): tapa los 4 carriles; 4 monos lanzan cocos (2 a cada barco) y cada mono abatido da 1 moneda
+const ISLAND_ROUND = 9, COCONUT_DMG = 3, MONKEY_DRAGON_BONUS = 50; // monedas por cada dragón que ataca a los monos
+const isIslandRound = (room) => !room.tutorial && room.round === ISLAND_ROUND;
 const TROOP_DMG = 15, TROOP_COOLDOWN = 2; // el barquito vuelve a estar listo dos rondas después
 function resolveRound(room) {
   const medkitPosts = [-3, -1, 1, 3];
-  const medkitRound = room.medkitMatch && room.round >= 3 && (room.round - 3) % 3 === 0;
+  const warship = isWarshipRound(room), island = isIslandRound(room);
+  const calm = warship || island; // solo quedan el barco de guerra o los monos: el resto de animales y objetos desaparecen
+  const monkeyTarget = island ? [0, 0, 1, 1].sort(() => Math.random() - 0.5) : null;
+  const monkeyAlive = [true, true, true, true];
+  const medkitRound = !calm && room.medkitMatch && room.round >= 3 && (room.round - 3) % 3 === 0;
   const blockRound = room.round % 10 === 0;
   let medkitCollected = false;
   const rain = room.round % 5 === 0 && room.round !== 15; // la ronda 15 es nevada, no lluvia
-  const whaleRound = room.round % 7 === 0; // ballena extra en medio del mar, en un carril al azar por disparo
+  const whaleRound = !calm && room.round % 7 === 0; // ballena extra en medio del mar, en un carril al azar por disparo
   const swell = room.round % 6 === 0; // con oleaje los barcos se desplazan: 1 derecha, 2 izquierda, 0 quieto
   const pos = [0, 0]; // desplazamiento de cada barco en unidades de medio carril
   const MOVE = [0, 1, -1];
@@ -357,7 +367,7 @@ function resolveRound(room) {
   const hpScale = Math.max(1, Math.pow(Math.min(hpRatio0, capRatio), 0.04) * Math.max(1, Math.pow(hpRatio0 / capRatio, 0.5)));
   const hull = (n) => Math.round(n * hpScale);
   const iceAlive = [true, true]; // icebergs de la ronda de lluvia
-  const wild = room.wildlife !== false;
+  const wild = room.wildlife !== false && !calm; // ante el barco de guerra todos los animales huyen
   let gullAlive = wild; // la gaviota vuela a un carril al azar en cada disparo
   const squidRound = wild && room.round % 2 === 1; // el calamar sale una ronda sí y otra no
   const hpRatio = (k) => room.hp[k].ship / room.maxShipHp[k];
@@ -367,11 +377,11 @@ function resolveRound(room) {
   let bucketAlive = wild && room.round >= 8 && (room.round - 8) % 3 === 0; // desde la ronda 8 y cada 3 rondas flota un cubo en un carril al azar que se hunde de un disparo y cura 10
   const firstSubmitter = (P[0].submittedAt ?? Infinity) <= (P[1].submittedAt ?? Infinity) ? 0 : 1; // se lleva la vida de la gaviota si ambos la alcanzan
   const heliFor = [0, 1].map((k) => room.hp[k].ship > 0 && room.hp[k].ship <= 5 && Boolean(P[k].heli || P[k].bot));
-  const troopsFor = [0, 1].map((k) => (room.troopsCd?.[k] || 0) === 0 && Boolean(P[k].troops || (P[k].bot && !room.tutorial && Math.random() < 0.5)));
+  const troopsFor = [0, 1].map((k) => !warship && (room.troopsCd?.[k] || 0) === 0 && Boolean(P[k].troops || (P[k].bot && !room.tutorial && Math.random() < 0.5)));
   room.troopsCd ||= [0, 0];
   for (const k of [0, 1]) if (troopsFor[k]) room.troopsCd[k] = TROOP_COOLDOWN;
   room.domeCd ||= [0, 0];
-  const domeFor = [0, 1].map((k) => room.domeCd[k] === 0 && Boolean(P[k].dome || (P[k].bot && !room.tutorial && Math.random() < 0.5)));
+  const domeFor = [0, 1].map((k) => !warship && room.domeCd[k] === 0 && Boolean(P[k].dome || (P[k].bot && !room.tutorial && Math.random() < 0.5)));
   const domeIdx = [null, null]; // la cúpula cubre durante toda la ronda al cañón más débil que sigue en pie
   for (const k of [0, 1]) if (domeFor[k]) {
     let weak = -1;
@@ -379,17 +389,20 @@ function resolveRound(room) {
     if (weak >= 0) { domeIdx[k] = weak; room.domeCd[k] = DOME_COOLDOWN; }
   }
   room.foodCd ||= [0, 0];
-  const foodFor = [0, 1].map((k) => room.foodCd[k] === 0 && room.hp[k].shark > 0 && Boolean(P[k].food || (P[k].bot && !room.tutorial && room.hp[k].shark <= 25)));
+  const foodFor = [0, 1].map((k) => !calm && room.foodCd[k] === 0 && room.hp[k].shark > 0 && Boolean(P[k].food || (P[k].bot && !room.tutorial && room.hp[k].shark <= 25)));
   for (const k of [0, 1]) if (foodFor[k]) room.foodCd[k] = FOOD_COOLDOWN;
   room.swordCd ||= [0, 0];
-  const swordFor = [0, 1].map((k) => room.swordCd[k] === 0 && Boolean(P[k].sword) && room.hp[1 - k].shark > 0);
+  const swordFor = [0, 1].map((k) => !calm && room.swordCd[k] === 0 && Boolean(P[k].sword) && room.hp[1 - k].shark > 0);
   for (const k of [0, 1]) if (swordFor[k]) room.swordCd[k] = SWORD_COOLDOWN;
   room.dragonCd ||= [0, 0];
   const dragonFor = [0, 1].map((k) => { const d = dragonsOf(P[k]); return room.dragonCd[k] === 0 && Boolean(P[k].dragon) && (d.fire || d.storm); });
   for (const k of [0, 1]) if (dragonFor[k]) room.dragonCd[k] = DRAGON_COOLDOWN;
   room.infernoCd ||= [0, 0];
-  const infernoFor = [0, 1].map((k) => room.infernoCd[k] === 0 && Boolean(P[k].infernal));
+  const infernoFor = [0, 1].map((k) => !warship && room.infernoCd[k] === 0 && Boolean(P[k].infernal));
   for (const k of [0, 1]) if (infernoFor[k]) room.infernoCd[k] = INFERNO_COOLDOWN;
+  // el barco de guerra reparte el 20 % de la vida de cada barco entre sus 4 andanadas (nunca hunde a nadie por sí solo)
+  const warshipLeft = [0, 1].map((k) => (warship ? Math.min(Math.round(room.hp[k].ship * WARSHIP_PCT), Math.max(0, room.hp[k].ship - 1)) : 0));
+  const laserFirst = warship ? Math.floor(Math.random() * 2) : 0;
   // cañón del barco k más cercano al punto de impacto x
   const nearestCannon = (k, x) => {
     let best = 0;
@@ -402,7 +415,7 @@ function resolveRound(room) {
     if (swell) for (const k of [0, 1]) pos[k] = Math.max(-2, Math.min(2, pos[k] + MOVE[P[k].wave[i]]));
     const whaleX = whaleRound ? [-3, -1, 1, 3][Math.floor(Math.random() * 4)] : null;
     // submarino (rondas múltiplo de 3): cruza el centro en un carril al azar, dispara a un lado al azar y se va antes del último disparo
-    const subRound = room.round % 3 === 0 && i < 3;
+    const subRound = !calm && room.round % 3 === 0 && i < 3;
     const subX = subRound ? [-3, -1, 1, 3][Math.floor(Math.random() * 4)] : null;
     const octopusX = room.round === 2 && !room.octopusUsed ? 2 * room.octopusLane - 5 : null;
     const medkitX = medkitRound && !medkitCollected ? medkitPosts[i] : null;
@@ -417,10 +430,13 @@ function resolveRound(room) {
     const squidUp = squidAlive && Math.random() < 0.5; // bajo el agua no detiene el disparo
     // icebergs (lluvia): dos, derivan a carriles al azar en cada disparo; la primera bala que da a uno lo destruye
     const lanePool = [-3, -1, 1, 3].sort(() => Math.random() - 0.5);
-    const iceX = rain ? [iceAlive[0] ? lanePool[0] : null, iceAlive[1] ? lanePool[1] : null] : null;
+    const iceX = rain && !calm ? [iceAlive[0] ? lanePool[0] : null, iceAlive[1] ? lanePool[1] : null] : null;
     const iceAt = (x) => (iceX ? iceX.findIndex((v) => v !== null && v === x) : -1);
     const ev = { step: i, atk, def, pos: [...pos], swell, whale: whaleX, ice: iceX, sub: subRound ? { x: subX, toward: Math.floor(Math.random() * 2) } : null, octopus: octopusX === null ? null : { x: octopusX, release: null }, medkit: medkitX === null ? null : { x: medkitX }, gull: gullX === null ? null : { x: gullX }, squid: squidX === null ? null : { x: squidX, up: squidUp, owner: squidOwner }, log: logX === null ? null : { x: logX, lanes: logXs }, bucket: bucketX === null ? null : { x: bucketX }, shots: [] };
     ev.dome = [...domeIdx];
+    if (island) { // cada mono vive en su posición fija de la isla (carril 1-4) y lanza un coco a su barco
+      ev.monkeys = [0, 1, 2, 3].filter((id) => monkeyAlive[id]).map((id) => ({ id, x: 2 * id - 3, target: monkeyTarget[id] }));
+    }
     const heal = [0, 0], heliHeal = [0, 0];
     if (i === 0) {
       for (const k of [0, 1]) if (foodFor[k]) {
@@ -452,7 +468,20 @@ function resolveRound(room) {
         if (!blocked) { dmg[t].ship += hull(TROOP_DMG); cdmg[t][weak] += TROOP_DMG; hitBy[t][weak] = k; }
         (ev.troops ||= []).push({ owner: k, target: t, lane: weak + 1, x: 2 * (weak + 1) - 5 + pos[t], blocked });
       }
-      for (const k of [0, 1]) if (dragonFor[k]) { // los dragones pasan sobre el barco rival
+      for (const k of [0, 1]) if (dragonFor[k] && warship) { // los dragones atacan al barco de guerra y dan una recompensa
+        const d = dragonsOf(P[k]), entry = !P[k].bot && ranking[P[k].sub];
+        if (entry) { entry.coins = (Number(entry.coins) || 0) + WARSHIP_BONUS; persistRanking([P[k].sub]); }
+        (ev.dragon ||= []).push({ owner: k, target: 'warship', fire: d.fire, storm: d.storm, shipDmg: 0, cannonDmg: [0, 0, 0, 0], bonus: WARSHIP_BONUS });
+      }
+      for (const k of [0, 1]) if (dragonFor[k] && island) { // en la isla los dragones atacan a los monos: 50 monedas por dragón
+        const d = dragonsOf(P[k]), entry = !P[k].bot && ranking[P[k].sub];
+        const bonus = MONKEY_DRAGON_BONUS * ((d.fire ? 1 : 0) + (d.storm ? 1 : 0));
+        const monkeys = [0, 1, 2, 3].filter((id) => monkeyAlive[id]);
+        for (const id of monkeys) monkeyAlive[id] = false;
+        if (entry) { entry.coins = (Number(entry.coins) || 0) + bonus; persistRanking([P[k].sub]); }
+        (ev.dragon ||= []).push({ owner: k, target: 'monkeys', monkeys, fire: d.fire, storm: d.storm, shipDmg: 0, cannonDmg: [0, 0, 0, 0], bonus });
+      }
+      for (const k of [0, 1]) if (dragonFor[k] && !warship && !island) { // los dragones pasan sobre el barco rival
         const t = 1 - k, d = dragonsOf(P[k]);
         const hit = { owner: k, target: t, fire: d.fire, storm: d.storm, shipDmg: 0, cannonDmg: [0, 0, 0, 0] };
         if (d.fire) { hit.shipDmg = Math.ceil(room.hp[t].ship * DRAGON_PCT); dmg[t].ship += hit.shipDmg; }
@@ -475,7 +504,7 @@ function resolveRound(room) {
     const firing = live.map((isLive, player) => isLive && !blocked[player]);
     // posición real de cada bala (el cañón se mueve con el barco)
     const xu = [2 * atk[0] - 5 + pos[0], 2 * atk[1] - 5 + pos[1]];
-    const simultaneousCollision = firing[0] && firing[1] && xu[0] === xu[1] && xu[0] !== subX && iceAt(xu[0]) < 0 && xu[0] !== gullX && !onLog(xu[0]) && !(squidUp && xu[0] === squidX);
+    const simultaneousCollision = !calm && firing[0] && firing[1] && xu[0] === xu[1] && xu[0] !== subX && iceAt(xu[0]) < 0 && xu[0] !== gullX && !onLog(xu[0]) && !(squidUp && xu[0] === squidX);
     let octopusCaughtThisStep = false;
     let medkitCaughtThisStep = false;
     const gullHits = [];
@@ -486,9 +515,18 @@ function resolveRound(room) {
       if (room.fireOn?.[from]) tag.fire = true;
       if (!extra && !live[from]) { ev.shots.push({ from, lane, x, target: 'broken' }); return; }
       if (!extra && blocked[from]) { ev.shots.push({ from, lane, x, target: 'blocked', ...tag }); return; }
-      const sharkAt = (k) => !rain && room.hp[k].shark > 0 && 2 * def[k] - 5 === x;
+      const sharkAt = (k) => !rain && !calm && room.hp[k].shark > 0 && 2 * def[k] - 5 === x;
       let target, owner, iceId;
-      if (!extra && simultaneousCollision && from === 1 && (octopusCaughtThisStep || medkitCaughtThisStep)) { target = 'collision'; }
+      if (warship) { target = 'warship'; } // la bala se queda clavada en el casco sin hacerle daño
+      else if (island && ev.monkeys.some((mk) => mk.x === x && monkeyAlive[mk.id])) { // el mono de ese carril cae y da 1 moneda; la isla no sufre daño
+        const m = ev.monkeys.find((mk) => mk.x === x && monkeyAlive[mk.id]);
+        target = 'monkey'; monkeyAlive[m.id] = false;
+        const entry = !P[from].bot && ranking[P[from].sub];
+        if (entry) { entry.coins = (Number(entry.coins) || 0) + 1; persistRanking([P[from].sub]); }
+        ev.shots.push({ from, lane, x, target, monkey: m.id, coin: 1, ...tag });
+        return;
+      }
+      else if (!extra && simultaneousCollision && from === 1 && (octopusCaughtThisStep || medkitCaughtThisStep)) { target = 'collision'; }
       else if (squidHit(x) && from === squidOwner) { target = 'squid'; owner = squidOwner; squidAlive = false; ev.squid.blocked = true; }
       else if (sharkAt(from)) { target = 'shark'; owner = from; }
       else if (onLog(x)) { target = 'log'; } // el árbol para los disparos de ambos lados en sus dos carriles
@@ -547,7 +585,7 @@ function resolveRound(room) {
       ev.shots = [0, 1].map((from) => ({ from, lane: atk[from], x: xu[from], target: 'collision', ...(room.fireOn?.[from] ? { fire: true } : {}) }));
     } else {
       // el calamar está junto a su barco: lo alcanza antes la bala de su protegido
-      const order = squidHit(xu[0]) && squidHit(xu[1]) ? [squidOwner, 1 - squidOwner] : [0, 1];
+      const order = island ? [firstSubmitter, 1 - firstSubmitter] : squidHit(xu[0]) && squidHit(xu[1]) ? [squidOwner, 1 - squidOwner] : [0, 1];
       for (const from of order) fireShot(from, atk[from], xu[from]);
     }
     // ataque infernal: además del disparo elegido, disparan a la vez el resto de cañones en pie
@@ -560,6 +598,15 @@ function resolveRound(room) {
       }
     }
     if (infernoFor.some(Boolean)) ev.infernal = [0, 1].filter((k) => infernoFor[k]);
+    if (ev.monkeys?.length) {
+      ev.coconuts = ev.monkeys.map((m) => ({ id: m.id, x: m.x, target: m.target, dmg: hull(COCONUT_DMG) }));
+      for (const c of ev.coconuts) dmg[c.target].ship += c.dmg;
+    }
+    if (warship) {
+      const share = [0, 1].map((k) => Math.ceil(warshipLeft[k] / (4 - i)));
+      for (const k of [0, 1]) { warshipLeft[k] -= share[k]; dmg[k].ship += share[k]; }
+      ev.warship = { dmg: share, laser: i === 1 ? laserFirst : i === 3 ? 1 - laserFirst : null };
+    }
     if (gullHits.length) { gullAlive = false; heal[gullHits.includes(firstSubmitter) ? firstSubmitter : gullHits[0]] += 15; }
     // disparo del submarino hacia el jugador elegido: lo para su tiburón si está en ese carril; si no, da al barco
     if (ev.sub) {
@@ -619,7 +666,7 @@ function broadcast(room, event, data) {
   room.players.forEach((p) => p.stream && send(p.stream, event, data));
   room.spectators?.forEach((stream) => send(stream, event, data));
 }
-const info = (room) => ({ names: room.players.map((p) => p.name), countries: room.players.map((p) => p.country || 'un'), levels: room.players.map((p) => Number(ranking[p.sub]?.level) || 1), skins: room.players.map((p) => (p.bot ? null : activeSkin(ranking[p.sub]))), maxShipHp: room.players.map(maxShipHealthForPlayer), blockRound: room.round % 10 === 0, hp: room.hp, cannons: room.cannons, round: room.round, over: room.over, tutorial: room.tutorial, inputMs: room.tutorial ? null : INPUT_MS, troopsCd: room.troopsCd || [0, 0], domeCd: room.domeCd || [0, 0], foodCd: room.foodCd || [0, 0], swordCd: room.swordCd || [0, 0], swordfish: room.players.map((p) => !p.bot && Boolean(ranking[p.sub]?.swordfish)), infernoCd: room.infernoCd || [0, 0], infernal: room.players.map((p) => !p.bot && Boolean(ranking[p.sub]?.infernal)), fireCd: room.fireCd || [0, 0], fireOn: room.fireOn || [false, false], fireballs: room.players.map((p) => !p.bot && Boolean(ranking[p.sub]?.fireballs)), dragonCd: room.dragonCd || [0, 0], dragons: room.players.map(dragonsOf), lifebuoys: room.players.map((p) => !p.bot && Boolean(ranking[p.sub]?.lifebuoy)) });
+const info = (room) => ({ names: room.players.map((p) => p.name), countries: room.players.map((p) => p.country || 'un'), levels: room.players.map((p) => Number(ranking[p.sub]?.level) || 1), skins: room.players.map((p) => (p.bot ? null : activeSkin(ranking[p.sub]))), maxShipHp: room.players.map(maxShipHealthForPlayer), blockRound: room.round % 10 === 0, warship: isWarshipRound(room), island: isIslandRound(room), hp: room.hp, cannons: room.cannons, round: room.round, over: room.over, tutorial: room.tutorial, inputMs: room.tutorial ? null : INPUT_MS, troopsCd: room.troopsCd || [0, 0], domeCd: room.domeCd || [0, 0], foodCd: room.foodCd || [0, 0], swordCd: room.swordCd || [0, 0], swordfish: room.players.map((p) => !p.bot && Boolean(ranking[p.sub]?.swordfish)), infernoCd: room.infernoCd || [0, 0], infernal: room.players.map((p) => !p.bot && Boolean(ranking[p.sub]?.infernal)), fireCd: room.fireCd || [0, 0], fireOn: room.fireOn || [false, false], fireballs: room.players.map((p) => !p.bot && Boolean(ranking[p.sub]?.fireballs)), dragonCd: room.dragonCd || [0, 0], dragons: room.players.map(dragonsOf), lifebuoys: room.players.map((p) => !p.bot && Boolean(ranking[p.sub]?.lifebuoy)) });
 
 // Secuencia aleatoria usando solo cañones que funcionan
 const workingSeq = (room, k) => {

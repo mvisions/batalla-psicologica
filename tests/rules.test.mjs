@@ -327,7 +327,7 @@ test('sin pedirlo el helicóptero no acude', () => {
 test('desde la ronda 20 el árbol horizontal bloquea dos carriles contiguos para ambos lados', () => {
   let withLog = 0;
   for (let n = 0; n < 300; n++) {
-    const room = setup({ round: 22, a: { attack: [1, 2, 3, 4], defense: seq(2) }, b: { attack: [4, 3, 2, 1], defense: seq(2) } });
+    const room = setup({ round: 26, a: { attack: [1, 2, 3, 4], defense: seq(2) }, b: { attack: [4, 3, 2, 1], defense: seq(2) } });
     room.wildlife = true;
     const { events } = resolveRound(room);
     for (const ev of events) {
@@ -433,9 +433,66 @@ test('el cubo flotante (rondas 8, 11, 14…) se hunde con un disparo y cura 10',
     healed += hits.length;
   }
   assert.ok(healed > 0);
-  for (const [round, expected] of [[7, false], [9, false], [10, false], [11, true], [14, true]]) {
+  for (const [round, expected] of [[7, false], [9, false], [10, false], [11, false], [14, true], [17, true]]) {
     const other = setup({ round, a: { attack: seq(1), defense: seq(2) }, b: { attack: seq(4), defense: seq(2) } });
     other.wildlife = true;
     assert.equal(resolveRound(other).events[0].bucket !== null, expected);
   }
+});
+
+test('el barco de guerra pirata (rondas 11, 22 y 33) espanta a los animales, se traga las balas y quita el 20 % a cada barco', () => {
+  for (const round of [13, 21, 44]) {
+    const room = setup({ round, a: { attack: seq(1), defense: seq(2) }, b: { attack: seq(4), defense: seq(2) } });
+    assert.ok(resolveRound(room).events.every((ev) => !ev.warship));
+  }
+  for (const round of [11, 22, 33]) {
+    const room = setup({ round, a: { attack: [1, 2, 3, 4], defense: seq(1) }, b: { attack: [4, 3, 2, 1], defense: seq(1) }, hp0: 100 });
+    room.wildlife = true; room.medkitMatch = true;
+    room.players[0].sword = true; room.players[0].troops = true;
+    const { events } = resolveRound(room);
+    assert.equal(events.length, 4);
+    for (const ev of events) {
+      assert.ok(ev.warship);
+      assert.ok(ev.shots.every((s) => s.target === 'warship'));
+      assert.equal(ev.gull, null); assert.equal(ev.squid, null); assert.equal(ev.log, null); assert.equal(ev.bucket, null); assert.equal(ev.medkit, null); assert.equal(ev.whale, null); assert.equal(ev.sub, null);
+      assert.equal(ev.troops, undefined); assert.equal(ev.sword, undefined);
+    }
+    assert.deepEqual(events.map((ev) => ev.warship.laser === null), [true, false, true, false]);
+    assert.notEqual(events[1].warship.laser, events[3].warship.laser);
+    assert.equal(room.hp[0].ship, 80);
+    assert.equal(room.hp[1].ship, 105 - 21);
+    assert.equal(room.hp[0].shark, 50);
+  }
+  const low = setup({ round: 22, a: { attack: seq(1), defense: seq(1) }, b: { attack: seq(1), defense: seq(1) }, hp0: 1 });
+  resolveRound(low);
+  assert.equal(low.hp[0].ship, 1); // el barco de guerra no hunde a nadie
+});
+
+test('la isla de los monos (solo ronda 9): mono fijo por carril, cae de un disparo y luego la bala pasa al barco', () => {
+  for (const round of [8, 17, 19]) {
+    const room = setup({ round, a: { attack: seq(1), defense: seq(2) }, b: { attack: seq(4), defense: seq(2) } });
+    assert.ok(resolveRound(room).events.every((ev) => !ev.monkeys));
+  }
+  const room = setup({ round: 9, a: { attack: [1, 1, 2, 2], defense: seq(1) }, b: { attack: [4, 3, 4, 3], defense: seq(4) } });
+  room.wildlife = true; room.medkitMatch = true;
+  const { events } = resolveRound(room);
+  assert.deepEqual(events[0].monkeys.map((m) => m.x), [-3, -1, 1, 3]);
+  assert.deepEqual(events[0].monkeys.map((m) => m.target).sort(), [0, 0, 1, 1]);
+  const coconut = [0, 0];
+  for (const ev of events) {
+    assert.equal(ev.gull, null); assert.equal(ev.squid, null); assert.equal(ev.log, null); assert.equal(ev.medkit, null); assert.equal(ev.sub, null);
+    assert.deepEqual((ev.coconuts || []).map((c) => c.id), ev.monkeys.map((m) => m.id));
+    for (const c of ev.coconuts || []) coconut[c.target] += c.dmg;
+  }
+  const t = (step, from) => events[step].shots.find((s) => s.from === from);
+  // jugador 0: carril 1 mata al mono 0, el siguiente disparo por el carril 1 atraviesa la isla y da al barco (sin tiburón)
+  assert.equal(t(0, 0).target, 'monkey'); assert.equal(t(0, 0).coin, 1); assert.equal(t(0, 0).monkey, 0);
+  assert.equal(t(1, 0).target, 'ship');
+  assert.equal(t(2, 0).target, 'monkey'); assert.equal(t(3, 0).target, 'ship');
+  assert.equal(t(0, 1).target, 'monkey'); assert.equal(t(1, 1).target, 'monkey');
+  assert.equal(t(2, 1).target, 'ship'); assert.equal(t(3, 1).target, 'ship');
+  assert.equal(events[3].monkeys.length, 0);
+  assert.equal(room.hp[0].shark, 50); assert.equal(room.hp[1].shark, 50);
+  assert.equal(room.hp[0].ship, 105 - coconut[0] - 14);
+  assert.equal(room.hp[1].ship, 105 - coconut[1] - 14);
 });

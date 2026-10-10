@@ -496,3 +496,91 @@ test('la ruleta cuesta 350, se tira una sola vez y su premio se queda como si se
     fs.rmSync(dataDir, { recursive: true, force: true });
   }
 });
+
+test('en la ronda del barco de guerra los dragones le atacan y dan 250 monedas', async () => {
+  const port = await unusedPort();
+  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'bp-warship-'));
+  fs.writeFileSync(path.join(dataDir, 'ranking.json'), JSON.stringify({ version: 2, allTime: [], weekly: [] }));
+  fs.writeFileSync(path.join(dataDir, 'profiles.json'), JSON.stringify({
+    'n:ana': { name: 'Ana', streak: 0, points: 0, wins: 0, level: 1, coins: 5, fireDragon: true },
+  }));
+  const projectDir = fileURLToPath(new URL('..', import.meta.url));
+  const child = spawn(process.execPath, ['server.js'], {
+    cwd: projectDir,
+    env: { ...process.env, PORT: String(port), DATA_DIR: dataDir, GOOGLE_CLIENT_ID: '', ALLOW_DEVELOPMENT_LOGIN: 'true', RATE_LIMIT: '100000', START_ROUND: '11' },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  const controller = new AbortController();
+  try {
+    await waitForServer(child);
+    const base = `http://127.0.0.1:${port}`;
+    const post = async (route, value) => {
+      const response = await fetch(`${base}${route}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(value) });
+      return { status: response.status, body: await response.json() };
+    };
+    const a = (await post('/api/create', { name: 'Ana', mode: 'pvp' })).body;
+    const b = (await post('/api/join', { name: 'Beto', token: a.token })).body;
+    const next = eventReader((await fetch(`${base}/api/events?room=${a.room}&pid=0&key=${a.key}`, { signal: controller.signal })).body);
+    await fetch(`${base}/api/events?room=${a.room}&pid=1&key=${b.key}`, { signal: controller.signal });
+    const state = await next('state');
+    assert.equal(state.round, 11);
+    assert.equal(state.warship, true);
+    assert.equal((await post('/api/dragon', { room: a.room, pid: 0, key: a.key })).status, 200);
+    await post('/api/submit', { room: a.room, pid: 0, key: a.key, attack: [1, 2, 3, 4], defense: [1, 1, 1, 1], wave: [0, 0, 0, 0] });
+    await post('/api/submit', { room: a.room, pid: 1, key: b.key, attack: [4, 3, 2, 1], defense: [2, 2, 2, 2], wave: [0, 0, 0, 0] });
+    const round = await next('round');
+    assert.deepEqual(round.events[0].dragon.map((d) => [d.owner, d.target, d.bonus]), [[0, 'warship', 250]]);
+    assert.ok(round.events.every((ev) => ev.warship && ev.shots.every((s) => s.target === 'warship')));
+    assert.equal(round.warship, false);
+    assert.equal((await post('/api/profile', { name: 'Ana' })).body.coins, 255);
+  } finally {
+    controller.abort();
+    child.kill();
+    fs.rmSync(dataDir, { recursive: true, force: true });
+  }
+});
+
+test('en la isla de los monos los dragones atacan a los monos y dan 50 monedas por dragón', async () => {
+  const port = await unusedPort();
+  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'bp-island-'));
+  fs.writeFileSync(path.join(dataDir, 'ranking.json'), JSON.stringify({ version: 2, allTime: [], weekly: [] }));
+  fs.writeFileSync(path.join(dataDir, 'profiles.json'), JSON.stringify({
+    'n:ana': { name: 'Ana', streak: 0, points: 0, wins: 0, level: 1, coins: 5, fireDragon: true, stormDragon: true },
+  }));
+  const projectDir = fileURLToPath(new URL('..', import.meta.url));
+  const child = spawn(process.execPath, ['server.js'], {
+    cwd: projectDir,
+    env: { ...process.env, PORT: String(port), DATA_DIR: dataDir, GOOGLE_CLIENT_ID: '', ALLOW_DEVELOPMENT_LOGIN: 'true', RATE_LIMIT: '100000', START_ROUND: '9' },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  const controller = new AbortController();
+  try {
+    await waitForServer(child);
+    const base = `http://127.0.0.1:${port}`;
+    const post = async (route, value) => {
+      const response = await fetch(`${base}${route}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(value) });
+      return { status: response.status, body: await response.json() };
+    };
+    const a = (await post('/api/create', { name: 'Ana', mode: 'pvp' })).body;
+    const b = (await post('/api/join', { name: 'Beto', token: a.token })).body;
+    const next = eventReader((await fetch(`${base}/api/events?room=${a.room}&pid=0&key=${a.key}`, { signal: controller.signal })).body);
+    await fetch(`${base}/api/events?room=${a.room}&pid=1&key=${b.key}`, { signal: controller.signal });
+    const state = await next('state');
+    assert.equal(state.round, 9);
+    assert.equal(state.island, true);
+    assert.equal((await post('/api/dragon', { room: a.room, pid: 0, key: a.key })).status, 200);
+    await post('/api/submit', { room: a.room, pid: 0, key: a.key, attack: [1, 2, 3, 4], defense: [1, 1, 1, 1], wave: [0, 0, 0, 0] });
+    await post('/api/submit', { room: a.room, pid: 1, key: b.key, attack: [4, 3, 2, 1], defense: [2, 2, 2, 2], wave: [0, 0, 0, 0] });
+    const round = await next('round');
+    const dragon = round.events[0].dragon;
+    assert.deepEqual(dragon.map((d) => [d.owner, d.target, d.bonus]), [[0, 'monkeys', 100]]);
+    assert.deepEqual(dragon[0].monkeys, [0, 1, 2, 3]);
+    assert.ok(round.events[0].shots.every((s) => s.target !== 'monkey'), 'los monos ya han caído ante los dragones');
+    assert.ok(round.events.slice(1).every((ev) => !ev.monkeys?.length && !ev.coconuts?.length));
+    assert.equal((await post('/api/profile', { name: 'Ana' })).body.coins, 105);
+  } finally {
+    controller.abort();
+    child.kill();
+    fs.rmSync(dataDir, { recursive: true, force: true });
+  }
+});

@@ -546,6 +546,9 @@ let activeEvents = null, spectatorAbort = null, spectatorMode = false, spectator
 let matchmaking = null, matchmakingPollTimer = null;
 const isRain = () => curRound % 5 === 0 && curRound !== 15;
 const isSwell = () => curRound % 6 === 0;
+const isWarship = () => !tutorialMode && [11, 22, 33].includes(curRound);
+const isIsland = () => !tutorialMode && curRound === 9;
+const noDefense = () => isRain() || isWarship() || isIsland(); // sin tiburones no hay defensa que elegir
 navigator.serviceWorker?.register('./sw.js').catch(() => {});
 // El servidor gratuito de Render se duerme: se despierta nada más abrir el juego
 {
@@ -561,6 +564,7 @@ document.addEventListener('visibilitychange', reconnectIfDropped);
 addEventListener('online', reconnectIfDropped);
 
 const scene = createScene($('arena'));
+scene.isTutorial = () => tutorialMode;
 {
   const fitHud = () => {
     const a = $('arena'), op = $('hudOp'), me = $('hudMe');
@@ -1343,11 +1347,14 @@ function badge(n) {
   if (n % 5 === 0 && n !== 15) lines.push('LLUVIA · ICEBERGS');
   if (n % 6 === 0) lines.push('OLEAJE');
   if (n % 7 === 0) lines.push('BALLENA EXTRA');
-  if (n % 3 === 0) lines.push('SUBMARINO');
+  const specialRound = !tutorialMode && [9, 11, 22, 33].includes(n); // barco de guerra o isla: no hay más animales ni objetos
+  if (n % 3 === 0 && !specialRound) lines.push('SUBMARINO');
   if (n === 15) lines.push('NIEVE');
   if (n === 25) lines.push('RAYOS');
   if (n === 35) lines.push('NIEBLA');
   if (n % 10 === 0) lines.push('BLOQUEO DE CAÑONES');
+  if (!tutorialMode && [11, 22, 33].includes(n)) lines.push('☠️ BARCO DE GUERRA PIRATA');
+  if (!tutorialMode && n === 9) lines.push('🏝️ ISLA DE LOS MONOS');
   el.style.display = lines.length ? 'block' : 'none';
   el.style.textAlign = 'center';
   el.innerHTML = lines.join('<br>');
@@ -1361,8 +1368,10 @@ const promptMsg = () => {
   if (curRound === 15) notes.push('Nieva sobre el mar');
   if (curRound === 25) notes.push('Caen rayos sobre el campo de batalla');
   if (curRound === 35) notes.push('La niebla cubre el mar');
-  if (curRound % 7 === 0) notes.push('La orca extra rebota las balas contra tu propio barco');
-  if (curRound % 3 === 0) notes.push('Un submarino cruza el mar: si tu bala le da, recuperas 5 y repara 5 el cañón que disparó');
+  if (curRound % 7 === 0 && !isWarship() && !isIsland()) notes.push('La orca extra rebota las balas contra tu propio barco');
+  if (isWarship()) notes.push('☠️ Un barco de guerra pirata ataca a los dos barcos (−20% de vida): tus balas se le quedan clavadas sin dañarlo; solo tus dragones pueden atacarlo y te dan +250 monedas');
+  if (isIsland()) notes.push('🏝️ Isla de los monos: cada mono (carril 1-4) te lanza cocos; dispárale para tumbarlo y ganar 1 moneda; si ya no está, tu bala pasa y da al barco rival. 🐉 Tus dragones atacan a los monos: +50 monedas por dragón');
+  if (curRound % 3 === 0 && !isWarship() && !isIsland()) notes.push('Un submarino cruza el mar: si tu bala le da, recuperas 5 y repara 5 el cañón que disparó');
   return notes.length ? notes.join(' · ') : 'Toca los cañones (ataque) y los círculos de agua (defensa)';
 };
 // Prepara los controles para una nueva ronda
@@ -1403,7 +1412,7 @@ function renderControls() {
   });
   document.querySelectorAll('.wbtn').forEach((b) => {
     const l = Number(b.dataset.l);
-    b.classList.toggle('hidden', !inputsOn || isRain());
+    b.classList.toggle('hidden', !inputsOn || noDefense());
     b.disabled = defSeq.length >= 4;
     b.querySelector('i').textContent = stepsOf(defSeq, l);
   });
@@ -1414,9 +1423,9 @@ function renderControls() {
     b.querySelector('i').textContent = stepsOf(blockSeq, l);
   });
   const fmtSeq = (s) => [0, 1, 2, 3].map((i) => s[i] ?? '–').join(' ');
-  $('seqTxt').textContent = `Ataque ${brokenAll ? 'sin cañones' : fmtSeq(atkSeq)}${isRain() ? '' : ` · Defensa ${fmtSeq(defSeq)}`}${blockRound ? ` · Bloqueo ${fmtSeq(blockSeq)}` : ''}`;
-  const done = (atkSeq.length === 4 || brokenAll) && (isRain() || defSeq.length === 4) && (!isSwell() || moves.length === 4) && (!blockRound || blockSeq.length === 4);
-  if (tutorialMode && tutorialStep === 'attack' && (atkSeq.length === 4 || brokenAll)) setTutorialStep(isRain() ? 'watch' : 'defense');
+  $('seqTxt').textContent = `Ataque ${brokenAll ? 'sin cañones' : fmtSeq(atkSeq)}${noDefense() ? '' : ` · Defensa ${fmtSeq(defSeq)}`}${blockRound ? ` · Bloqueo ${fmtSeq(blockSeq)}` : ''}`;
+  const done = (atkSeq.length === 4 || brokenAll) && (noDefense() || defSeq.length === 4) && (!isSwell() || moves.length === 4) && (!blockRound || blockSeq.length === 4);
+  if (tutorialMode && tutorialStep === 'attack' && (atkSeq.length === 4 || brokenAll)) setTutorialStep(noDefense() ? 'watch' : 'defense');
   else if (tutorialMode && tutorialStep === 'defense' && defSeq.length === 4) setTutorialStep(isSwell() ? 'wave' : 'watch');
   else if (tutorialMode && tutorialStep === 'wave' && moves.length === 4) setTutorialStep('watch');
   renderWave();
@@ -1556,27 +1565,28 @@ function setDragonsOwned(d) {
   scene.setDragons('me', d[pid] || {}); scene.setDragons('op', d[1 - pid] || {});
 }
 function updateTroops() {
-  const left = troopsCd[pid] || 0, ready = !troopsSent && left === 0 && !playing;
+  const war = isWarship(), isl = isIsland();
+  const left = troopsCd[pid] || 0, ready = !troopsSent && left === 0 && !playing && !war;
   const b = $('troops');
   b.classList.toggle('hidden', !!document.body.dataset.over || tutorialMode || spectatorMode || !room);
   b.classList.toggle('cooldown', !ready);
   b.disabled = !ready;
-  const dl = domeCd[pid] || 0, dready = !domeSent && dl === 0 && !playing, d = $('dome');
+  const dl = domeCd[pid] || 0, dready = !domeSent && dl === 0 && !playing && !war, d = $('dome');
   d.classList.toggle('hidden', b.classList.contains('hidden'));
   d.classList.toggle('cooldown', !dready);
   d.disabled = !dready;
-  const fl = foodCd[pid] || 0, fready = !foodSent && fl === 0 && !playing && (lastHp?.[pid]?.shark || 0) > 0, f = $('food');
+  const fl = foodCd[pid] || 0, fready = !foodSent && fl === 0 && !playing && !war && !isl && (lastHp?.[pid]?.shark || 0) > 0, f = $('food');
   f.classList.toggle('hidden', b.classList.contains('hidden'));
   f.classList.toggle('cooldown', !fready);
   f.disabled = !fready;
   f.title = foodSent ? 'Comida enviada' : (lastHp?.[pid]?.shark || 0) <= 0 ? 'Tu ballena ya no está viva' : fl > 0 ? `Comida lista en ${fl} ${fl === 1 ? 'ronda' : 'rondas'}` : 'Dar de comer a tu ballena (+25 de vida)';
   d.title = domeSent ? 'Cúpula activada' : dl > 0 ? `Cúpula lista en ${dl} ${dl === 1 ? 'ronda' : 'rondas'}` : 'Activar la cúpula sobre tu cañón más débil';
-  const sl = swordCd[pid] || 0, rivalShark = lastHp?.[1 - pid]?.shark || 0, sready = !swordSent && sl === 0 && !playing && rivalShark > 0, s = $('sword');
+  const sl = swordCd[pid] || 0, rivalShark = lastHp?.[1 - pid]?.shark || 0, sready = !swordSent && sl === 0 && !playing && !war && !isl && rivalShark > 0, s = $('sword');
   s.classList.toggle('hidden', b.classList.contains('hidden') || !swordOwned[pid]);
   s.classList.toggle('cooldown', !sready);
   s.disabled = !sready;
   s.title = swordSent ? 'Pez espada en camino' : rivalShark <= 0 ? 'La ballena rival ya no está viva' : sl > 0 ? `Pez espada listo en ${sl} ${sl === 1 ? 'ronda' : 'rondas'}` : 'Lanzar el pez espada contra la ballena rival (-10 de vida)';
-  const il = infernoCd[pid] || 0, iready = !infernoSent && il === 0 && !playing, inf = $('infernal');
+  const il = infernoCd[pid] || 0, iready = !infernoSent && il === 0 && !playing && !war, inf = $('infernal');
   inf.classList.toggle('hidden', b.classList.contains('hidden') || !infernoOwned[pid]);
   inf.classList.toggle('cooldown', !iready);
   inf.disabled = !iready;
@@ -1748,7 +1758,7 @@ async function submitSeq() {
   sending = true;
   unlockAudio();
   const broken = myCan.every((h) => h <= 0); // sin cañones no se dispara
-  const attack = broken ? [1, 1, 1, 1] : atkSeq, defense = isRain() ? [1, 1, 1, 1] : defSeq;
+  const attack = broken ? [1, 1, 1, 1] : atkSeq, defense = noDefense() ? [1, 1, 1, 1] : defSeq;
   const wave = isSwell() ? [...moves, 0, 0, 0, 0].slice(0, 4) : undefined;
   const block = blockRound ? blockSeq : undefined;
   try {
@@ -1902,6 +1912,11 @@ async function playRoundInner(r, replay = false) {
   if (r.levels) { scene.setShipLevel('me', r.levels[me], r.skins?.[me]); scene.setShipLevel('op', r.levels[op], r.skins?.[op]); showLevel('me', r.levels[me]); showLevel('op', r.levels[op]); } if (r.lifebuoys) { scene.setLifebuoy('me', r.lifebuoys[me]); scene.setLifebuoy('op', r.lifebuoys[op]); }
   const impactSfx = (t) => (t === 'ship' || t === 'whale' ? 'bomb' : t === 'shark' ? 'splash' : t === 'gull' ? 'gull' : 'clash');
   let subOn = false, octopusOn = false, medkitOn = false, gullOn = false, squidOn = false, logOn = false, bucketOn = false;
+  const ev0 = r.events[0];
+  if (ev0?.warship || ev0?.monkeys) { // el barco de guerra o la isla tienen que estar en su sitio antes del primer disparo
+    const faces = []; for (const m of ev0.monkeys || []) faces[m.id] = side(m.target);
+    await guard(Promise.all([ev0.warship ? scene.warshipArrive() : null, ev0.monkeys ? scene.islandShow(faces) : null]), 9000);
+  }
   for (const ev of r.events) {
     const slotEnd = Date.now() + SHOT_MS;
     $('msg').textContent = `Disparo ${ev.step + 1}/4`;
@@ -1927,6 +1942,11 @@ async function playRoundInner(r, replay = false) {
       sfx('shot');
       await f.done;
       if (s.target !== 'miss') sfx(impactSfx(s.target));
+      if (s.target === 'monkey') {
+        scene.monkeyKill(s.monkey);
+        scene.monkeyLabel(s.monkey, s.from === me ? '<small style="color:#ffd54f">🐒 +1 🪙</small>' : '<small style="color:#ffab91">🐒 +1 🪙 rival</small>');
+        if (s.from === me) sfx('coins');
+      }
       if (s.target === 'octopus' && ev.octopus?.release) {
         await scene.octopusSpin();
         const release = ev.octopus.release;
@@ -1936,6 +1956,11 @@ async function playRoundInner(r, replay = false) {
         if (release.target !== 'miss') sfx(impactSfx(release.target));
       }
     });
+    for (const c of ev.coconuts || []) impacts.push(scene.monkeyThrow(c.id, side(c.target)));
+    if (ev.warship) {
+      sfx('bomb');
+      impacts.push(scene.warshipVolley([0, 1].filter((k) => ev.warship.dmg[k] > 0).map(side), ev.warship.laser == null ? null : side(ev.warship.laser)));
+    }
     if (ev.heli) {
       sfx('heli');
       impacts.push((async () => { for (const h of ev.heli) await scene.heliSupport(side(h.owner)); })());
@@ -1953,6 +1978,20 @@ async function playRoundInner(r, replay = false) {
     if (ev.dragon) {
       impacts.push(Promise.all(ev.dragon.map(async (d) => {
         sfx('heli');
+        if (d.target === 'warship') {
+          await scene.dragonAttack(side(d.owner), 'warship', { fire: d.fire, storm: d.storm });
+          sfx('bomb'); sfx('coins');
+          scene.warshipLabel(`<small style="color:#ffd54f">🐉 +${d.bonus} 🪙${d.owner === me ? '' : ' rival'}</small>`);
+          if (d.owner === me && !replay && googleOn) showCoinRain(d.bonus);
+          return;
+        }
+        if (d.target === 'monkeys') {
+          await scene.dragonAttack(side(d.owner), 'monkeys', { fire: d.fire, storm: d.storm, monkeys: d.monkeys });
+          sfx('coins');
+          scene.warshipLabel(`<small style="color:#ffd54f">🐉🐒 +${d.bonus} 🪙${d.owner === me ? '' : ' rival'}</small>`);
+          if (d.owner === me && !replay && googleOn) showCoinRain(d.bonus);
+          return;
+        }
         await scene.dragonAttack(side(d.owner), side(d.target), { fire: d.fire, storm: d.storm });
         sfx('bomb');
         scene.label('ship', side(d.target), [d.fire && `<small style="color:#ff7043">-${d.shipDmg} 🐉🔥</small>`, d.storm && '<small style="color:#80deea">⚡ cañones -25%</small>'].filter(Boolean).join(' '), 2900, true);
@@ -2020,7 +2059,8 @@ async function playRoundInner(r, replay = false) {
     $('msg').textContent = r.winner === 'draw' ? 'Empate' : r.winner === me ? `¡Ganaste, ${names[me]}!${r.resigned === op ? ' Tu rival se retiró' : ''}` : `Perdiste. Ganó ${names[op]}`;
   } else {
     $('msg').textContent = promptMsg();
-    setupForm(); scene.setWeather(r.round); showLastRound(r, me, op);
+    setupForm(); scene.setWeather(r.round); showLastRound(r, me, op); updateTroops();
+    if (googleOn && r.events.some((ev) => ev.shots.some((x) => x.coin && x.from === me) || ev.dragon?.some((d) => d.bonus && d.owner === me))) loadProfile(); // monedas de monos o del barco de guerra
     showInputs(true);
     countdown();
   }
