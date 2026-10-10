@@ -256,15 +256,17 @@ export function createScene(container) {
     const hull = new THREE.Mesh(new THREE.ExtrudeGeometry(hs, { depth: 1, bevelEnabled: true, bevelThickness: 0.08, bevelSize: 0.08, bevelSegments: 3, curveSegments: 24 }).rotateX(-Math.PI / 2), hullMat);
     hull.position.y = -0.45; wrap.add(hull);
 
+    // Piezas de barco moderno (puente, chimenea, radar, ojos de buey...): se ocultan con la skin vikinga.
+    const modern = new THREE.Group(); wrap.add(modern);
     // Franja roja de flotación, línea blanca y ojos de buey
     for (const s of [-1, 1]) {
-      const strip = (mat, y, h) => { const m = new THREE.Mesh(new THREE.BoxGeometry(9.9, h, 0.03), mat); m.position.set(-1.6, y, s * 1.545); wrap.add(m); };
+      const strip = (mat, y, h) => { const m = new THREE.Mesh(new THREE.BoxGeometry(9.9, h, 0.03), mat); m.position.set(-1.6, y, s * 1.545); modern.add(m); };
       strip(bootM, -0.2, 0.2); strip(whiteM, 0.52, 0.06);
     }
     const ports = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.07, 0.07, 0.04, 10).rotateX(Math.PI / 2), glass, 32);
     const m4 = new THREE.Matrix4(); let pn = 0;
     for (const s of [-1, 1]) for (let i = 0; i < 16; i++) { m4.makeTranslation(-5.9 + i * 0.6, 0.22, s * 1.552); ports.setMatrixAt(pn++, m4); }
-    wrap.add(ports);
+    modern.add(ports);
 
     const ds = new THREE.Shape(); const L2 = 6.2, b2 = 1.2;
     ds.moveTo(-L2, -b2); ds.lineTo(L2 - 3.2, -b2); ds.quadraticCurveTo(L2 - 0.6, -b2, L2 + 0.6, 0);
@@ -366,8 +368,156 @@ export function createScene(container) {
     }
     goldSkin.visible = false; wrap.add(goldSkin);
 
-    const box = (w, h, d, mat, x, y, z) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat); m.position.set(x, y, z); wrap.add(m); return m; };
-    const cyl = (r0, r1, h, mat, x, y, z) => { const m = new THREE.Mesh(new THREE.CylinderGeometry(r0, r1, h, 16), mat); m.position.set(x, y, z); wrap.add(m); return m; };
+    // Skin de la tienda: drakkar vikingo con tracas de madera, mascarón de dragón dorado, cola en espiral,
+    // escudos pintados, remos que bogan y vela a rayas con valknut.
+    const vikingSkin = new THREE.Group();
+    const vkWoodA = new THREE.MeshStandardMaterial({ color: 0x7a4b27, roughness: 0.72 });
+    const vkWoodB = new THREE.MeshStandardMaterial({ color: 0x4e2c15, roughness: 0.78 });
+    const vkRed = new THREE.MeshStandardMaterial({ color: 0x9c1c1c, roughness: 0.5, emissive: 0x2a0303, emissiveIntensity: 0.3 });
+    const vkGold = new THREE.MeshStandardMaterial({ color: 0xf2c14e, metalness: 0.85, roughness: 0.22, emissive: 0x5a3a08, emissiveIntensity: 0.28 });
+    const vkIron = new THREE.MeshStandardMaterial({ color: 0xb0b8bd, metalness: 0.8, roughness: 0.3 });
+    const vkBone = new THREE.MeshStandardMaterial({ color: 0xfff6e0, roughness: 0.4 });
+    const vkEye = new THREE.MeshStandardMaterial({ color: 0xfff176, emissive: 0xffb300, emissiveIntensity: 1.6 });
+    const vkBlack = new THREE.MeshStandardMaterial({ color: 0x120a06, roughness: 0.4 });
+    const vkRope = new THREE.MeshStandardMaterial({ color: 0x3a2716, roughness: 0.9 });
+    const ball = new THREE.SphereGeometry(1, 14, 10);
+    const vk = (geo, mat, x, y, z, parent = vikingSkin) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); parent.add(m); return m; };
+    const blob = (mat, x, y, z, sx, sy, sz, parent) => { const m = vk(ball, mat, x, y, z, parent); m.scale.set(sx, sy, sz); return m; };
+
+    // Popa redondeada (el casco moderno acaba en espejo plano)
+    const SX = -6.5, SY = 0.1, SA = 1.05, SH = 0.56, SW = 1.53;
+    blob(hullMat, SX, SY, 0, SA, SH, SW);
+    // Tracas solapadas que rodean el casco: proa → costado → popa redonda → costado → proa
+    const outline = (y, o) => {
+      const k = Math.sqrt(Math.max(0.05, 1 - ((y - SY) / SH) ** 2)), w = SW + o, pts = [];
+      const bez = (t, a, c, d) => (1 - t) ** 2 * a + 2 * (1 - t) * t * c + t * t * d;
+      for (const s of [1, -1]) {
+        const side = [];
+        for (let i = 0; i <= 8; i++) { const t = i / 8; side.push(V(bez(t, 7.5 + o, 5.9, 3.3), y, s * bez(t, 0, w, w))); }
+        for (let x = 2.3; x > SX; x -= 1.4) side.push(V(x, y, s * w));
+        for (let i = 0; i <= 8; i++) { const a = (i / 8) * (Math.PI / 2); side.push(V(SX - (SA * k + o) * Math.sin(a), y, s * (SW * k + o + (w - SW * k - o) * (1 - Math.sin(a)) ** 3) * Math.cos(a))); }
+        pts.push(...(s > 0 ? side : side.reverse().slice(1, -1)));
+      }
+      return new THREE.CatmullRomCurve3(pts, true);
+    };
+    [[-0.26, vkWoodB], [-0.06, vkWoodA], [0.14, vkWoodB], [0.33, vkRed], [0.5, vkWoodA]].forEach(([y, mat]) => {
+      const m = new THREE.Mesh(new THREE.TubeGeometry(outline(y, 0.02), 220, 0.085, 6, true), mat); m.scale.y = 0.85; m.position.y = y * 0.15; vikingSkin.add(m);
+    });
+    vikingSkin.add(new THREE.Mesh(new THREE.TubeGeometry(outline(0.64, 0), 220, 0.06, 8, true), vkGold));
+
+    // Cadena de "escamas" que forma el cuello del dragón y la cola, con crestas doradas
+    const chain = (curve, n, r0, r1, crest) => {
+      for (let i = 0; i <= n; i++) {
+        const t = i / n, p = curve.getPoint(t), r = r0 + (r1 - r0) * t;
+        blob(i % 3 === 2 ? vkGold : i % 2 ? vkRed : vkWoodA, p.x, p.y, p.z, r, r, r * 0.9);
+        if (crest && i % 2 === 0 && i < n) {
+          const tg = curve.getTangent(t), spike = vk(new THREE.ConeGeometry(r * 0.45, r * 1.5, 8), vkGold, p.x, p.y, p.z);
+          spike.quaternion.setFromUnitVectors(V(0, 1, 0), V(-tg.y, tg.x, 0).normalize().multiplyScalar(crest).add(V(-tg.x * 0.4, -tg.y * 0.4, 0)).normalize());
+          spike.translateY(r * 0.9);
+        }
+      }
+    };
+    const neck = new THREE.CatmullRomCurve3([V(6.85, 0.35, 0), V(7.45, 0.9, 0), V(7.62, 1.65, 0), V(7.38, 2.3, 0), V(7.12, 2.72, 0)]);
+    chain(neck, 22, 0.36, 0.22, 1);
+    const head = new THREE.Group(); head.position.set(7.28, 3.08, 0); head.rotation.z = -0.15; head.scale.setScalar(1.55); vikingSkin.add(head);
+    blob(vkRed, 0, 0, 0, 0.4, 0.31, 0.29, head);
+    blob(vkGold, 0.08, 0.2, 0, 0.26, 0.09, 0.3, head);
+    blob(vkRed, 0.42, 0.04, 0, 0.42, 0.15, 0.21, head);
+    blob(vkGold, 0.82, 0.09, 0, 0.09, 0.08, 0.13, head);
+    blob(vkBlack, 0.4, -0.1, 0, 0.36, 0.07, 0.16, head);
+    const jaw = new THREE.Group(); jaw.position.set(0.05, -0.12, 0); jaw.rotation.z = -0.38; head.add(jaw);
+    blob(vkGold, 0.36, 0, 0, 0.38, 0.07, 0.17, jaw);
+    const tongue = vk(new THREE.ConeGeometry(0.05, 0.5, 6).rotateZ(-Math.PI / 2), vkRed, 0.75, 0.05, 0, jaw); tongue.rotation.y = 0.1;
+    for (const side of [-1, 1]) {
+      for (let i = 0; i < 4; i++) {
+        vk(new THREE.ConeGeometry(0.03, 0.12, 6).rotateX(Math.PI), vkBone, 0.3 + i * 0.13, -0.08, side * 0.14, head);
+        vk(new THREE.ConeGeometry(0.03, 0.11, 6), vkBone, 0.24 + i * 0.13, 0.08, side * 0.12, jaw);
+      }
+      blob(vkEye, 0.2, 0.15, side * 0.22, 0.08, 0.07, 0.06, head);
+      blob(vkBlack, 0.25, 0.15, side * 0.265, 0.025, 0.05, 0.02, head);
+      const horn = vk(new THREE.ConeGeometry(0.07, 0.7, 8), vkGold, -0.28, 0.32, side * 0.16, head); horn.rotation.set(side * -0.25, 0, 1.15);
+      const fin = vk(new THREE.ConeGeometry(0.12, 0.42, 3), vkGold, -0.1, 0.12, side * 0.3, head); fin.rotation.set(side * 1.1, 0, 1.3); fin.scale.z = 0.3;
+      const whisker = new THREE.CatmullRomCurve3([V(0.7, 0.02, side * 0.18), V(0.75, -0.15, side * 0.4), V(0.55, -0.45, side * 0.5), V(0.35, -0.6, side * 0.42)]);
+      head.add(new THREE.Mesh(new THREE.TubeGeometry(whisker, 12, 0.02, 5, false), vkGold));
+    }
+    for (const [y, r] of [[0.15, 1.35], [0, 1.5], [-0.15, 1.7]]) { const mane = vk(new THREE.ConeGeometry(0.08, 0.55, 6), vkGold, -0.32, y, 0, head); mane.rotation.z = r; }
+    const tailCurve = new THREE.CatmullRomCurve3([V(-6.95, 0.35, 0), V(-7.55, 0.95, 0), V(-7.78, 1.75, 0), V(-7.55, 2.4, 0), V(-7.08, 2.6, 0), V(-6.85, 2.3, 0), V(-7.02, 2.02, 0), V(-7.3, 2.12, 0)]);
+    chain(tailCurve, 26, 0.34, 0.09, 1);
+    blob(vkGold, -7.3, 2.12, 0, 0.14, 0.14, 0.14);
+
+    // Escudos pintados colgados de la borda (con aro de hierro y umbo)
+    const shieldTex = [['#c62828', '#f4ecd8', 'quarter'], ['#1e4f9a', '#f2c14e', 'half'], ['#f4ecd8', '#2e7d32', 'cross'], ['#f2c14e', '#8e1b1b', 'spiral']].map(([a, c, kind]) => canvasTex(128, 128, (g, w) => {
+      const r = w / 2; g.fillStyle = a; g.beginPath(); g.arc(r, r, r, 0, Math.PI * 2); g.fill(); g.fillStyle = c;
+      if (kind === 'quarter') { for (const q of [0, 2]) { g.beginPath(); g.moveTo(r, r); g.arc(r, r, r, q * Math.PI / 2, (q + 1) * Math.PI / 2); g.fill(); } }
+      else if (kind === 'half') { g.beginPath(); g.moveTo(r, r); g.arc(r, r, r, -Math.PI / 2, Math.PI / 2); g.fill(); }
+      else if (kind === 'cross') { g.fillRect(r - 12, 0, 24, w); g.fillRect(0, r - 12, w, 24); }
+      else { g.lineWidth = 12; g.strokeStyle = c; for (let k = 0; k < 3; k++) { g.beginPath(); g.arc(r, r, r * 0.62, k * 2.09, k * 2.09 + 1.7); g.stroke(); } }
+      for (let i = 0; i < 9; i++) { g.fillStyle = 'rgba(60,30,10,.12)'; g.fillRect(0, i * 14 + 3, w, 3); }
+    }));
+    const shieldGeo = new THREE.CylinderGeometry(0.44, 0.44, 0.05, 28).rotateX(Math.PI / 2);
+    const rimGeo = new THREE.TorusGeometry(0.44, 0.035, 6, 28), bossGeo = new THREE.SphereGeometry(0.09, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2).rotateX(Math.PI / 2);
+    for (const s of [-1, 1]) for (const [i, x] of [-5.4, -4.35, -3.3, -2.25, -1.2, -0.15, 0.9, 1.95, 3.0].entries()) {
+      const face = new THREE.MeshStandardMaterial({ map: shieldTex[(i + (s > 0 ? 0 : 2)) % 4], roughness: 0.55 });
+      const shield = new THREE.Group(); shield.position.set(x, 0.62, s * 1.6); shield.rotation.x = -s * 0.5; vikingSkin.add(shield);
+      vk(shieldGeo, [vkWoodB, face, face], 0, 0, 0, shield);
+      vk(rimGeo, vkIron, 0, 0, s * 0.03, shield);
+      const boss = vk(bossGeo, vkIron, 0, 0, s * 0.03, shield); if (s < 0) boss.rotation.y = Math.PI;
+    }
+
+    // Remos que salen por debajo de los escudos y bogan al compás
+    const oars = [];
+    const oarShaft = new THREE.CylinderGeometry(0.045, 0.05, 1.45, 6).rotateX(Math.PI / 2), oarBlade = new THREE.BoxGeometry(0.06, 0.26, 0.5);
+    for (const s of [-1, 1]) for (const x of [-4.87, -3.82, -2.77, -1.72, -0.67, 0.38, 1.43, 2.48]) {
+      const pivot = new THREE.Group(); pivot.position.set(x, 0.12, s * 1.6); vikingSkin.add(pivot);
+      const arm = new THREE.Group(); arm.rotation.x = s * 0.75; pivot.add(arm);
+      vk(oarShaft, vkWoodA, 0, 0, s * 0.72, arm); vk(oarBlade, vkRed, 0, 0, s * 1.5, arm);
+      oars.push({ pivot, arm, s });
+    }
+
+    // Bancos de remeros y cofres en cubierta
+    for (const [x, w] of [[-6.0, 2.1], [-3.0, 2.3], [3.0, 2.3], [5.7, 1.5]]) {
+      vk(new THREE.BoxGeometry(0.32, 0.1, w), vkWoodB, x, DY + 0.08, 0);
+      for (const s of [-1, 1]) vk(new THREE.BoxGeometry(0.34, 0.03, 0.05), vkGold, x, DY + 0.14, s * (w / 2 - 0.12));
+    }
+    for (const [x, z] of [[-5.2, 0.75], [5.0, -0.6]]) {
+      vk(new THREE.BoxGeometry(0.6, 0.32, 0.4), vkRed, x, DY + 0.16, z);
+      vk(new THREE.BoxGeometry(0.64, 0.05, 0.44), vkGold, x, DY + 0.33, z);
+    }
+    // Mástil, verga, jarcia y vela hinchada por el viento. El aparejo se inclina hacia popa (lejos de los cañones)
+    // para que la vela mire a la cámara cenital y luzca entera.
+    const RAKE = 0.55, rig = new THREE.Group(); rig.position.y = DY; rig.rotation.x = -sign * RAKE; vikingSkin.add(rig);
+    vk(new THREE.CylinderGeometry(0.08, 0.12, 4.6, 12), vkWoodB, 0, 2.3, 0, rig);
+    vk(new THREE.CylinderGeometry(0.06, 0.06, 5.5, 10).rotateZ(Math.PI / 2), vkWoodB, 0, 4.2, 0, rig);
+    for (const x of [-2.75, 2.75]) blob(vkGold, x, 4.2, 0, 0.1, 0.1, 0.1, rig);
+    blob(vkGold, 0, 4.62, 0, 0.13, 0.13, 0.13, rig);
+    const rigPoint = (y) => V(0, DY + y * Math.cos(RAKE), -sign * y * Math.sin(RAKE));
+    const rope = (a, b) => { const d = b.clone().sub(a), m = vk(new THREE.CylinderGeometry(0.014, 0.014, d.length(), 4), vkRope, (a.x + b.x) / 2, (a.y + b.y) / 2, (a.z + b.z) / 2); m.quaternion.setFromUnitVectors(V(0, 1, 0), d.normalize()); };
+    rope(rigPoint(4.5), V(6.7, DY + 0.05, 0)); rope(rigPoint(4.5), V(-6.6, DY + 0.05, 0));
+    const sailTex = canvasTex(272, 200, (g, w, h) => {
+      const n = 7, sw = w / n;
+      for (let i = 0; i < n; i++) { g.fillStyle = i % 2 ? '#f3e8cf' : '#b3171d'; g.fillRect(i * sw, 0, sw + 1, h); }
+      for (let y = 0; y < h; y += 4) { g.fillStyle = `rgba(80,40,10,${0.04 + Math.random() * 0.05})`; g.fillRect(0, y, w, 1); }
+      g.strokeStyle = '#5a2e12'; g.lineWidth = 8; g.strokeRect(4, 4, w - 8, h - 8);
+      const cx = w / 2, cy = h / 2;
+      g.fillStyle = '#2a140a'; g.beginPath(); g.arc(cx, cy, 52, 0, Math.PI * 2); g.fill();
+      g.strokeStyle = '#f2c14e'; g.lineWidth = 6; g.beginPath(); g.arc(cx, cy, 52, 0, Math.PI * 2); g.stroke();
+      g.lineWidth = 5; g.lineJoin = 'round';
+      for (let k = 0; k < 3; k++) {
+        const a0 = k * (Math.PI * 2 / 3), ox = Math.cos(a0 - Math.PI / 2) * 9, oy = Math.sin(a0 - Math.PI / 2) * 9;
+        g.beginPath();
+        for (let j = 0; j < 3; j++) { const a = a0 + j * (Math.PI * 2 / 3) - Math.PI / 2; g.lineTo(cx + ox + Math.cos(a) * 30, cy + oy + Math.sin(a) * 30); }
+        g.closePath(); g.stroke();
+      }
+    });
+    const sailGeo = new THREE.PlaneGeometry(5.2, 3.0, 24, 12), sp = sailGeo.attributes.position;
+    for (let i = 0; i < sp.count; i++) { const u = sp.getX(i) / 2.6, v = sp.getY(i) / 1.5; sp.setZ(i, sign * 0.55 * (1 - u * u) * (1 - 0.3 * (v - 0.2) ** 2)); }
+    sailGeo.computeVertexNormals();
+    const sail = vk(sailGeo, new THREE.MeshStandardMaterial({ map: sailTex, side: THREE.DoubleSide, roughness: 0.88 }), 0, 2.68, 0, rig);
+    if (sign < 0) sail.scale.x = -1; // el rival está girado: así el emblema no sale en espejo
+    vikingSkin.visible = false; wrap.add(vikingSkin);
+
+    const box = (w, h, d, mat, x, y, z) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat); m.position.set(x, y, z); modern.add(m); return m; };
+    const cyl = (r0, r1, h, mat, x, y, z) => { const m = new THREE.Mesh(new THREE.CylinderGeometry(r0, r1, h, 16), mat); m.position.set(x, y, z); modern.add(m); return m; };
 
     // Barandillas
     const posts = new THREE.InstancedMesh(new THREE.BoxGeometry(0.03, 0.3, 0.03), steel, 40);
@@ -376,7 +526,7 @@ export function createScene(container) {
       box(9.2, 0.025, 0.025, steel, -1.4, DY + 0.3, s * 1.13);
       for (let i = 0; i < 19; i++) { m4.makeTranslation(-5.9 + i * 0.5, DY + 0.15, s * 1.13); posts.setMatrixAt(rn++, m4); }
     }
-    wrap.add(posts);
+    modern.add(posts);
 
     // Puente de mando, chimenea y mástil
     box(1.5, 0.9, 1.3, steel, 0, DY + 0.45, 0.1);
@@ -394,7 +544,7 @@ export function createScene(container) {
     for (const x of [-0.7, 0.7]) { cyl(0.07, 0.07, 0.16, dark, x, DY + 1.1, -0.5).rotation.x = Math.PI / 2; }
     // Bandera en proa: asta en la punta de la cubierta y la tela ondea hacia popa
     const flagGeo = new THREE.PlaneGeometry(1.5, 1.1, 14, 1); flagGeo.translate(who === 'op' ? 0.75 : -0.75, 0, 0);
-    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.045, 1.9, 8), dark); pole.position.set(6.2, DY + 0.95, 0); wrap.add(pole);
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.045, 1.9, 8), dark); pole.position.set(6.2, DY + 0.95, 0); modern.add(pole);
     const flag = new THREE.Mesh(flagGeo, new THREE.MeshStandardMaterial({ color: 0xdddddd, side: THREE.DoubleSide, roughness: 0.8 }));
     flag.position.set(6.2, DY + 1.5, 0);
     if (who === 'op') flag.rotation.y = Math.PI; // el barco rival está girado: así la bandera no se ve al revés
@@ -410,7 +560,7 @@ export function createScene(container) {
     }
     for (const x of [-3.2, 3.2]) for (const z of [-1.0, 1.0]) {
       const lb = new THREE.Mesh(new THREE.CapsuleGeometry(0.16, 0.75, 4, 10), dark);
-      lb.rotation.z = Math.PI / 2; lb.position.set(x, DY + 0.18, z); wrap.add(lb);
+      lb.rotation.z = Math.PI / 2; lb.position.set(x, DY + 0.18, z); modern.add(lb);
     }
 
     // Torretas con armadura angular y cañones dobles
@@ -444,7 +594,7 @@ export function createScene(container) {
     if (who === 'op') g.rotation.y = Math.PI;
     scene.add(g);
     applyModelShadows(g);
-    return { g, wrap, hullMat, steel, turrets, radar, flag, flagBase, skins: { dragon: dragonSkin, gondola: gondolaSkin, santa: santaSkin, ice: iceSkin, lava: lavaSkin, gold: goldSkin }, palette, base, red, ratio: 1, smokeAcc: 0, puffAcc: 0, phase: who === 'me' ? 0 : 2, hitT: 0, off: 0 };
+    return { g, wrap, hullMat, steel, turrets, radar, flag, flagBase, flagHome: flag.position.clone(), flagMast: V(0, DY + 4.95 * Math.cos(0.55), -sign * 4.95 * Math.sin(0.55)), modern, oars, sail, skins: { dragon: dragonSkin, gondola: gondolaSkin, santa: santaSkin, ice: iceSkin, lava: lavaSkin, gold: goldSkin, viking: vikingSkin }, palette, base, red, ratio: 1, smokeAcc: 0, puffAcc: 0, phase: who === 'me' ? 0 : 2, hitT: 0, off: 0 };
   }
 
   // ---------- Tiburones ----------
@@ -574,11 +724,12 @@ export function createScene(container) {
     }
   }
 
-  function setShipLevel(who, level) {
+  function setShipLevel(who, level, skin = null) {
     const ship = ships[who];
     if (!ship) return;
     const currentLevel = Number(level) || 1;
-    const style = currentLevel >= 30 ? { skin: 'gold', hull: 0xc79b35, steel: 0xffd778, turret: 0xf6c75a, emissive: 0x5b3d09, intensity: 0.16 }
+    const style = skin === 'viking' ? { skin: 'viking', hull: 0x5d3a1e, steel: 0x8d6e4c, turret: 0x9e8062, emissive: 0x000000, intensity: 0 }
+      : currentLevel >= 30 ? { skin: 'gold', hull: 0xc79b35, steel: 0xffd778, turret: 0xf6c75a, emissive: 0x5b3d09, intensity: 0.16 }
       : currentLevel >= 25 ? { skin: 'lava', hull: 0x352024, steel: 0x743b2b, turret: 0x9d4f2b, emissive: 0xff3300, intensity: 0.46 }
         : currentLevel >= 20 ? { skin: 'ice', hull: 0xa8dce9, steel: 0xe7fbff, turret: 0xbee5f1, emissive: 0x297994, intensity: 0.17 }
           : currentLevel >= 15 ? { skin: 'santa', hull: 0x70472d, steel: 0xb58953, turret: 0xd0b072, emissive: 0x000000, intensity: 0 }
@@ -586,6 +737,10 @@ export function createScene(container) {
               : currentLevel >= 5 ? { skin: 'dragon', hull: 0x77333a, steel: 0xc99f4b, turret: 0xc4a259, emissive: 0x240607, intensity: 0.08 }
                 : { skin: null, hull: 0x7d8a96, steel: 0x8e99a1, turret: 0xa4afb6, emissive: 0x000000, intensity: 0 };
     for (const [name, group] of Object.entries(ship.skins)) group.visible = name === style.skin;
+    const viking = style.skin === 'viking';
+    ship.modern.visible = !viking;
+    ship.flag.position.copy(viking ? ship.flagMast : ship.flagHome);
+    ship.flag.scale.setScalar(viking ? 0.75 : 1);
     ship.palette.hull.set(style.hull);
     ship.palette.steel.set(style.steel);
     ship.palette.turret.set(style.turret);
@@ -1092,22 +1247,26 @@ export function createScene(container) {
       w.position.y = 0.12; g.add(w); return w;
     });
     g.visible = false; g.scale.setScalar(1.3); scene.add(g);
-    const s = { g, wings, present: false, x: 0, falling: false };
+    const s = { g, wings, present: false, x: 0, falling: false, face: 1 };
     frameHooks.push((dt, t) => {
       if (!s.present || s.falling) return;
       const flap = Math.sin(t * 13) * 0.7;
       wings[0].rotation.x = flap; wings[1].rotation.x = -flap;
       g.rotation.z = Math.sin(t * 6.5) * 0.04;
+      // el modelo mira a +x: si vuela hacia la izquierda gira 180° sobre sí misma
+      const want = s.face < 0 ? Math.PI : 0;
+      g.rotation.y += (want - g.rotation.y) * Math.min(1, dt * 9);
     });
     return s;
   })();
   async function gullFly(wx) {
     const s = gull;
     if (!s.present) {
-      s.present = true; s.falling = false; s.g.visible = true; s.g.rotation.set(0, 0, 0); s.g.scale.setScalar(1.3);
+      s.present = true; s.falling = false; s.g.visible = true; s.face = 1; s.g.rotation.set(0, 0, 0); s.g.scale.setScalar(1.3);
       s.g.position.set(wx - 7, 3.4, 0); s.x = wx - 7;
     }
     const from = s.g.position.x, y0 = s.g.position.y;
+    if (Math.abs(wx - from) > 0.01) s.face = Math.sign(wx - from);
     s.x = wx;
     await tween(900, (t) => { s.g.position.x = from + (wx - from) * t; s.g.position.y = y0 + (1.9 - y0) * t + Math.sin(t * Math.PI) * 0.35; }, easeInOut);
   }
@@ -1115,9 +1274,9 @@ export function createScene(container) {
     const s = gull;
     if (!s.present) return;
     s.present = false;
-    const x0 = s.g.position.x, y0 = s.g.position.y;
-    s.falling = false;
-    await tween(1000, (t) => { s.g.position.x = x0 + 8 * t; s.g.position.y = y0 + 3 * t; }, easeIn);
+    const x0 = s.g.position.x, y0 = s.g.position.y, r0 = s.g.rotation.y;
+    s.falling = false; s.face = 1;
+    await tween(1000, (t) => { s.g.position.x = x0 + 8 * t; s.g.position.y = y0 + 3 * t; s.g.rotation.y = r0 * Math.max(0, 1 - t * 4); }, easeIn);
     s.g.visible = false;
   }
   async function gullShot() {
@@ -1130,10 +1289,10 @@ export function createScene(container) {
     }
     sparks(p, 12, 4, 0xffffff);
     shake(0.1, 0.25);
-    const x0 = p.x, y0 = p.y;
+    const x0 = p.x, y0 = p.y, face = s.face < 0 ? -1 : 1, ry = s.g.rotation.y;
     await tween(900, (t) => {
-      s.g.position.set(x0 + 0.8 * t, y0 - (y0 + 0.3) * t * t, 0);
-      s.g.rotation.set(t * 7, 0, t * 4);
+      s.g.position.set(x0 + 0.8 * face * t, y0 - (y0 + 0.3) * t * t, 0);
+      s.g.rotation.set(t * 7, ry, t * 4);
       s.wings[0].rotation.x = 0.4; s.wings[1].rotation.x = -0.4;
     }, easeIn);
     splash(V(s.g.position.x, 0.2, 0)); ripple(s.g.position.x, 0, 3.4);
@@ -1212,33 +1371,44 @@ export function createScene(container) {
     tween(450, (t) => { s.g.rotation.z = Math.sin(t * Math.PI * 5) * 0.2 * (1 - t); s.skin.emissive.lerpColors(new THREE.Color(0xffffff), new THREE.Color(0x3a0a05), t); s.g.position.y = y0 + Math.sin(t * Math.PI) * 0.4; }).then(() => { s.g.rotation.z = 0; });
   }
 
-  // ---------- Tronco con ramas (desde la ronda 20): bloquea los disparos de ambos lados ----------
+  // ---------- Árbol caído en horizontal (ronda 7 y desde la 20): ocupa dos carriles y bloquea los disparos de ambos lados ----------
   const logObj = (() => {
     const g = new THREE.Group();
     const bark = new THREE.MeshStandardMaterial({ color: 0x5b4030, roughness: 0.95, flatShading: true });
     const wood = new THREE.MeshStandardMaterial({ color: 0xc8a06a, roughness: 0.8 });
     const leaf = new THREE.MeshStandardMaterial({ color: 0x3f7d2a, roughness: 0.8, flatShading: true });
-    const trunkGeo = new THREE.CylinderGeometry(0.55, 0.62, 5.6, 12, 6).rotateX(Math.PI / 2);
+    const leafLight = new THREE.MeshStandardMaterial({ color: 0x5c9c3a, roughness: 0.8, flatShading: true });
+    // tronco tumbado a lo ancho del mar (eje X): cubre los dos carriles contiguos
+    const trunkGeo = new THREE.CylinderGeometry(0.45, 0.6, 4.4, 12, 8).rotateZ(Math.PI / 2);
     const pp = trunkGeo.attributes.position;
-    for (let i = 0; i < pp.count; i++) { const k = rnd(0.92, 1.08); pp.setX(i, pp.getX(i) * k); pp.setY(i, pp.getY(i) * k); }
+    for (let i = 0; i < pp.count; i++) { const k = rnd(0.92, 1.08); pp.setY(i, pp.getY(i) * k); pp.setZ(i, pp.getZ(i) * k); }
     trunkGeo.computeVertexNormals();
-    g.add(new THREE.Mesh(trunkGeo, bark));
-    for (const z of [-2.82, 2.82]) {
-      const cap = new THREE.Mesh(new THREE.CircleGeometry(0.52, 12), wood);
-      cap.position.z = z; cap.rotation.y = z > 0 ? 0 : Math.PI; g.add(cap);
-    }
-    [[-1.4, 1, 1.0], [0.6, -1, 1.2], [1.8, 1, 0.8]].forEach(([z, side, len]) => {
-      const stick = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.15, len + 0.5, 6), bark);
-      stick.position.set(side * (len * 0.45 + 0.3), 0.55, z); stick.rotation.z = -side * 0.95; g.add(stick);
-      const tuft = new THREE.Mesh(new THREE.IcosahedronGeometry(0.38, 0), leaf);
-      tuft.position.set(side * (len * 0.9 + 0.6), 1.15, z); g.add(tuft);
+    const trunk = new THREE.Mesh(trunkGeo, bark); trunk.position.x = -0.5; g.add(trunk);
+    const cap = new THREE.Mesh(new THREE.CircleGeometry(0.58, 12), wood);
+    cap.position.x = -2.71; cap.rotation.y = -Math.PI / 2; g.add(cap);
+    // raíces en la base del tronco
+    [[0.5, 0.3], [-0.4, 0.5], [0.1, -0.55], [-0.5, -0.3]].forEach(([y, z]) => {
+      const root = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.14, 0.9, 6), bark);
+      root.position.set(-2.8, y * 0.75, z * 0.75); root.rotation.set(z * 1.2, 0, Math.PI / 2 + y * 1.4); g.add(root);
+    });
+    // ramas a lo largo del tronco
+    [[-1.5, 1, 0.8], [-0.2, -1, 0.9], [0.9, 1, 0.7]].forEach(([x, side, len]) => {
+      const stick = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.13, len + 0.4, 6), bark);
+      stick.position.set(x, 0.5, side * (len * 0.4 + 0.25)); stick.rotation.x = side * 0.95; g.add(stick);
+      const tuft = new THREE.Mesh(new THREE.IcosahedronGeometry(0.34, 0), leaf);
+      tuft.position.set(x, 1.05, side * (len * 0.8 + 0.5)); g.add(tuft);
+    });
+    // copa del árbol en la punta
+    [[2.05, 0.5, 0, 0.8, leaf], [2.3, 0.85, 0.45, 0.55, leafLight], [2.25, 0.8, -0.5, 0.55, leafLight], [1.75, 1.05, 0.15, 0.5, leafLight], [2.5, 0.35, 0, 0.45, leaf]].forEach(([x, y, z, r, m]) => {
+      const crown = new THREE.Mesh(new THREE.IcosahedronGeometry(r, 1), m);
+      crown.position.set(x, y, z); g.add(crown);
     });
     g.visible = false; g.scale.setScalar(0.01); scene.add(g);
     const s = { g, present: false, x: 0, hitT: 0 };
     frameHooks.push((dt, t) => {
       if (!s.present) return;
       g.position.y = 0.05 + Math.sin(t * 2.1) * 0.07;
-      g.rotation.z = Math.sin(t * 1.5) * 0.05 + s.hitT * Math.sin(t * 40) * 0.08;
+      g.rotation.x = Math.sin(t * 1.5) * 0.05 + s.hitT * Math.sin(t * 40) * 0.08; // balanceo sobre su eje largo
       s.hitT = Math.max(0, s.hitT - dt * 2.5);
     });
     return s;
@@ -1248,7 +1418,7 @@ export function createScene(container) {
     if (!s.present) {
       s.present = true; s.x = wx; s.g.position.set(wx, 0.05, 0); s.g.rotation.y = rnd(-0.12, 0.12);
       s.g.scale.setScalar(0.01); s.g.visible = true;
-      ripple(wx, 0, 4.5);
+      ripple(wx - 1.5, 0, 4.5); ripple(wx + 1.5, 0, 4.5);
       await tween(600, (t) => { s.g.scale.setScalar(0.01 + 0.99 * t); }, easeOut);
     } else if (s.x !== wx) {
       const from = s.x; s.x = wx;
@@ -1260,7 +1430,7 @@ export function createScene(container) {
     const s = logObj;
     if (!s.present) return;
     s.present = false;
-    ripple(s.x, 0, 4);
+    ripple(s.x - 1.5, 0, 4); ripple(s.x + 1.5, 0, 4);
     await tween(450, (t) => { s.g.scale.setScalar(Math.max(0.01, 1 - t)); }, easeIn);
     s.g.visible = false;
   }
@@ -1404,6 +1574,45 @@ export function createScene(container) {
     for (let k = 0; k < 14; k++) spawn({ pos: V(x1 + rnd(-1, 1), 0.6, z1 + rnd(-1, 1)), tex: glowTex, vel: V(0, rnd(1.5, 3.5), 0), life: rnd(0.9, 1.4), s0: 0.4, s1: 0.1, add: true, color: 0x69f0ae, op: 0.9 });
   }
 
+  // pez espada: sale junto al barco de `from`, cruza el mar a saltos y embiste a la ballena de `to`
+  async function swordfishAttack(from, to) {
+    const g = new THREE.Group();
+    const blue = new THREE.MeshStandardMaterial({ color: 0x3f6fc4, metalness: 0.35, roughness: 0.35 });
+    const belly = new THREE.MeshStandardMaterial({ color: 0xdfe9f7, roughness: 0.4 });
+    const fin = new THREE.MeshStandardMaterial({ color: 0x2a4f9a, roughness: 0.5, side: THREE.DoubleSide });
+    const body = new THREE.Mesh(new THREE.SphereGeometry(0.42, 16, 12), blue); body.scale.set(1, 1, 3.4); g.add(body);
+    const under = new THREE.Mesh(new THREE.SphereGeometry(0.38, 14, 10), belly); under.scale.set(0.9, 0.7, 3.1); under.position.y = -0.12; g.add(under);
+    const bill = new THREE.Mesh(new THREE.ConeGeometry(0.09, 2.2, 8).rotateX(Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0x9fb4cc, metalness: 0.6, roughness: 0.3 }));
+    bill.position.z = 2.4; g.add(bill);
+    const sailShape = new THREE.Shape(); sailShape.moveTo(0, 0); sailShape.lineTo(-0.2, 1.1); sailShape.lineTo(-0.9, 0.4); sailShape.lineTo(-1.4, 0);
+    const sail = new THREE.Mesh(new THREE.ShapeGeometry(sailShape), fin); sail.rotation.y = -Math.PI / 2; sail.position.set(0, 0.32, 0.5); g.add(sail);
+    const tail = new THREE.Group(); tail.position.z = -1.45; g.add(tail);
+    for (const s of [1, -1]) {
+      const lobe = new THREE.Mesh(new THREE.ConeGeometry(0.16, 1.0, 6), fin);
+      lobe.position.set(0, s * 0.42, -0.2); lobe.rotation.x = s * 2.4; tail.add(lobe);
+    }
+    for (const sx of [1, -1]) { const eye = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 6), new THREE.MeshBasicMaterial({ color: 0x0b1a2e })); eye.position.set(sx * 0.3, 0.12, 1.05); g.add(eye); }
+    g.scale.setScalar(0.9);
+    const target = sharks[to].root.position;
+    const x0 = ships[from].g.position.x + 3.5, z0 = zOf(from) * (SHIP_Z - 4), x1 = target.x, z1 = target.z;
+    const yaw = Math.atan2(x1 - x0, z1 - z0);
+    scene.add(g);
+    splash(V(x0, 0.2, z0));
+    const hops = 3;
+    await tween(2000, (t) => {
+      const h = (t * hops) % 1;
+      g.position.set(x0 + (x1 - x0) * t, -0.4 + Math.sin(h * Math.PI) * (t < 0.95 ? 2.2 : 0.6), z0 + (z1 - z0) * t);
+      g.rotation.set(-Math.cos(h * Math.PI) * 0.6, yaw, 0);
+      tail.rotation.y = Math.sin(t * 60) * 0.35;
+      if (h < 0.04 && t > 0.05) ripple(g.position.x, g.position.z, 2, 0, 0.9);
+    }, easeInOut);
+    const p = V(x1, 0.9, z1);
+    hitShark(to); splash(p); sparks(p, 26, 5, 0x90caf9); shake(0.12, 0.3);
+    const xe = g.position.x, ze = g.position.z;
+    await tween(500, (t) => { g.position.set(xe + Math.sin(yaw) * 2 * t, 0.5 - 2.4 * t, ze + Math.cos(yaw) * 2 * t); g.rotation.x = 0.9 * t; }, easeIn);
+    scene.remove(g);
+  }
+
   // cúpula: burbuja translúcida sobre un cañón; domeBlock la hace destellar al absorber un impacto
   const domes = { me: null, op: null };
   function setDome(who, lane) {
@@ -1426,8 +1635,226 @@ export function createScene(container) {
     tween(450, (t) => { d.mesh.material.opacity = 0.85 - 0.53 * t; }, easeOut);
   }
 
+  // ---------- Dragones (tienda) ----------
+  // El modelo mira a +z; rojo = fuego (a la izquierda del barco), azul = rayos (a la derecha).
+  const DRAGON_LOOK = {
+    fire: { body: 0xb71c1c, dark: 0x5a0d0d, belly: 0xffb300, wing: 0x8e1414, eye: 0xffee58, spark: 0xff7a1a },
+    storm: { body: 0x1565c0, dark: 0x0b2f6b, belly: 0x80deea, wing: 0x0d47a1, eye: 0xe0f7fa, spark: 0x9be7ff },
+  };
+  function makeDragon(kind) {
+    const c = DRAGON_LOOK[kind];
+    const skin = new THREE.MeshStandardMaterial({ color: c.body, roughness: 0.42, metalness: 0.3, emissive: c.body, emissiveIntensity: 0.18 });
+    const dark = new THREE.MeshStandardMaterial({ color: c.dark, roughness: 0.5, metalness: 0.3 });
+    const belly = new THREE.MeshStandardMaterial({ color: c.belly, roughness: 0.35, metalness: 0.45, emissive: c.belly, emissiveIntensity: 0.15 });
+    const horn = new THREE.MeshStandardMaterial({ color: 0xf3e6c4, roughness: 0.4 });
+    const membrane = new THREE.MeshStandardMaterial({ color: c.wing, roughness: 0.6, side: THREE.DoubleSide, transparent: true, opacity: 0.93, emissive: c.wing, emissiveIntensity: 0.25 });
+    const eyeMat = new THREE.MeshBasicMaterial({ color: c.eye });
+    const root = new THREE.Group(), model = new THREE.Group(); root.add(model);
+    const ball = (r, mat, x, y, z, sx = 1, sy = 1, sz = 1, parent = model) => { const m = new THREE.Mesh(new THREE.SphereGeometry(r, 16, 12), mat); m.position.set(x, y, z); m.scale.set(sx, sy, sz); parent.add(m); return m; };
+    // cuerpo, pecho y vientre
+    ball(0.5, skin, 0, 0, 0, 1, 0.9, 1.7);
+    ball(0.42, skin, 0, 0.08, 0.75, 1, 1, 1.2);
+    ball(0.42, belly, 0, -0.17, 0.2, 0.85, 0.6, 1.75);
+    // cuello curvado hasta la cabeza
+    const neck = [[0, 0.2, 1.15, 0.33], [0, 0.34, 1.45, 0.28], [0, 0.5, 1.72, 0.24], [0, 0.62, 1.97, 0.22]];
+    for (const [x, y, z, r] of neck) { ball(r, skin, x, y, z); ball(r * 0.75, belly, x, y - r * 0.45, z + 0.04, 1, 0.6, 1); }
+    const head = new THREE.Group(); head.position.set(0, 0.7, 2.2); model.add(head);
+    ball(0.27, skin, 0, 0, 0, 1, 0.85, 1.25, head);
+    const snout = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.2, 0.55, 12).rotateX(Math.PI / 2), skin); snout.position.set(0, -0.04, 0.42); head.add(snout);
+    const jaw = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.15, 0.48, 10).rotateX(Math.PI / 2), belly); jaw.position.set(0, -0.15, 0.36); head.add(jaw);
+    for (const sx of [-1, 1]) {
+      const eye = new THREE.Mesh(new THREE.SphereGeometry(0.055, 10, 8), eyeMat); eye.position.set(sx * 0.17, 0.08, 0.17); head.add(eye);
+      const brow = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.2, 6), dark); brow.position.set(sx * 0.16, 0.15, 0.2); brow.rotation.set(-1.2, 0, sx * 0.4); head.add(brow);
+      const h1 = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.55, 8), horn); h1.position.set(sx * 0.14, 0.25, -0.22); h1.rotation.set(-2.1, 0, -sx * 0.35); head.add(h1);
+      const h2 = new THREE.Mesh(new THREE.ConeGeometry(0.04, 0.32, 8), horn); h2.position.set(sx * 0.22, 0.05, -0.2); h2.rotation.set(-2.0, 0, -sx * 0.9); head.add(h2);
+    }
+    const mouth = new THREE.Object3D(); mouth.position.set(0, -0.1, 0.72); head.add(mouth);
+    // crestas a lo largo del lomo
+    for (let i = 0; i < 9; i++) {
+      const z = 1.85 - i * 0.42, y = i < 4 ? 0.85 - i * 0.12 : 0.45 - (i - 4) * 0.02;
+      const spike = new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.3 - i * 0.015, 6), dark); spike.position.set(0, y, z); spike.rotation.x = -0.5; model.add(spike);
+    }
+    // cola articulada que ondula
+    const tail = []; let parent = model, tz = -0.75;
+    for (let i = 0; i < 7; i++) {
+      const seg = new THREE.Group(); seg.position.set(0, i === 0 ? -0.02 : 0, i === 0 ? tz : -0.42); parent.add(seg);
+      const r = 0.34 * (1 - i * 0.12);
+      ball(r, skin, 0, 0, -0.2, 1, 0.9, 1.5, seg);
+      if (i > 1) { const sp = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.2, 5), dark); sp.position.set(0, r * 0.85, -0.2); sp.rotation.x = -0.6; seg.add(sp); }
+      tail.push(seg); parent = seg;
+    }
+    const tipShape = new THREE.Shape(); tipShape.moveTo(0, 0.05); tipShape.lineTo(0.22, -0.25); tipShape.lineTo(0, -0.55); tipShape.lineTo(-0.22, -0.25); tipShape.closePath();
+    const tip = new THREE.Mesh(new THREE.ShapeGeometry(tipShape).rotateX(-Math.PI / 2), dark); tip.material = new THREE.MeshStandardMaterial({ color: c.dark, side: THREE.DoubleSide, roughness: 0.5 }); tip.position.z = -0.35; parent.add(tip);
+    // patas recogidas
+    for (const sx of [-1, 1]) {
+      const leg = new THREE.Mesh(new THREE.CapsuleGeometry(0.1, 0.4, 4, 8), skin); leg.position.set(sx * 0.32, -0.38, -0.45); leg.rotation.x = 1.1; model.add(leg);
+      const arm = new THREE.Mesh(new THREE.CapsuleGeometry(0.07, 0.25, 4, 8), skin); arm.position.set(sx * 0.3, -0.3, 0.75); arm.rotation.x = 0.9; model.add(arm);
+      for (const [lz, ly] of [[-0.72, -0.52], [0.9, -0.42]]) for (const cx of [-0.05, 0.05]) { const claw = new THREE.Mesh(new THREE.ConeGeometry(0.025, 0.1, 5), horn); claw.position.set(sx * 0.31 + cx, ly, lz); claw.rotation.x = 2.2; model.add(claw); }
+    }
+    // alas de murciélago en dos tramos (el exterior aletea con retraso)
+    const wingPart = (pts, bones) => {
+      const g = new THREE.Group();
+      const sh = new THREE.Shape(); sh.moveTo(pts[0][0], -pts[0][1]); for (const [x, z] of pts.slice(1)) sh.lineTo(x, -z); sh.closePath();
+      g.add(new THREE.Mesh(new THREE.ShapeGeometry(sh).rotateX(-Math.PI / 2), membrane));
+      for (const [x0, z0, x1, z1, r] of bones) {
+        const len = Math.hypot(x1 - x0, z1 - z0);
+        const b = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.6, r, len, 6), dark);
+        b.position.set((x0 + x1) / 2, 0.02, (z0 + z1) / 2); b.rotation.set(Math.PI / 2, 0, 0); b.rotation.order = 'YXZ'; b.rotation.y = Math.atan2(x1 - x0, z1 - z0); g.add(b);
+      }
+      return g;
+    };
+    const wings = [-1, 1].map((side) => {
+      const w = new THREE.Group(); w.position.set(side * 0.38, 0.32, 0.55); w.scale.x = side; model.add(w);
+      const inner = wingPart([[0, 0.25], [1.4, 0.35], [1.4, -0.45], [0.95, -0.9], [0.45, -0.75], [0, -1.05]], [[0, 0.2, 1.4, 0.35, 0.07]]);
+      w.add(inner);
+      const outer = new THREE.Group(); outer.position.set(1.4, 0, 0.35); w.add(outer);
+      outer.add(wingPart([[0, 0], [1.75, -0.5], [1.25, -0.95], [1.0, -0.85], [0.75, -1.45], [0.45, -1.05], [0, -0.8]], [[0, 0, 1.75, -0.5, 0.06], [0, 0, 1.05, -0.9, 0.045], [0, 0, 0.6, -1.25, 0.04]]));
+      const claw = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.22, 6), horn); claw.position.set(0, 0.04, 0.12); claw.rotation.x = Math.PI / 2; outer.add(claw);
+      return { w, outer, side };
+    });
+    model.scale.setScalar(0.85);
+    return { root, model, head, mouth, wings, tail, kind };
+  }
+  const dragons = { me: { fire: null, storm: null }, op: { fire: null, storm: null } };
+  const dragonHome = (who, kind) => {
+    const zs = zOf(who), side = kind === 'fire' ? -1 : 1; // izquierda / derecha vistas desde el propio barco
+    return V(side * zs * 6.4, 2.9, zs * (SHIP_Z - 3.4));
+  };
+  function setDragons(who, owned = {}) {
+    for (const kind of ['fire', 'storm']) {
+      const has = !!owned?.[kind], cur = dragons[who][kind];
+      if (has && !cur) {
+        const d = makeDragon(kind);
+        Object.assign(d, { who, home: dragonHome(who, kind), phase: kind === 'fire' ? 0 : 2.3, attack: null, yaw: zOf(who) < 0 ? 0 : Math.PI, pitch: 0, roll: 0, prev: null, emberT: 0 });
+        d.root.position.copy(d.home); scene.add(d.root);
+        dragons[who][kind] = d;
+      } else if (!has && cur) { scene.remove(cur.root); dragons[who][kind] = null; }
+    }
+  }
+  const angDiff = (a, b) => Math.atan2(Math.sin(a - b), Math.cos(a - b));
+  frameHooks.push((dt, t) => {
+    for (const who of ['me', 'op']) for (const kind of ['fire', 'storm']) {
+      const d = dragons[who][kind];
+      if (!d) continue;
+      const tt = t + d.phase, fast = d.attack ? 1.35 : 1;
+      // aleteo: bajada potente y subida lenta; el cuerpo sube con cada golpe de ala
+      const beat = tt * 5.2 * fast, flap = Math.sin(beat), amp = d.attack ? 0.75 : 0.55 + 0.2 * Math.sin(tt * 0.5);
+      for (const { w, outer, side } of d.wings) {
+        w.rotation.z = side * (0.12 + flap * amp);
+        outer.rotation.z = side * Math.sin(beat - 0.8) * amp * 0.65;
+        w.rotation.x = -Math.cos(beat) * 0.12;
+      }
+      d.tail.forEach((seg, i) => { seg.rotation.y = Math.sin(tt * 2.4 - i * 0.7) * 0.16; seg.rotation.x = Math.sin(tt * 1.7 - i * 0.5) * 0.05 + 0.03; });
+      d.head.rotation.x = Math.sin(tt * 1.3) * 0.08; d.head.rotation.y = Math.sin(tt * 0.9) * 0.12;
+      let pos;
+      if (d.attack) pos = d.attack.clone();
+      else { // vuelo en ocho alrededor de su sitio junto al barco
+        const w = 0.42;
+        pos = d.home.clone().add(V(Math.sin(tt * w) * 1.0, Math.sin(tt * w * 1.6) * 0.3, Math.sin(tt * w * 2) * 0.9));
+      }
+      if (d.prev) {
+        const v = pos.clone().sub(d.prev);
+        const hv = Math.hypot(v.x, v.z);
+        if (hv > 1e-4) {
+          const want = Math.atan2(v.x, v.z), turn = angDiff(want, d.yaw);
+          d.yaw += turn * Math.min(1, dt * 4);
+          d.roll += (Math.max(-0.6, Math.min(0.6, -turn * 1.6)) - d.roll) * Math.min(1, dt * 3);
+          d.pitch += (Math.max(-0.5, Math.min(0.5, -Math.atan2(v.y, hv))) - d.pitch) * Math.min(1, dt * 3);
+        }
+      }
+      d.prev = pos.clone();
+      d.root.position.copy(pos); d.root.position.y -= flap * 0.12;
+      d.root.rotation.set(0, 0, 0); d.root.rotation.order = 'YXZ';
+      d.root.rotation.y = d.yaw; d.root.rotation.x = d.pitch; d.root.rotation.z = d.roll;
+      // ascuas o chispas que se escapan de las fauces
+      d.emberT -= dt;
+      if (d.emberT <= 0) {
+        d.emberT = rnd(0.25, 0.6);
+        const m = d.mouth.getWorldPosition(new THREE.Vector3());
+        spawn({ pos: m, vel: V(rnd(-0.3, 0.3), rnd(0.2, 0.7), rnd(-0.3, 0.3)), life: rnd(0.5, 0.9), s0: kind === 'fire' ? 0.28 : 0.2, s1: 0.04, add: true, color: DRAGON_LOOK[kind].spark, op: 0.9 });
+      }
+    }
+  });
+  const burns = [];
+  frameHooks.push((dt) => {
+    for (let i = burns.length - 1; i >= 0; i--) {
+      const b = burns[i]; b.left -= dt;
+      if (b.left <= 0) { burns.splice(i, 1); continue; }
+      const sp = ships[b.who].g.position, k = Math.min(1, b.left / 1.5);
+      for (let n = 0; n < 2; n++) {
+        const p = V(sp.x + rnd(-5, 5), 0.9 + rnd(0, 0.5), sp.z + rnd(-0.9, 0.9));
+        spawn({ pos: p, vel: V(rnd(-0.2, 0.2), rnd(1.4, 2.6), rnd(-0.2, 0.2)), life: rnd(0.45, 0.8), s0: 0.7 * k + 0.2, s1: 0.1, add: true, color: Math.random() < 0.5 ? 0xff5a16 : 0xffb030, op: 0.95 });
+      }
+      if (Math.random() < 0.35) spawn({ pos: V(sp.x + rnd(-4.5, 4.5), 1.6, sp.z + rnd(-0.6, 0.6)), tex: smokeTex, vel: V(rnd(-0.3, 0.3), rnd(1.2, 2), rnd(-0.3, 0.3)), drag: 0.3, life: rnd(1.6, 2.4), s0: 0.8, s1: 2.8, color: 0x2a2a2a, op: 0.6 });
+    }
+  });
+  function boltBetween(a, b, color = 0xb3f5ff) {
+    const mat = new THREE.LineBasicMaterial({ color, transparent: true, opacity: 1 });
+    const lines = [0, 1, 2].map(() => {
+      const pts = [];
+      for (let i = 0; i <= 10; i++) {
+        const k = i / 10, p = a.clone().lerp(b, k);
+        if (i > 0 && i < 10) p.add(V(rnd(-0.35, 0.35), rnd(-0.25, 0.25), rnd(-0.35, 0.35)));
+        pts.push(p);
+      }
+      const l = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), mat); l.renderOrder = 9; scene.add(l); return l;
+    });
+    for (let i = 1; i < 12; i++) spawn({ pos: a.clone().lerp(b, i / 12), life: 0.35, s0: 0.9, s1: 0.2, add: true, color: i % 2 ? 0x9be7ff : 0xffffff, op: 0.9 });
+    const halo = new THREE.Mesh(new THREE.SphereGeometry(0.9, 14, 10), new THREE.MeshBasicMaterial({ color: 0x4fc3f7, transparent: true, opacity: 0.7, depthWrite: false }));
+    halo.position.copy(b); scene.add(halo);
+    flashLight(b.clone().add(V(0, 1, 0)), 12, 0xbfe9ff);
+    sparks(b, 28, 6, 0xe1f5fe); sparks(b, 12, 3, 0x4fc3f7);
+    shake(0.22, 0.3);
+    tween(650, (t) => {
+      mat.opacity = t < 0.55 ? (Math.floor(t * 26) % 2 ? 0.3 : 1) : 1 - (t - 0.55) / 0.45;
+      halo.material.opacity = 0.7 * (1 - t); halo.scale.setScalar(1 + t);
+    }).then(() => { lines.forEach((l) => { scene.remove(l); l.geometry.dispose(); }); scene.remove(halo); mat.dispose(); });
+  }
+  const bezier = (a, c, b, t) => a.clone().multiplyScalar((1 - t) * (1 - t)).add(c.clone().multiplyScalar(2 * (1 - t) * t)).add(b.clone().multiplyScalar(t * t));
+  async function dragonPass(d, to, kind, dirX, lift) {
+    const zt = zOf(to) * SHIP_Z + (kind === 'fire' ? 0.7 : -0.7) * zOf(to);
+    const start = d.root.position.clone();
+    const passA = V(-dirX * 8.5, 4.2 + lift, zt), passB = V(dirX * 8.5, 4.2 + lift, zt);
+    const mid = start.clone().lerp(passA, 0.5); mid.y += 3.5;
+    d.attack = start.clone();
+    await tween(1400, (t) => { d.attack.copy(bezier(start, mid, passA, t)); }, easeInOut);
+    const struck = new Set(), turrets = ships[to].turrets.map((tr) => tr.node.getWorldPosition(new THREE.Vector3()));
+    let flameT = 0, last = 0;
+    await tween(1700, (t) => {
+      const x = passA.x + (passB.x - passA.x) * t;
+      d.attack.set(x, passA.y - Math.sin(t * Math.PI) * 1.4, zt);
+      const dtl = t - last; last = t;
+      const mouth = d.mouth.getWorldPosition(new THREE.Vector3());
+      if (kind === 'fire' && t > 0.12 && t < 0.9) {
+        flameT += dtl;
+        for (; flameT > 0.012; flameT -= 0.012) {
+          const aim = V(x + dirX * 1.2, 1.1, zOf(to) * SHIP_Z).sub(mouth).normalize().multiplyScalar(rnd(7, 10));
+          spawn({ pos: mouth, vel: aim.add(V(rnd(-0.8, 0.8), rnd(-0.6, 0.6), rnd(-0.8, 0.8))), drag: 1.5, life: rnd(0.35, 0.6), s0: 0.35, s1: 1.9, add: true, color: [0xffe08a, 0xff9a2e, 0xff4a12][Math.floor(Math.random() * 3)], op: 0.95 });
+          if (Math.random() < 0.3) spawn({ pos: V(x + dirX * 1.2 + rnd(-0.6, 0.6), 1.0, zOf(to) * SHIP_Z + rnd(-0.8, 0.8)), vel: V(rnd(-0.4, 0.4), rnd(1.5, 3), rnd(-0.4, 0.4)), life: rnd(0.5, 0.9), s0: 0.9, s1: 0.2, add: true, color: 0xff6a1a, op: 0.9 });
+        }
+        if (Math.random() < 0.08) { flashLight(V(x, 2, zOf(to) * SHIP_Z), 16, 0xff7a1a); hitShip(to); }
+      }
+      if (kind === 'storm') turrets.forEach((tp, i) => {
+        if (struck.has(i) || (dirX > 0 ? x < tp.x - 0.6 : x > tp.x + 0.6)) return;
+        struck.add(i); boltBetween(mouth, tp.clone().add(V(0, 0.6, 0))); hitShip(to);
+      });
+    }, (t) => t);
+    if (kind === 'fire') { burns.push({ who: to, left: 3.6 }); explodeShip(V(ships[to].g.position.x, 1.4, zOf(to) * SHIP_Z)); }
+    // vuelta a casa junto a su barco (sin bloquear la ronda)
+    const back = d.attack.clone(), home = d.home.clone(), mid2 = back.clone().lerp(home, 0.5); mid2.y += 3;
+    tween(1600, (t) => { d.attack.copy(bezier(back, mid2, home, t)); }, easeInOut).then(() => { d.attack = null; d.prev = null; });
+  }
+  async function dragonAttack(from, to, { fire: useFire, storm: useStorm } = {}) {
+    const jobs = [];
+    const f = dragons[from].fire, s = dragons[from].storm;
+    // si los tienes los dos, cruzan el barco rival en sentidos opuestos a la vez
+    if (useFire && f) jobs.push(dragonPass(f, to, 'fire', 1, 0));
+    if (useStorm && s) jobs.push(dragonPass(s, to, 'storm', -1, 0.9));
+    await Promise.all(jobs);
+  }
+
   // x en unidades de 1,5 (posición real del cañón); 'miss' = la bala se pierde fuera de la pantalla
-  function fire({ from, x: xu, lane, target, owner, fromX, sub: fromSub = false, octopus: fromOctopus = false, toward, ice }) {
+  function fire({ from, x: xu, lane, target, owner, fromX, sub: fromSub = false, octopus: fromOctopus = false, toward, ice, flame = false }) {
     const dir = fromSub ? (toward === 'me' ? 1 : -1) : fromOctopus ? Math.sign(zOf(owner)) : (from === 'me' ? -1 : 1);
     const x = xu !== undefined ? xu * UNIT : LANE_X[lane - 1], y = fromSub ? 0.9 : 1.3;
     const startX = fromOctopus && fromX !== undefined ? fromX * UNIT : x;
@@ -1445,6 +1872,14 @@ export function createScene(container) {
     const holder = new THREE.Group(); holder.add(m);
     const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: 0xff9a2e, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false }));
     glow.scale.setScalar(1.1); holder.add(glow);
+    if (flame) { // bala de fuego: núcleo incandescente envuelto en llamas
+      const core = new THREE.Mesh(new THREE.SphereGeometry(0.2, 14, 10), new THREE.MeshBasicMaterial({ color: 0xffe08a }));
+      const shell = new THREE.Mesh(new THREE.SphereGeometry(0.36, 14, 10), new THREE.MeshBasicMaterial({ color: 0xff3d00, transparent: true, opacity: 0.85, depthWrite: false }));
+      const tail = new THREE.Mesh(new THREE.ConeGeometry(0.34, 1.3, 14, 1, true), new THREE.MeshBasicMaterial({ color: 0xff5a10, transparent: true, opacity: 0.8, depthWrite: false, side: THREE.DoubleSide }));
+      tail.rotation.x = dir < 0 ? -Math.PI / 2 : Math.PI / 2; tail.position.z = -dir * 0.7; // cola de llama detrás de la bola
+      holder.add(tail, shell, core); m.visible = false;
+      glow.material.color.set(0xff3300); glow.scale.setScalar(2.4);
+    }
     holder.position.set(startX, y, startZ);
     holder.scale.setScalar(1.7);
     scene.add(holder);
@@ -1462,12 +1897,16 @@ export function createScene(container) {
 
     let done;
     const promise = new Promise((r) => { done = r; });
-    bullets.push({ holder, m, dir, startX, startZ, endZ, finalZ, x, target, owner, ice, trail: 0, done, glow, passed: false });
+    bullets.push({ holder, m, dir, startX, startZ, endZ, finalZ, x, target, owner, ice, trail: 0, done, glow, passed: false, flame });
     return { flight, done: promise };
   }
 
   function impact(b) {
     const p = V(b.x, b.target === 'ship' ? 1.1 : b.target === 'shark' ? 0.5 : 1.3, b.endZ);
+    if (b.flame) { // estallido de fuego
+      sparks(p, 26, 7, 0xff7a1a);
+      for (let i = 0; i < 10; i++) spawn({ pos: p.clone().add(V(rnd(-0.5, 0.5), rnd(0, 0.4), rnd(-0.5, 0.5))), vel: V(rnd(-1, 1), rnd(1, 2.6), rnd(-1, 1)), life: 0.7, s0: 1.4, s1: 0.3, add: true, color: i % 2 ? 0xff4a12 : 0xffc040 });
+    }
     if (b.target === 'ship') { explodeShip(p); hitShip(b.owner); }
     else if (b.target === 'shark') { splash(V(b.x, 0.2, b.endZ)); hitShark(b.owner); }
     else if (b.target === 'sub') { clash(V(b.x, 0.9, 0)); sub.hitT = 0.5; }
@@ -1582,19 +2021,30 @@ export function createScene(container) {
   }
 
   // ---------- Cámara ----------
+  // Zona tapada por los paneles del HUD (px arriba y abajo): los barcos se encuadran en la franja libre.
+  const insets = { top: 0, bottom: 0 };
   function fit() {
     const w = container.clientWidth, h = container.clientHeight;
     if (!w || !h) return;
     renderer.setSize(w, h, false);
-    camera.aspect = w / h;
-    camera.setViewOffset(w, h, 0, Math.round(h * 0.03), w, h); // sube un poco la escena: abajo hay más panel
+    let top = insets.top, bottom = insets.bottom;
+    if (h - top - bottom < h * 0.45) { const k = (h * 0.55) / (top + bottom); top *= k; bottom *= k; }
+    const band = h - top - bottom;
+    camera.aspect = w / band;
+    camera.clearViewOffset();
     const el = (57 * Math.PI) / 180, dirv = V(0, Math.sin(el), Math.cos(el));
     const pts = [V(-7.8, 0, SHIP_Z + 1.7), V(7.8, 0, SHIP_Z + 1.7), V(-7.8, 0, -SHIP_Z - 1.7), V(7.8, 0, -SHIP_Z - 1.7), V(0, 3.4, -SHIP_Z - 0.5)];
     for (let d = 12; d < 120; d += 0.4) {
       camera.position.copy(dirv).multiplyScalar(d); camera.lookAt(0, 0, 0.3); camera.updateMatrixWorld();
-      if (pts.every((q) => { const n = q.clone().project(camera); return Math.abs(n.x) < 0.97 && Math.abs(n.y) < 0.9; })) break;
+      if (pts.every((q) => { const n = q.clone().project(camera); return Math.abs(n.x) < 0.97 && Math.abs(n.y) < 0.94; })) break;
     }
+    // El encuadre calculado ocupa la franja libre; se amplía la ventana para cubrir todo el lienzo.
+    camera.setViewOffset(w, band, 0, -Math.round(top), w, h);
     baseCam.copy(camera.position);
+  }
+  function setInsets(top, bottom) {
+    if (Math.abs(top - insets.top) < 1 && Math.abs(bottom - insets.bottom) < 1) return;
+    insets.top = top; insets.bottom = bottom; fit();
   }
   new ResizeObserver(fit).observe(container);
   fit();
@@ -1660,6 +2110,11 @@ export function createScene(container) {
       s.wrap.rotation.z = Math.sin(time * (0.9 + rough * 0.8) + s.phase) * 0.018 * (1 + rough * 5);
       s.wrap.rotation.x = Math.sin(time * (0.7 + rough * 0.6) + s.phase) * 0.01 * (1 + rough * 5);
       s.radar.rotation.y = time * 2;
+      if (s.skins.viking.visible) {
+        const row = time * 2.4 + s.phase;
+        for (const o of s.oars) { o.pivot.rotation.y = o.s * Math.sin(row) * 0.3; o.arm.rotation.x = o.s * (0.75 + 0.16 * Math.cos(row)); }
+        s.sail.scale.z = 1 + 0.14 * Math.sin(time * 1.6 + s.phase);
+      }
       const fp = s.flag.geometry.attributes.position;
       for (let i = 0; i < fp.count; i++) fp.setZ(i, Math.sin(Math.abs(s.flagBase[i * 3]) * 4 - time * 6) * 0.12 * (Math.abs(s.flagBase[i * 3]) / 1.5));
       fp.needsUpdate = true;
@@ -1677,7 +2132,7 @@ export function createScene(container) {
           spawn({ pos: p, tex: smokeTex, vel: V(rnd(-0.2, 0.2), rnd(0.8, 1.4), rnd(-0.2, 0.2)), life: 2.4, s0: 0.8, s1: 2.8, color: 0x202020, op: 0.6 });
           if (dmg > 0.7) spawn({ pos: p, vel: V(0, 0.8, 0), life: 0.5, s0: 0.9, s1: 0.2, add: true, color: 0xff7a18, op: 0.8 });
         }
-      } else {
+      } else if (!s.skins.viking.visible) {
         s.puffAcc += dt;
         if (s.puffAcc > 0.28) {
           s.puffAcc = 0;
@@ -1720,6 +2175,11 @@ export function createScene(container) {
         const p = b.holder.position.clone();
         spawn({ pos: p, tex: smokeTex, life: 1.3, s0: 0.35, s1: 1.5, color: 0xcfcfcf, op: 0.5 });
         spawn({ pos: p.clone().setZ(p.z - b.dir * 0.25), life: 0.25, s0: 0.35, s1: 0.05, add: true, color: 0xffa040 });
+        if (b.flame) {
+          for (let f = 0; f < 2; f++) spawn({ pos: p.clone().add(V(rnd(-0.15, 0.15), rnd(-0.1, 0.15), -b.dir * rnd(0.3, 0.9))), vel: V(rnd(-0.5, 0.5), rnd(0.5, 1.4), -b.dir * rnd(0.5, 1.5)), life: 0.5, s0: 1.3, s1: 0.2, color: f ? 0xff3d00 : 0xff8a1a, op: 0.9 });
+          spawn({ pos: p.clone(), life: 0.3, s0: 0.9, s1: 0.2, add: true, color: 0xffc040 });
+          spawn({ pos: p.clone(), tex: smokeTex, vel: V(0, 0.6, 0), life: 1, s0: 0.4, s1: 1.4, color: 0x3a2a22, op: 0.45 });
+        }
       }
       if (!b.passed && b.dir * (b.holder.position.z - b.endZ) >= 0) {
         if (b.target === 'whale') bounceOff(b);
@@ -1827,6 +2287,6 @@ export function createScene(container) {
     return best;
   }
 
-  Object.assign(api, { lightningStrike, setHealth, setCannons, setCannonLabels, setShipLevel, pickFlag, subMove, subLeave, iceShow, iceClear, octopusShow, octopusSpin, octopusLeave, medkitShow, medkitLeave, bucketShow, bucketLeave, gullFly, gullLeave, logShow, logLeave, squidShow, squidLeave, heliSupport, troopShip, setDome, domeBlock, feedShark, dud, labelCannon, moveFin, moveShip, fire, label, trackLabel, trackPoint, trackShip, setWeather, setFlag, SHIP_Z });
+  Object.assign(api, { lightningStrike, setHealth, setCannons, setCannonLabels, setShipLevel, pickFlag, subMove, subLeave, iceShow, iceClear, octopusShow, octopusSpin, octopusLeave, medkitShow, medkitLeave, bucketShow, bucketLeave, gullFly, gullLeave, logShow, logLeave, squidShow, squidLeave, heliSupport, troopShip, swordfishAttack, setDragons, dragonAttack, setDome, domeBlock, feedShark, dud, labelCannon, moveFin, moveShip, fire, label, trackLabel, trackPoint, trackShip, setWeather, setFlag, setInsets, SHIP_Z });
   return api;
 }

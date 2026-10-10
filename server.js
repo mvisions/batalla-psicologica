@@ -148,6 +148,31 @@ function applyBotStartLevels() { // nivel inicial de los bots del torneo (Ronald
 }
 applyBotStartLevels();
 const pointsPerWin = (level) => (level >= 15 ? 10 : 50); // a partir del nivel 15 cada victoria da menos puntos
+const DAILY_WINS = 3, DAILY_COINS = 10;
+const SHOP = { swordfish: { name: 'Pez espada', price: 150 }, infernal: { name: 'Ataque infernal', price: 450 }, viking: { name: 'Barco vikingo', price: 250 }, fireballs: { name: 'Balas de fuego', price: 500 }, fireDragon: { name: 'Dragón de fuego', price: 1500 }, stormDragon: { name: 'Dragón de rayos', price: 1500 } };
+// las skins de nivel cambian en los niveles 5, 10, 15, 20, 25 y 30
+const skinTier = (level) => Math.min(30, Math.floor((Number(level) || 1) / 5) * 5);
+// el barco vikingo se mantiene mientras no se alcance un nivel con skin nueva
+const activeSkin = (entry) => (entry?.viking && entry.vikingTier === skinTier(entry.level) ? 'viking' : null);
+const today = () => new Date().toISOString().slice(0, 10);
+function dailyProgress(entry) {
+  return entry.dailyDay === today() ? Number(entry.dailyWins) || 0 : 0;
+}
+// el reto del día (3 victorias) se premia una sola vez con monedas
+function countDailyWin(entry) {
+  const wins = dailyProgress(entry) + 1;
+  entry.dailyDay = today(); entry.dailyWins = wins;
+  if (wins === DAILY_WINS) entry.coins = (Number(entry.coins) || 0) + DAILY_COINS;
+}
+function profileView(entry) {
+  const points = Number(entry.points) || 0;
+  return {
+    points, wins: Number(entry.wins) || 0, level: Number(entry.level) || levelForPoints(points),
+    coins: Number(entry.coins) || 0, swordfish: Boolean(entry.swordfish), infernal: Boolean(entry.infernal), viking: Boolean(entry.viking), fireballs: Boolean(entry.fireballs), fireDragon: Boolean(entry.fireDragon), stormDragon: Boolean(entry.stormDragon), skin: activeSkin(entry),
+    daily: { wins: Math.min(DAILY_WINS, dailyProgress(entry)), goal: DAILY_WINS, reward: DAILY_COINS },
+    shop: Object.entries(SHOP).map(([id, { name, price }]) => ({ id, name, price })),
+  };
+}
 function recordResult(winner, loser) {
   ensureCurrentWeek();
   const key = leaderboard.weekKey;
@@ -161,6 +186,7 @@ function recordResult(winner, loser) {
   const w = get(winner), l = get(loser);
   w.streak++; w.wStreak++;
   w.points += pointsPerWin(w.level); w.wins++; w.level = levelForPoints(w.points);
+  countDailyWin(w);
   l.streak = 0; l.wStreak = 0;
   leaderboard.allTime = upsertLeaderboard(leaderboard.allTime, { id: winner.sub, name: w.name, best: w.streak });
   leaderboard.weekly = upsertLeaderboard(leaderboard.weekly, { id: winner.sub, name: w.name, best: w.wStreak });
@@ -173,6 +199,7 @@ function recordBotWin(winner) {
   entry.points = (entry.points || 0) + pointsPerWin(entry.level);
   entry.wins = (entry.wins || 0) + 1;
   entry.level = levelForPoints(entry.points);
+  countDailyWin(entry);
   persistRanking();
 }
 const TOURNAMENT_POINTS = { champion: 200, runnerUp: 150, third: 100, fourth: 0 };
@@ -288,6 +315,11 @@ function setRoomPlayerMaxHealth(room, index) {
 }
 
 const DOME_COOLDOWN = 2, FOOD_COOLDOWN = 5, FOOD_HEAL = 25;
+const SWORD_COOLDOWN = 4, SWORD_DMG = 10; // el pez espada comprado en la tienda ataca a la ballena rival cada 4 rondas
+const FIRE_COOLDOWN = 6, FIRE_DMG = 3; // las balas de fuego quitan 3 más; siguen encendidas hasta apagarlas y solo se encienden cada 6 rondas
+const DRAGON_COOLDOWN = 6, DRAGON_PCT = 0.25; // dragones de la tienda: el de fuego quita el 25% de la vida actual del barco rival y el de rayos el 25% de cada cañón rival
+const dragonsOf = (p) => ({ fire: !p?.bot && Boolean(ranking[p?.sub]?.fireDragon), storm: !p?.bot && Boolean(ranking[p?.sub]?.stormDragon) });
+const INFERNO_COOLDOWN = 6; // el ataque infernal comprado en la tienda dispara los 4 cañones en los 4 disparos, cada 6 rondas
 const TROOP_DMG = 15, TROOP_COOLDOWN = 2; // el barquito vuelve a estar listo dos rondas después
 function resolveRound(room) {
   const medkitPosts = [-3, -1, 1, 3];
@@ -331,6 +363,15 @@ function resolveRound(room) {
   room.foodCd ||= [0, 0];
   const foodFor = [0, 1].map((k) => room.foodCd[k] === 0 && room.hp[k].shark > 0 && Boolean(P[k].food || (P[k].bot && !room.tutorial && room.hp[k].shark <= 25)));
   for (const k of [0, 1]) if (foodFor[k]) room.foodCd[k] = FOOD_COOLDOWN;
+  room.swordCd ||= [0, 0];
+  const swordFor = [0, 1].map((k) => room.swordCd[k] === 0 && Boolean(P[k].sword) && room.hp[1 - k].shark > 0);
+  for (const k of [0, 1]) if (swordFor[k]) room.swordCd[k] = SWORD_COOLDOWN;
+  room.dragonCd ||= [0, 0];
+  const dragonFor = [0, 1].map((k) => { const d = dragonsOf(P[k]); return room.dragonCd[k] === 0 && Boolean(P[k].dragon) && (d.fire || d.storm); });
+  for (const k of [0, 1]) if (dragonFor[k]) room.dragonCd[k] = DRAGON_COOLDOWN;
+  room.infernoCd ||= [0, 0];
+  const infernoFor = [0, 1].map((k) => room.infernoCd[k] === 0 && Boolean(P[k].infernal));
+  for (const k of [0, 1]) if (infernoFor[k]) room.infernoCd[k] = INFERNO_COOLDOWN;
   // cañón del barco k más cercano al punto de impacto x
   const nearestCannon = (k, x) => {
     let best = 0;
@@ -350,13 +391,17 @@ function resolveRound(room) {
     const gullX = gullAlive ? medkitPosts[Math.floor(Math.random() * 4)] : null;
     const squidX = squidAlive ? medkitPosts[Math.floor(Math.random() * 4)] : null;
     const bucketX = bucketAlive ? medkitPosts[Math.floor(Math.random() * 4)] : null;
-    const logX = logRound ? medkitPosts[Math.floor(Math.random() * 4)] : null;
+    // árbol caído en horizontal: ocupa dos carriles contiguos a la vez
+    const logStart = logRound ? Math.floor(Math.random() * 3) : null;
+    const logXs = logStart === null ? [] : [medkitPosts[logStart], medkitPosts[logStart + 1]];
+    const logX = logStart === null ? null : (logXs[0] + logXs[1]) / 2;
+    const onLog = (x) => logXs.includes(x);
     const squidUp = squidAlive && Math.random() < 0.5; // bajo el agua no detiene el disparo
     // icebergs (lluvia): dos, derivan a carriles al azar en cada disparo; la primera bala que da a uno lo destruye
     const lanePool = [-3, -1, 1, 3].sort(() => Math.random() - 0.5);
     const iceX = rain ? [iceAlive[0] ? lanePool[0] : null, iceAlive[1] ? lanePool[1] : null] : null;
     const iceAt = (x) => (iceX ? iceX.findIndex((v) => v !== null && v === x) : -1);
-    const ev = { step: i, atk, def, pos: [...pos], swell, whale: whaleX, ice: iceX, sub: subRound ? { x: subX, toward: Math.floor(Math.random() * 2) } : null, octopus: octopusX === null ? null : { x: octopusX, release: null }, medkit: medkitX === null ? null : { x: medkitX }, gull: gullX === null ? null : { x: gullX }, squid: squidX === null ? null : { x: squidX, up: squidUp, owner: squidOwner }, log: logX === null ? null : { x: logX }, bucket: bucketX === null ? null : { x: bucketX }, shots: [] };
+    const ev = { step: i, atk, def, pos: [...pos], swell, whale: whaleX, ice: iceX, sub: subRound ? { x: subX, toward: Math.floor(Math.random() * 2) } : null, octopus: octopusX === null ? null : { x: octopusX, release: null }, medkit: medkitX === null ? null : { x: medkitX }, gull: gullX === null ? null : { x: gullX }, squid: squidX === null ? null : { x: squidX, up: squidUp, owner: squidOwner }, log: logX === null ? null : { x: logX, lanes: logXs }, bucket: bucketX === null ? null : { x: bucketX }, shots: [] };
     ev.dome = [...domeIdx];
     const heal = [0, 0], heliHeal = [0, 0];
     if (i === 0) {
@@ -389,6 +434,20 @@ function resolveRound(room) {
         if (!blocked) { dmg[t].ship += hull(TROOP_DMG); cdmg[t][weak] += TROOP_DMG; hitBy[t][weak] = k; }
         (ev.troops ||= []).push({ owner: k, target: t, lane: weak + 1, x: 2 * (weak + 1) - 5 + pos[t], blocked });
       }
+      for (const k of [0, 1]) if (dragonFor[k]) { // los dragones pasan sobre el barco rival
+        const t = 1 - k, d = dragonsOf(P[k]);
+        const hit = { owner: k, target: t, fire: d.fire, storm: d.storm, shipDmg: 0, cannonDmg: [0, 0, 0, 0] };
+        if (d.fire) { hit.shipDmg = Math.ceil(room.hp[t].ship * DRAGON_PCT); dmg[t].ship += hit.shipDmg; }
+        if (d.storm) for (let l = 0; l < 4; l++) {
+          if (cann[t][l] <= 0 || shielded(t, l)) continue;
+          hit.cannonDmg[l] = Math.ceil(cann[t][l] * DRAGON_PCT); cdmg[t][l] += hit.cannonDmg[l]; hitBy[t][l] = k;
+        }
+        (ev.dragon ||= []).push(hit);
+      }
+      for (const k of [0, 1]) if (swordFor[k]) { // el pez espada embiste a la ballena rival
+        dmg[1 - k].shark += SWORD_DMG;
+        (ev.sword ||= []).push({ owner: k, target: 1 - k, def: def[1 - k], dmg: SWORD_DMG });
+      }
     }
     const live = [cann[0][atk[0] - 1] > 0, cann[1][atk[1] - 1] > 0]; // un cañón roto no dispara
     const blocked = [
@@ -398,78 +457,92 @@ function resolveRound(room) {
     const firing = live.map((isLive, player) => isLive && !blocked[player]);
     // posición real de cada bala (el cañón se mueve con el barco)
     const xu = [2 * atk[0] - 5 + pos[0], 2 * atk[1] - 5 + pos[1]];
-    const simultaneousCollision = firing[0] && firing[1] && xu[0] === xu[1] && xu[0] !== subX && iceAt(xu[0]) < 0 && xu[0] !== gullX && xu[0] !== logX && !(squidUp && xu[0] === squidX);
+    const simultaneousCollision = firing[0] && firing[1] && xu[0] === xu[1] && xu[0] !== subX && iceAt(xu[0]) < 0 && xu[0] !== gullX && !onLog(xu[0]) && !(squidUp && xu[0] === squidX);
+    let octopusCaughtThisStep = false;
+    let medkitCaughtThisStep = false;
+    const gullHits = [];
+    const squidHit = (x) => squidUp && squidAlive && x === squidX;
+    const fireShot = (from, lane, x, extra = false) => {
+      const other = 1 - from;
+      const tag = extra ? { infernal: true } : {};
+      if (room.fireOn?.[from]) tag.fire = true;
+      if (!extra && !live[from]) { ev.shots.push({ from, lane, x, target: 'broken' }); return; }
+      if (!extra && blocked[from]) { ev.shots.push({ from, lane, x, target: 'blocked', ...tag }); return; }
+      const sharkAt = (k) => !rain && room.hp[k].shark > 0 && 2 * def[k] - 5 === x;
+      let target, owner, iceId;
+      if (!extra && simultaneousCollision && from === 1 && (octopusCaughtThisStep || medkitCaughtThisStep)) { target = 'collision'; }
+      else if (squidHit(x) && from === squidOwner) { target = 'squid'; owner = squidOwner; squidAlive = false; ev.squid.blocked = true; }
+      else if (sharkAt(from)) { target = 'shark'; owner = from; }
+      else if (onLog(x)) { target = 'log'; } // el árbol para los disparos de ambos lados en sus dos carriles
+      else if (octopusX !== null && !room.octopusUsed && x === octopusX) {
+        target = 'octopus'; owner = other;
+        room.octopusUsed = true;
+        octopusCaughtThisStep = true;
+        const returnLanes = [1, 2, 3, 4].filter((l) => l !== lane);
+        const returnLane = returnLanes[Math.floor(Math.random() * returnLanes.length)];
+        const returnX = 2 * returnLane - 5;
+        const returnTarget = !rain && room.hp[other].shark > 0 && 2 * def[other] - 5 === returnX
+          ? 'shark'
+          : Math.abs(returnX - pos[other]) <= 4 ? 'ship' : 'miss';
+        const amount = DMG * mult;
+        if (returnTarget === 'shark') dmg[other].shark += amount;
+        else if (returnTarget === 'ship') {
+          const cannon = nearestCannon(other, returnX);
+          if (!shielded(other, cannon)) {
+            dmg[other].ship += hull(amount);
+            cdmg[other][cannon] += amount;
+            hitBy[other][cannon] = from;
+          }
+        }
+        ev.octopus.release = { from, lane: returnLane, x: returnX, target: returnTarget, owner: other };
+      }
+      else if (medkitX !== null && x === medkitX && !medkitCollected) {
+        target = 'medkit';
+        medkitCollected = true;
+        medkitCaughtThisStep = true;
+        heal[from] += 40;
+      }
+      else if (iceAt(x) >= 0) { target = 'ice'; iceId = iceAt(x); iceAlive[iceId] = false; } // el iceberg se autodestruye con la bala
+      else if (subX !== null && x === subX) {
+        target = 'sub'; heal[from] += 5; crepair[from][lane - 1] += 5;
+      }
+      else if (bucketX !== null && bucketAlive && x === bucketX) { target = 'bucket'; bucketAlive = false; heal[from] += 10; }
+      else if (gullX !== null && gullAlive && x === gullX) { target = 'gull'; gullHits.push(from); }
+      else if (whaleX !== null && x === whaleX) { target = 'whale'; owner = from; } // la orca rebota la bala contra el barco que disparó
+      else if (sharkAt(other)) { target = 'shark'; owner = other; }
+      else if (squidHit(x)) { target = 'squid'; owner = squidOwner; squidAlive = false; ev.squid.blocked = true; }
+      else if (Math.abs(x - pos[other]) <= 4) { target = 'ship'; owner = other; }
+      else { target = 'miss'; owner = other; }
+      const fire = Boolean(room.fireOn?.[from]);
+      const amount = DMG * mult + (fire ? FIRE_DMG : 0);
+      if (target === 'ship') {
+        const c = nearestCannon(owner, x);
+        if (!shielded(owner, c)) { dmg[owner].ship += hull(amount); cdmg[owner][c] += amount; hitBy[owner][c] = from; }
+      } else if (target === 'shark') dmg[owner].shark += amount;
+      else if (target === 'whale') {
+        const c = nearestCannon(from, x);
+        if (!shielded(from, c)) { dmg[from].ship += hull(amount); cdmg[from][c] += amount; }
+      }
+      ev.shots.push({ from, lane, x, target, owner, ice: iceId, ...tag });
+    };
     if (simultaneousCollision && xu[0] !== medkitX && xu[0] !== octopusX) {
-      ev.shots = [0, 1].map((from) => ({ from, lane: atk[from], x: xu[from], target: 'collision' }));
+      ev.shots = [0, 1].map((from) => ({ from, lane: atk[from], x: xu[from], target: 'collision', ...(room.fireOn?.[from] ? { fire: true } : {}) }));
     } else {
-      let octopusCaughtThisStep = false;
-      let medkitCaughtThisStep = false;
-      const gullHits = [];
-      const squidHit = (x) => squidUp && squidAlive && x === squidX;
       // el calamar está junto a su barco: lo alcanza antes la bala de su protegido
       const order = squidHit(xu[0]) && squidHit(xu[1]) ? [squidOwner, 1 - squidOwner] : [0, 1];
-      for (const from of order) {
-        const other = 1 - from, x = xu[from];
-        if (!live[from]) { ev.shots.push({ from, lane: atk[from], x, target: 'broken' }); continue; }
-        if (blocked[from]) { ev.shots.push({ from, lane: atk[from], x, target: 'blocked' }); continue; }
-        const sharkAt = (k) => !rain && room.hp[k].shark > 0 && 2 * def[k] - 5 === x;
-        let target, owner, iceId;
-        if (simultaneousCollision && from === 1 && (octopusCaughtThisStep || medkitCaughtThisStep)) { target = 'collision'; }
-        else if (squidHit(x) && from === squidOwner) { target = 'squid'; owner = squidOwner; squidAlive = false; ev.squid.blocked = true; }
-        else if (sharkAt(from)) { target = 'shark'; owner = from; }
-        else if (logX !== null && x === logX) { target = 'log'; } // el tronco para los disparos de ambos lados
-        else if (octopusX !== null && !room.octopusUsed && x === octopusX) {
-          target = 'octopus'; owner = other;
-          room.octopusUsed = true;
-          octopusCaughtThisStep = true;
-          const returnLanes = [1, 2, 3, 4].filter((lane) => lane !== atk[from]);
-          const returnLane = returnLanes[Math.floor(Math.random() * returnLanes.length)];
-          const returnX = 2 * returnLane - 5;
-          const returnTarget = !rain && room.hp[other].shark > 0 && 2 * def[other] - 5 === returnX
-            ? 'shark'
-            : Math.abs(returnX - pos[other]) <= 4 ? 'ship' : 'miss';
-          const amount = DMG * mult;
-          if (returnTarget === 'shark') dmg[other].shark += amount;
-          else if (returnTarget === 'ship') {
-            const cannon = nearestCannon(other, returnX);
-            if (!shielded(other, cannon)) {
-              dmg[other].ship += hull(amount);
-              cdmg[other][cannon] += amount;
-              hitBy[other][cannon] = from;
-            }
-          }
-          ev.octopus.release = { from, lane: returnLane, x: returnX, target: returnTarget, owner: other };
-        }
-        else if (medkitX !== null && x === medkitX && !medkitCollected) {
-          target = 'medkit';
-          medkitCollected = true;
-          medkitCaughtThisStep = true;
-          heal[from] += 40;
-        }
-        else if (iceAt(x) >= 0) { target = 'ice'; iceId = iceAt(x); iceAlive[iceId] = false; } // el iceberg se autodestruye con la bala
-        else if (subX !== null && x === subX) {
-          target = 'sub'; heal[from] += 5; crepair[from][atk[from] - 1] += 5;
-        }
-        else if (bucketX !== null && bucketAlive && x === bucketX) { target = 'bucket'; bucketAlive = false; heal[from] += 10; }
-        else if (gullX !== null && gullAlive && x === gullX) { target = 'gull'; gullHits.push(from); }
-        else if (whaleX !== null && x === whaleX) { target = 'whale'; owner = from; } // la orca rebota la bala contra el barco que disparó
-        else if (sharkAt(other)) { target = 'shark'; owner = other; }
-        else if (squidHit(x)) { target = 'squid'; owner = squidOwner; squidAlive = false; ev.squid.blocked = true; }
-        else if (Math.abs(x - pos[other]) <= 4) { target = 'ship'; owner = other; }
-        else { target = 'miss'; owner = other; }
-        const amount = DMG * mult;
-        if (target === 'ship') {
-          const c = nearestCannon(owner, x);
-          if (!shielded(owner, c)) { dmg[owner].ship += hull(amount); cdmg[owner][c] += amount; hitBy[owner][c] = from; }
-        } else if (target === 'shark') dmg[owner].shark += amount;
-        else if (target === 'whale') {
-          const c = nearestCannon(from, x);
-          if (!shielded(from, c)) { dmg[from].ship += hull(amount); cdmg[from][c] += amount; }
-        }
-        ev.shots.push({ from, lane: atk[from], x, target, owner, ice: iceId });
-      }
-      if (gullHits.length) { gullAlive = false; heal[gullHits.includes(firstSubmitter) ? firstSubmitter : gullHits[0]] += 15; }
+      for (const from of order) fireShot(from, atk[from], xu[from]);
     }
+    // ataque infernal: además del disparo elegido, disparan a la vez el resto de cañones en pie
+    for (const k of [0, 1]) if (infernoFor[k]) {
+      for (let lane = 1; lane <= 4; lane++) {
+        if (lane === atk[k] || cann[k][lane - 1] <= 0) continue;
+        const x = 2 * lane - 5 + pos[k];
+        if (blockRound && room.players[1 - k].block?.[i] === lane) { ev.shots.push({ from: k, lane, x, target: 'blocked', infernal: true }); continue; }
+        fireShot(k, lane, x, true);
+      }
+    }
+    if (infernoFor.some(Boolean)) ev.infernal = [0, 1].filter((k) => infernoFor[k]);
+    if (gullHits.length) { gullAlive = false; heal[gullHits.includes(firstSubmitter) ? firstSubmitter : gullHits[0]] += 15; }
     // disparo del submarino hacia el jugador elegido: lo para su tiburón si está en ese carril; si no, da al barco
     if (ev.sub) {
       const k = ev.sub.toward, amount = DMG * mult;
@@ -506,11 +579,15 @@ function resolveRound(room) {
   P.forEach((p, k) => {
     room.hist[k].push({ attack: p.attack, defense: p.defense });
     if (room.hist[k].length > 10) room.hist[k].shift();
-    p.attack = null; p.defense = null; p.wave = null; p.block = null; p.heli = false; p.troops = false; p.dome = false; p.food = false; p.submittedAt = null;
+    p.attack = null; p.defense = null; p.wave = null; p.block = null; p.heli = false; p.troops = false; p.dome = false; p.food = false; p.sword = false; p.infernal = false; p.dragon = false; p.submittedAt = null;
   });
   room.troopsCd = room.troopsCd.map((n) => Math.max(0, n - 1));
   room.domeCd = room.domeCd.map((n) => Math.max(0, n - 1));
   room.foodCd = room.foodCd.map((n) => Math.max(0, n - 1));
+  room.swordCd = room.swordCd.map((n) => Math.max(0, n - 1));
+  room.infernoCd = room.infernoCd.map((n) => Math.max(0, n - 1));
+  room.fireCd = (room.fireCd || [0, 0]).map((n) => Math.max(0, n - 1));
+  room.dragonCd = (room.dragonCd || [0, 0]).map((n) => Math.max(0, n - 1));
   // un cañón roto se regenera con 15 de vida para la siguiente ronda
   for (const k of [0, 1]) for (let l = 0; l < 4; l++) if (cann[k][l] === 0) cann[k][l] = 15;
   room.round = room.leagueMatch ? 1 + Math.floor(Math.random() * 37) : room.round + 1; // en torneos y ligas las rondas son aleatorias (1-37)
@@ -524,7 +601,7 @@ function broadcast(room, event, data) {
   room.players.forEach((p) => p.stream && send(p.stream, event, data));
   room.spectators?.forEach((stream) => send(stream, event, data));
 }
-const info = (room) => ({ names: room.players.map((p) => p.name), countries: room.players.map((p) => p.country || 'un'), levels: room.players.map((p) => Number(ranking[p.sub]?.level) || 1), maxShipHp: room.players.map(maxShipHealthForPlayer), blockRound: room.round % 10 === 0, hp: room.hp, cannons: room.cannons, round: room.round, over: room.over, tutorial: room.tutorial, inputMs: room.tutorial ? null : INPUT_MS, troopsCd: room.troopsCd || [0, 0], domeCd: room.domeCd || [0, 0], foodCd: room.foodCd || [0, 0] });
+const info = (room) => ({ names: room.players.map((p) => p.name), countries: room.players.map((p) => p.country || 'un'), levels: room.players.map((p) => Number(ranking[p.sub]?.level) || 1), skins: room.players.map((p) => (p.bot ? null : activeSkin(ranking[p.sub]))), maxShipHp: room.players.map(maxShipHealthForPlayer), blockRound: room.round % 10 === 0, hp: room.hp, cannons: room.cannons, round: room.round, over: room.over, tutorial: room.tutorial, inputMs: room.tutorial ? null : INPUT_MS, troopsCd: room.troopsCd || [0, 0], domeCd: room.domeCd || [0, 0], foodCd: room.foodCd || [0, 0], swordCd: room.swordCd || [0, 0], swordfish: room.players.map((p) => !p.bot && Boolean(ranking[p.sub]?.swordfish)), infernoCd: room.infernoCd || [0, 0], infernal: room.players.map((p) => !p.bot && Boolean(ranking[p.sub]?.infernal)), fireCd: room.fireCd || [0, 0], fireOn: room.fireOn || [false, false], fireballs: room.players.map((p) => !p.bot && Boolean(ranking[p.sub]?.fireballs)), dragonCd: room.dragonCd || [0, 0], dragons: room.players.map(dragonsOf) });
 
 // Secuencia aleatoria usando solo cañones que funcionan
 const workingSeq = (room, k) => {
@@ -785,7 +862,7 @@ function armTimer(room, delay) {
 }
 
 const stateFor = (room, k) => ({
-  ...info(room), submitted: !!room.players[k].attack, heli: !!room.players[k].heli, troops: !!room.players[k].troops, dome: !!room.players[k].dome, food: !!room.players[k].food,
+  ...info(room), submitted: !!room.players[k].attack, heli: !!room.players[k].heli, troops: !!room.players[k].troops, dome: !!room.players[k].dome, food: !!room.players[k].food, sword: !!room.players[k].sword, infernalSent: !!room.players[k].infernal, dragonSent: !!room.players[k].dragon,
   inputMs: room.tutorial ? null : Math.max(1000, Math.min(INPUT_MS, room.deadline - Date.now())),
 });
 
@@ -946,8 +1023,31 @@ const server = http.createServer(async (req, res) => {
     const user = identify(await body(req));
     if (!user) return json(res, 401, { error: 'Inicia sesión con Google' });
     const entry = ranking[user.sub] || {};
-    const points = Number(entry.points) || 0;
-    return json(res, 200, { points, wins: Number(entry.wins) || 0, level: Number(entry.level) || Math.floor(points / 100) + 1 });
+    return json(res, 200, profileView(entry));
+  }
+  if (req.method === 'POST' && url.pathname === '/api/skin') {
+    const user = identify(await body(req));
+    if (!user) return json(res, 401, { error: 'Inicia sesión con Google' });
+    const entry = ranking[user.sub];
+    if (!entry?.viking) return json(res, 403, { error: 'Compra el barco vikingo en la tienda' });
+    entry.vikingTier = activeSkin(entry) ? null : skinTier(entry.level);
+    persistRanking([user.sub]);
+    return json(res, 200, profileView(entry));
+  }
+  if (req.method === 'POST' && url.pathname === '/api/shop/buy') {
+    const b = await body(req);
+    const user = identify(b);
+    if (!user) return json(res, 401, { error: 'Inicia sesión con Google' });
+    const item = SHOP[b.item];
+    if (!Object.hasOwn(SHOP, String(b.item))) return json(res, 400, { error: 'Artículo no válido' });
+    const entry = ranking[user.sub];
+    if (entry?.[b.item]) return json(res, 409, { error: `Ya tienes el ${item.name.toLowerCase()}` });
+    if (!entry || (Number(entry.coins) || 0) < item.price) return json(res, 402, { error: `Necesitas ${item.price} monedas` });
+    entry.coins = Number(entry.coins) - item.price;
+    entry[b.item] = true;
+    if (b.item === 'viking') entry.vikingTier = skinTier(entry.level); // recién comprado se equipa
+    persistRanking([user.sub]);
+    return json(res, 200, profileView(entry));
   }
   if (req.method === 'GET' && url.pathname === '/api/ranking') return json(res, 200, topRanking(url.searchParams.get('period')));
   if (req.method === 'GET' && url.pathname === '/api/games') return json(res, 200, games);
@@ -1077,8 +1177,8 @@ const server = http.createServer(async (req, res) => {
     me.rematch = true;
     if (room.players.every((p) => p.rematch || p.bot)) {
       resetState(room);
-      room.players.forEach((p) => { p.rematch = false; p.attack = null; p.defense = null; p.wave = null; p.block = null; p.heli = false; p.troops = false; p.dome = false; p.food = false; p.submittedAt = null; });
-      room.troopsCd = [0, 0]; room.domeCd = [0, 0]; room.foodCd = [0, 0];
+      room.players.forEach((p) => { p.rematch = false; p.attack = null; p.defense = null; p.wave = null; p.block = null; p.heli = false; p.troops = false; p.dome = false; p.food = false; p.sword = false; p.infernal = false; p.dragon = false; p.submittedAt = null; });
+      room.troopsCd = [0, 0]; room.domeCd = [0, 0]; room.foodCd = [0, 0]; room.swordCd = [0, 0]; room.infernoCd = [0, 0]; room.fireCd = [0, 0]; room.fireOn = [false, false]; room.dragonCd = [0, 0];
       armTimer(room, INPUT_MS);
       broadcast(room, 'rematch', {});
       room.players.forEach((p, k) => p.stream && send(p.stream, 'state', stateFor(room, k)));
@@ -1129,6 +1229,52 @@ const server = http.createServer(async (req, res) => {
     if ((room.domeCd?.[pid] || 0) > 0) return json(res, 409, { error: 'La cúpula aún no está lista' });
     me.dome = true;
     return json(res, 200, { ok: true });
+  }
+  if (req.method === 'POST' && url.pathname === '/api/sword') {
+    const { room: code, pid, key } = await body(req);
+    const room = rooms.get(String(code));
+    const me = room?.players[pid];
+    if (!me || me.key !== key || room.players.length < 2 || room.over || room.tutorial) return json(res, 400, { error: 'Inválido' });
+    if (me.bot || !ranking[me.sub]?.swordfish) return json(res, 403, { error: 'Compra el pez espada en la tienda' });
+    if ((room.swordCd?.[pid] || 0) > 0) return json(res, 409, { error: 'El pez espada aún no está listo' });
+    if (room.hp[1 - pid].shark <= 0) return json(res, 409, { error: 'La ballena rival ya no está viva' });
+    me.sword = true;
+    return json(res, 200, { ok: true });
+  }
+  if (req.method === 'POST' && url.pathname === '/api/infernal') {
+    const { room: code, pid, key } = await body(req);
+    const room = rooms.get(String(code));
+    const me = room?.players[pid];
+    if (!me || me.key !== key || room.players.length < 2 || room.over || room.tutorial) return json(res, 400, { error: 'Inválido' });
+    if (me.bot || !ranking[me.sub]?.infernal) return json(res, 403, { error: 'Compra el ataque infernal en la tienda' });
+    if ((room.infernoCd?.[pid] || 0) > 0) return json(res, 409, { error: 'El ataque infernal aún no está listo' });
+    me.infernal = true;
+    return json(res, 200, { ok: true });
+  }
+  if (req.method === 'POST' && url.pathname === '/api/dragon') {
+    const { room: code, pid, key } = await body(req);
+    const room = rooms.get(String(code));
+    const me = room?.players[pid];
+    if (!me || me.key !== key || room.players.length < 2 || room.over || room.tutorial) return json(res, 400, { error: 'Inválido' });
+    const d = dragonsOf(me);
+    if (!d.fire && !d.storm) return json(res, 403, { error: 'Compra un dragón en la tienda' });
+    if ((room.dragonCd?.[pid] || 0) > 0) return json(res, 409, { error: 'Tus dragones aún están descansando' });
+    me.dragon = true;
+    return json(res, 200, { ok: true });
+  }
+  if (req.method === 'POST' && url.pathname === '/api/fire') {
+    const { room: code, pid, key } = await body(req);
+    const room = rooms.get(String(code));
+    const me = room?.players[pid];
+    if (!me || me.key !== key || room.players.length < 2 || room.over || room.tutorial) return json(res, 400, { error: 'Inválido' });
+    if (me.bot || !ranking[me.sub]?.fireballs) return json(res, 403, { error: 'Compra las balas de fuego en la tienda' });
+    room.fireOn ||= [false, false]; room.fireCd ||= [0, 0];
+    if (room.fireOn[pid]) room.fireOn[pid] = false; // apagarlas se puede siempre
+    else {
+      if (room.fireCd[pid] > 0) return json(res, 409, { error: `Las balas de fuego estarán listas en ${room.fireCd[pid]} ronda${room.fireCd[pid] === 1 ? '' : 's'}` });
+      room.fireOn[pid] = true; room.fireCd[pid] = FIRE_COOLDOWN;
+    }
+    return json(res, 200, { ok: true, fireOn: room.fireOn[pid], fireCd: room.fireCd[pid] });
   }
   if (req.method === 'POST' && url.pathname === '/api/food') {
     const { room: code, pid, key } = await body(req);

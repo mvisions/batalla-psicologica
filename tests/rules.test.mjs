@@ -324,7 +324,7 @@ test('sin pedirlo el helicóptero no acude', () => {
   assert.equal(events[0].heli, undefined);
 });
 
-test('desde la ronda 20 el tronco bloquea los disparos de ambos lados', () => {
+test('desde la ronda 20 el árbol horizontal bloquea dos carriles contiguos para ambos lados', () => {
   let withLog = 0;
   for (let n = 0; n < 300; n++) {
     const room = setup({ round: 22, a: { attack: [1, 2, 3, 4], defense: seq(2) }, b: { attack: [4, 3, 2, 1], defense: seq(2) } });
@@ -333,10 +333,64 @@ test('desde la ronda 20 el tronco bloquea los disparos de ambos lados', () => {
     for (const ev of events) {
       if (!ev.log) continue;
       withLog++;
-      for (const shot of ev.shots) if (shot.x === ev.log.x && shot.target !== 'broken' && !(shot.target === 'shark' && shot.owner === shot.from)) assert.equal(shot.target, 'log');
+      assert.equal(ev.log.lanes.length, 2);
+      assert.equal(ev.log.lanes[1] - ev.log.lanes[0], 2);
+      assert.equal(ev.log.x, (ev.log.lanes[0] + ev.log.lanes[1]) / 2);
+      for (const shot of ev.shots) if (ev.log.lanes.includes(shot.x) && shot.target !== 'broken' && !(shot.target === 'shark' && shot.owner === shot.from)) assert.equal(shot.target, 'log');
     }
   }
   assert.ok(withLog > 0);
+});
+
+test('el pez espada quita 10 a la ballena rival y vuelve a estar listo a las 4 rondas', () => {
+  const room = setup({ round: 1, a: { attack: seq(1), defense: seq(4) }, b: { attack: seq(1), defense: seq(4) } });
+  room.players[0].sword = true;
+  const { events } = resolveRound(room);
+  assert.deepEqual(events[0].sword, [{ owner: 0, target: 1, def: 4, dmg: 10 }]);
+  assert.equal(room.hp[1].shark, 40);
+  assert.equal(room.hp[0].shark, 50);
+  assert.deepEqual(room.swordCd, [3, 0]);
+  for (let i = 0; i < 3; i++) {
+    Object.assign(room.players[0], { attack: seq(1), defense: seq(4), sword: true });
+    Object.assign(room.players[1], { attack: seq(1), defense: seq(4) });
+    room.round = 1;
+    assert.equal(resolveRound(room).events[0].sword, undefined);
+  }
+  assert.equal(room.hp[1].shark, 40);
+  assert.deepEqual(room.swordCd, [0, 0]);
+});
+
+test('el ataque infernal dispara los 4 cañones en los 4 disparos y vuelve a estar listo a las 6 rondas', () => {
+  const room = setup({ round: 1, a: { attack: seq(2), defense: seq(1) }, b: { attack: seq(3), defense: seq(1) } });
+  room.hp[0].shark = 0; room.hp[1].shark = 0;
+  room.hp[1].ship = 100000;
+  room.players[0].infernal = true;
+  const base = setup({ round: 1, a: { attack: seq(2), defense: seq(1) }, b: { attack: seq(3), defense: seq(1) } });
+  base.hp[0].shark = 0; base.hp[1].shark = 0;
+  base.hp[1].ship = 100000;
+  const baseHit = 100000 - resolveRound(base).events[0].hp[1].ship;
+  const { events } = resolveRound(room);
+  assert.equal(events.length, 4);
+  for (const ev of events) {
+    const mine = ev.shots.filter((s) => s.from === 0);
+    assert.deepEqual(mine.map((s) => s.lane).sort(), [1, 2, 3, 4]);
+    assert.ok(mine.every((s) => s.target === 'ship' && s.owner === 1));
+    assert.equal(mine.filter((s) => s.infernal).length, 3);
+    assert.deepEqual(ev.infernal, [0]);
+  }
+  assert.equal(100000 - events[0].hp[1].ship, 4 * baseHit);
+  assert.deepEqual(room.infernoCd, [5, 0]);
+});
+
+test('el ataque infernal no se repite hasta pasadas 6 rondas', () => {
+  const room = setup({ round: 1, a: { attack: seq(2), defense: seq(1) }, b: { attack: seq(3), defense: seq(1) } });
+  room.hp[0].shark = 0; room.hp[1].shark = 0;
+  room.hp[1].ship = 100000;
+  room.infernoCd = [1, 0];
+  room.players[0].infernal = true;
+  const { events } = resolveRound(room);
+  assert.ok(events.every((ev) => !ev.infernal && ev.shots.filter((s) => s.from === 0).length === 1));
+  assert.deepEqual(room.infernoCd, [0, 0]);
 });
 
 test('antes de la ronda 20 no hay troncos salvo en la ronda 7', () => {

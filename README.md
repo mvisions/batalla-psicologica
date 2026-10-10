@@ -95,6 +95,7 @@ El servidor crea `data/` para la clave local de sesiones, las listas del ranking
 ## Progreso, torneos y despliegue
 
 - **Niveles:** cada 100 puntos subes un nivel, sin tope. Una victoria da 50 puntos (10 a partir del nivel 15). El barco cambia en los niveles 5 (dragón), 10 (góndola), 15 (Papá Noel), 20 (hielo), 25 (lava) y 30 (oro). El menú muestra la barra de progreso, el siguiente barco y un reto diario de 3 victorias.
+- **Monedas y tienda:** completar el reto diario da 10 monedas. En la tienda se compran el pez espada (150, cada 4 rondas quita 10 a la ballena rival), el ataque infernal (450), la skin de barco vikingo (250), las balas de fuego (500, +3 de daño, activables cada 6 rondas) y los dragones de fuego y de rayos (1500 cada uno, cada 6 rondas quitan un 25 % de la vida del barco rival o de cada cañón).
 - **Torneos:** premio de 200, 150, 100 y 0 puntos (puestos 1º a 4º). Ronaldo sube 1 punto por victoria. Niveles iniciales de los bots: Messi 1, Lamine 5, Ronaldo 20.
 - **Torneos persistentes:** con `RANKING_STORAGE=firestore`, los torneos se guardan en la colección `activeLeagues` y se restauran al reiniciar el servidor (las partidas en curso empiezan de nuevo).
 - **Despliegue de Render:** lo lanza `.github/workflows/deploy-render.yml` cada día a la 01:00 de Madrid, con el secreto `RENDER_DEPLOY_HOOK_URL`. Se puede ejecutar a mano desde la pestaña Actions.
