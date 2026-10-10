@@ -1344,6 +1344,34 @@ export function createScene(container) {
     heli.g.visible = false;
   }
 
+  // un barquito sale del barco de `from`, esquiva todo lo que hay en el mar y se estrella contra el cañón de `to` en la posición x
+  async function troopShip(from, to, xu) {
+    const g = new THREE.Group();
+    const hull = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.3, 1.5), new THREE.MeshStandardMaterial({ color: 0xb23a2e, roughness: 0.5 }));
+    hull.position.y = 0.2;
+    const bow = new THREE.Mesh(new THREE.ConeGeometry(0.35, 0.7, 4), new THREE.MeshStandardMaterial({ color: 0xb23a2e, roughness: 0.5 }));
+    bow.rotation.x = Math.PI / 2; bow.rotation.y = Math.PI / 4; bow.position.set(0, 0.2, 1.05); bow.scale.set(1, 1, 0.43);
+    const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 1.3, 6), new THREE.MeshStandardMaterial({ color: 0x4a3524 }));
+    mast.position.y = 1;
+    const sail = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 0.95), new THREE.MeshStandardMaterial({ color: 0xffffff, side: THREE.DoubleSide }));
+    sail.rotation.y = Math.PI / 2; sail.position.set(0, 1.05, -0.1);
+    g.add(hull, bow, mast, sail);
+    const z0 = zOf(from) * (SHIP_Z - 2.6), z1 = zOf(to) * HIT_SHIP_Z, x0 = ships[from].g.position.x, x1 = xu * UNIT;
+    scene.add(g);
+    const place = (t) => {
+      const sway = Math.sin(t * Math.PI * 5) * 1.7 * (1 - t); // zigzag que esquiva lo que haya por el camino
+      g.position.set(x0 + (x1 - x0) * t + sway, 0.15 + Math.sin(t * 40) * 0.05, z0 + (z1 - z0) * t);
+      const dx = (x1 - x0) + Math.cos(t * Math.PI * 5) * 1.7 * Math.PI * 5 * (1 - t) - Math.sin(t * Math.PI * 5) * 1.7;
+      g.rotation.y = Math.atan2(dx, (z1 - z0));
+    };
+    place(0);
+    const wake = setInterval(() => ripple(g.position.x, g.position.z, 2.2, 0, 0.9), 140);
+    await tween(2600, place, easeInOut);
+    clearInterval(wake);
+    scene.remove(g);
+    explodeShip(V(x1, 1.1, z1)); hitShip(to);
+  }
+
   // x en unidades de 1,5 (posición real del cañón); 'miss' = la bala se pierde fuera de la pantalla
   function fire({ from, x: xu, lane, target, owner, fromX, sub: fromSub = false, octopus: fromOctopus = false, toward, ice }) {
     const dir = fromSub ? (toward === 'me' ? 1 : -1) : fromOctopus ? Math.sign(zOf(owner)) : (from === 'me' ? -1 : 1);
@@ -1722,6 +1750,6 @@ export function createScene(container) {
     return best;
   }
 
-  Object.assign(api, { setHealth, setCannons, setCannonLabels, setShipLevel, pickFlag, subMove, subLeave, iceShow, iceClear, octopusShow, octopusSpin, octopusLeave, medkitShow, medkitLeave, bucketShow, bucketLeave, gullFly, gullLeave, logShow, logLeave, squidShow, squidLeave, heliSupport, dud, labelCannon, moveFin, moveShip, fire, label, trackLabel, trackPoint, trackShip, setWeather, setFlag, SHIP_Z });
+  Object.assign(api, { setHealth, setCannons, setCannonLabels, setShipLevel, pickFlag, subMove, subLeave, iceShow, iceClear, octopusShow, octopusSpin, octopusLeave, medkitShow, medkitLeave, bucketShow, bucketLeave, gullFly, gullLeave, logShow, logLeave, squidShow, squidLeave, heliSupport, troopShip, dud, labelCannon, moveFin, moveShip, fire, label, trackLabel, trackPoint, trackShip, setWeather, setFlag, SHIP_Z });
   return api;
 }

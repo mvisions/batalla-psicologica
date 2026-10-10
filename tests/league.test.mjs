@@ -413,3 +413,53 @@ test('salir de un torneo en inscripción libera la plaza', async () => {
     child.kill();
   }
 });
+
+test('el barquito ataca el cañón más débil y tarda dos rondas en volver', async () => {
+  const port = await unusedPort();
+  const projectDir = fileURLToPath(new URL('..', import.meta.url));
+  const child = spawn(process.execPath, ['server.js'], {
+    cwd: projectDir,
+    env: { ...process.env, PORT: String(port), GOOGLE_CLIENT_ID: '', ALLOW_DEVELOPMENT_LOGIN: 'true', RATE_LIMIT: '100000' },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  const controllers = [];
+  try {
+    await waitForServer(child);
+    const base = `http://127.0.0.1:${port}`;
+    const post = async (route, value) => {
+      const response = await fetch(`${base}${route}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(value) });
+      return { status: response.status, body: await response.json() };
+    };
+    const a = (await post('/api/create', { name: 'Ana', mode: 'pvp' })).body;
+    const b = (await post('/api/join', { name: 'Beto', token: a.token })).body;
+    const controller = new AbortController();
+    controllers.push(controller);
+    const next = eventReader((await fetch(`${base}/api/events?room=${a.room}&pid=0&key=${a.key}`, { signal: controller.signal })).body);
+    const nextRound = async () => {
+      for (let i = 0; i < 20; i++) {
+        const message = await next();
+        if (message.event === 'round') return JSON.parse(message.data);
+      }
+      assert.fail('sin ronda');
+    };
+    const play = async (troops) => {
+      if (troops) assert.equal((await post('/api/troops', { room: a.room, pid: 0, key: a.key })).status, troops);
+      const seq = { attack: [1, 1, 1, 1], defense: [1, 1, 1, 1], wave: [0, 0, 0, 0] };
+      for (const [pid, key] of [[0, a.key], [1, b.key]]) await post('/api/submit', { room: a.room, pid, key, ...seq });
+      return nextRound();
+    };
+    assert.equal((await post('/api/troops', { room: a.room, pid: 0, key: 'mala' })).status, 400);
+    const first = await play(200);
+    const hit = first.events[0].troops;
+    assert.equal(hit.length, 1);
+    assert.equal(hit[0].owner, 0);
+    assert.deepEqual(first.troopsCd, [1, 0]);
+    assert.equal((await post('/api/troops', { room: a.room, pid: 0, key: a.key })).status, 409);
+    const second = await play(0);
+    assert.equal(second.events[0].troops, undefined);
+    assert.deepEqual(second.troopsCd, [0, 0]);
+  } finally {
+    controllers.forEach((c) => c.abort());
+    child.kill();
+  }
+});

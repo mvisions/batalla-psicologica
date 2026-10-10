@@ -196,6 +196,9 @@
   .tabs button.on { background: #1e88e5; }
   .danger { background: #c0392b; color: #fff; }
   #leaveLeague { width: auto; margin-top: 8px; }
+  .hudbtns { display: flex; gap: 6px; flex: none; }
+  #troops { width: auto; margin: 0; padding: 3px 9px; flex: none; border-radius: 6px; border: 1px solid #fff8; background: #2e7d32; line-height: 0; }
+  #troops.cooldown { background: #5b6670; opacity: .75; }
   .hudact { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-top: 3px; }
   #resign { width: auto; margin: 0; padding: 4px 10px; font-size: 12px; font-weight: 700; background: #c0392b; color: #fff; border: 1px solid #fff8; border-radius: 6px; flex: none; }
   body[data-over] #resign { display: none; }
@@ -343,7 +346,7 @@
         <div id="waveCtl" class="hidden"><span id="waveTxt"></span><button id="waveStay" type="button">Quieto</button></div>
         <div class="bars"><div class="bar ship-bar"><i id="meShip"></i><em id="meShipTxt"></em></div><div class="bar shark-bar"><i id="meShark"></i><em id="meSharkTxt"></em></div></div>
         <div class="cans" id="meCan"></div>
-        <div class="hudact"><div id="emotes" class="hidden"></div><button id="resign" class="hidden" type="button">Retirarse</button></div>
+        <div class="hudact"><div id="emotes" class="hidden"></div><span class="hudbtns"><button id="troops" class="hidden" type="button" aria-label="Mandar un barquito contra el cañón más débil del rival" title="Barquito de ataque"><svg viewBox="0 0 24 16" width="22" height="15" aria-hidden="true"><path d="M12 1v8" stroke="#fff" stroke-width="1.4"/><path d="M12 1.5l6 6.5h-6z" fill="#fff"/><path d="M2 10h20l-3.5 5h-13z" fill="#fff" stroke="#0007" stroke-width=".6"/></svg></button><button id="resign" class="hidden" type="button">Retirarse</button></span></div>
         <div class="hudtop"><b><img id="meFlag" class="flag" alt=""><span id="meLvl" class="lvl"></span><span id="meName"></span></b></div>
       </div>
     </div>
@@ -1138,7 +1141,7 @@ function connect() {
   es.addEventListener('state', (e) => {
     const s = JSON.parse(e.data);
     if (playing) return; // una reconexión durante la animación no debe romperla
-    tutorialUnlimited = !!s.tutorial; heliAsked = !!s.heli;
+    tutorialUnlimited = !!s.tutorial; heliAsked = !!s.heli; troopsCd = s.troopsCd || [0, 0]; troopsSent = !!s.troops;
     if (tutorialMode && !tutorialStep) setTutorialStep(s.submitted ? 'watch' : 'attack');
     inputMs = s.inputMs; curRound = s.round; blockRound = !!s.blockRound; $('round').textContent = s.round; badge(s.round); setNames(s.names, s.countries, s.levels); setHp(s.hp, s.maxShipHp); setCannons(s.cannons); scene.setWeather(s.round); setupForm();
     $('invite').classList.add('hidden');
@@ -1195,7 +1198,20 @@ $('resign').onclick = async () => {
   try { await post('/api/resign', { room, pid, key }); } catch (e) { $('msg').textContent = e.message; }
   $('resign').disabled = false;
 };
-const updateResign = (over) => $('resign').classList.toggle('hidden', !!over || tutorialMode || spectatorMode || !room);
+let troopsCd = [0, 0], troopsSent = false;
+function updateTroops() {
+  const left = troopsCd[pid] || 0, ready = !troopsSent && left === 0 && !playing;
+  const b = $('troops');
+  b.classList.toggle('hidden', !!document.body.dataset.over || tutorialMode || spectatorMode || !room);
+  b.classList.toggle('cooldown', !ready);
+  b.disabled = !ready;
+  b.title = troopsSent ? 'Barquito enviado' : left > 0 ? `Barquito listo en ${left} ${left === 1 ? 'ronda' : 'rondas'}` : 'Mandar el barquito contra el cañón más débil del rival';
+}
+$('troops').onclick = async () => {
+  try { await post('/api/troops', { room, pid, key }); troopsSent = true; updateTroops(); $('msg').textContent = 'Barquito en camino: atacará el cañón más débil del rival al empezar los disparos'; }
+  catch (e) { $('msg').textContent = e.message; }
+};
+const updateResign = (over) => { $('resign').classList.toggle('hidden', !!over || tutorialMode || spectatorMode || !room); updateTroops(); };
 $('replay').onclick = () => { if (lastRound && !playing) queue = queue.then(() => playRound(lastRound.r, true)).catch(console.error); };
 function showLastRound(r, me, op) {
   const f = (s) => `ataque ${s.attack.join('')} · defensa ${s.defense.join('')}` + (s.wave ? ` · oleaje ${s.wave.map((m) => (m === 1 ? '▶' : m === 2 ? '◀' : '●')).join(' ')}` : '') + (s.block ? ` · bloqueo ${s.block.join('')}` : '');
@@ -1439,7 +1455,7 @@ async function playRound(r, replay = false) {
   try { await Promise.race([playRoundInner(r, replay), wait(SHOT_MS * 4 + 45000).then(() => { throw new Error('animación atascada'); })]); }
   catch (error) {
     console.error(error);
-    playing = false;
+    playing = false; updateTroops();
     try { scene.moveShip('me', 0); scene.moveShip('op', 0); } catch {}
     if (replay || spectatorMode) return;
     setHp(r.hp, r.maxShipHp); setCannons(r.cannons);
@@ -1448,7 +1464,7 @@ async function playRound(r, replay = false) {
   }
 }
 async function playRoundInner(r, replay = false) {
-  playing = true; if (!replay) heliAsked = false; renderHeli();
+  playing = true; if (!replay) { heliAsked = false; troopsSent = false; troopsCd = r.troopsCd || [0, 0]; } renderHeli(); updateTroops();
   tutorialUnlimited = !!r.tutorial;
   renderWave();
   $('x2').style.display = 'none'; // el cartel solo se ve al elegir la secuencia
@@ -1498,6 +1514,9 @@ async function playRoundInner(r, replay = false) {
       sfx('heli');
       impacts.push((async () => { for (const h of ev.heli) await scene.heliSupport(side(h.owner)); })());
     }
+    if (ev.troops) {
+      impacts.push((async () => { for (const t of ev.troops) { await scene.troopShip(side(t.owner), side(t.target), t.x); sfx('clash'); } })());
+    }
     if (ev.sub) { // el submarino dispara hacia uno de los dos lados
       const sf = scene.fire({ sub: true, toward: side(ev.sub.toward), x: ev.sub.x, target: ev.sub.target, owner: side(ev.sub.owner) });
       sfx('shot');
@@ -1516,7 +1535,7 @@ async function playRoundInner(r, replay = false) {
   scene.subLeave(); scene.octopusLeave(); scene.medkitLeave(); scene.bucketLeave(); scene.gullLeave(); scene.squidLeave(); scene.logLeave(); scene.iceClear();
   setHp(r.hp, r.maxShipHp);
   { const before = lastCan; setCannons(r.cannons); showCannonRepair(before, r.cannons, me, op); }
-  playing = false;
+  playing = false; updateTroops();
   scene.moveShip('me', 0); scene.moveShip('op', 0);
   if (replay) { // la repetición no cambia el estado de la partida
     scene.setWeather(curRound); badge(curRound); $('msg').textContent = promptMsg();
