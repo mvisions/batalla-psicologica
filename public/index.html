@@ -38,13 +38,14 @@
   #tip { position: absolute; z-index: 12; transform: translateX(-50%); background: #000d; border: 1px solid #fff5; border-radius: 8px;
     padding: 4px 10px; font-size: 13px; pointer-events: none; white-space: nowrap; }
   .bars { display: flex; gap: 6px; margin: 3px 0; }
-  .bars .bar { flex: 1; margin-top: 0; height: 10px; }
+  .bars .bar { flex: 1; margin-top: 0; height: 15px; position: relative; }
+  .bar em { position: absolute; inset: 0; display: flex; align-items: center; padding-left: 6px; font-style: normal; font-size: 11px; font-weight: 700; text-shadow: 0 0 3px #000, 0 0 3px #000; }
   .arrow { position: absolute; z-index: 7; width: 43px; height: 43px; margin: 0; padding: 0; border-radius: 50%; font-size: 22px;
     background: #1e88e5dd; border: 2px solid #fff; box-shadow: 0 2px 8px #0008; }
   .arrow:disabled { opacity: .35; }
   .cans { display: flex; gap: 4px; margin-top: 2px; }
   .can { flex: 1; text-align: center; border-radius: 4px; font-size: 11px; padding: 1px 0; }
-  .can b { color: #ffd54f; margin-right: 3px; }
+  .can svg { vertical-align: middle; margin-right: 3px; }
   .can.dead { background: #6b1d1d !important; text-decoration: line-through; }
   #waveCtl { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
   #waveCtl span { flex: 1; }
@@ -193,11 +194,11 @@
   .tabs { display: flex; gap: 6px; }
   .tabs button { margin: 0; padding: 6px; font-size: 13px; background: #2a4a6e; }
   .tabs button.on { background: #1e88e5; }
-  #resign { position: fixed; top: 10px; right: 10px; z-index: 50; width: auto; margin: 0; padding: 10px 16px; font-size: 15px; font-weight: 700; background: #c0392b; color: #fff; border: 2px solid #fff; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,.5); }
-  #resign.hidden { display: none; }
+  .hudact { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-top: 3px; }
+  #resign { width: auto; margin: 0; padding: 4px 10px; font-size: 12px; font-weight: 700; background: #c0392b; color: #fff; border: 1px solid #fff8; border-radius: 6px; flex: none; }
   body[data-over] #resign { display: none; }
-  #emotes { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
-  #emotes button { width: auto; margin: 0; padding: 6px 10px; font-size: 13px; background: #2a4a6e; }
+  #emotes { display: flex; flex-wrap: wrap; gap: 4px; }
+  #emotes button { width: auto; margin: 0; padding: 3px 7px; font-size: 11px; background: #2a4a6e; }
   #emoteMsg { position: absolute; top: 96px; left: 50%; transform: translateX(-50%); z-index: 8; background: #000c; border: 1px solid #ffd54f;
     border-radius: 14px; padding: 6px 14px; font-size: 14px; pointer-events: none; }
   #lastRound { font-size: 13px; }
@@ -304,8 +305,8 @@
   <div id="game" class="hidden">
     <div id="arena">
       <div class="hudin" id="hudOp">
-        <div class="hudtop"><b><img id="opFlag" class="flag" alt=""><span id="opLvl" class="lvl"></span><span id="opName"></span></b><span id="opTxt"></span><span>Ronda <span id="round">1</span></span></div>
-        <div class="bars"><div class="bar ship-bar"><i id="opShip"></i></div><div class="bar shark-bar"><i id="opShark"></i></div></div>
+        <div class="hudtop"><b><img id="opFlag" class="flag" alt=""><span id="opLvl" class="lvl"></span><span id="opName"></span></b><span>Ronda <span id="round">1</span></span></div>
+        <div class="bars"><div class="bar ship-bar"><i id="opShip"></i><em id="opShipTxt"></em></div><div class="bar shark-bar"><i id="opShark"></i><em id="opSharkTxt"></em></div></div>
         <div class="cans" id="opCan"></div>
       </div>
       <div id="x2"></div>
@@ -337,9 +338,10 @@
           <div class="seqrow"><b id="timer"></b><span id="seqTxt"></span></div>
         </div>
         <div id="waveCtl" class="hidden"><span id="waveTxt"></span><button id="waveStay" type="button">Quieto</button></div>
-        <div class="bars"><div class="bar ship-bar"><i id="meShip"></i></div><div class="bar shark-bar"><i id="meShark"></i></div></div>
+        <div class="bars"><div class="bar ship-bar"><i id="meShip"></i><em id="meShipTxt"></em></div><div class="bar shark-bar"><i id="meShark"></i><em id="meSharkTxt"></em></div></div>
         <div class="cans" id="meCan"></div>
-        <div class="hudtop"><b><img id="meFlag" class="flag" alt=""><span id="meLvl" class="lvl"></span><span id="meName"></span></b><span id="meTxt"></span></div>
+        <div class="hudact"><div id="emotes" class="hidden"></div><button id="resign" class="hidden" type="button">Retirarse</button></div>
+        <div class="hudtop"><b><img id="meFlag" class="flag" alt=""><span id="meLvl" class="lvl"></span><span id="meName"></span></b></div>
       </div>
     </div>
     <div id="msg"></div>
@@ -352,8 +354,6 @@
       <div id="leagueRounds"></div>
     </div>
     <button id="spectatorBack" class="hidden" type="button">Volver a torneos</button>
-    <button id="resign" class="hidden" type="button">Retirarse</button>
-    <div id="emotes" class="hidden"></div>
     <div id="lastRound" class="panel hidden"><b>Última ronda</b><div id="lrTxt"></div><button id="replay" type="button">Ver repetición</button></div>
   </div>
 </div>
@@ -1246,8 +1246,8 @@ function setHp(hp, maxShipHp = lastMaxShipHp) {
   const myShipRatio = m.ship / myShipMax, opShipRatio = o.ship / opShipMax;
   $('meShip').style.width = `${Math.min(100, myShipRatio * 100)}%`; $('opShip').style.width = `${Math.min(100, opShipRatio * 100)}%`;
   $('meShark').style.width = m.shark * 2 + '%'; $('opShark').style.width = o.shark * 2 + '%';
-  $('meTxt').textContent = `Barco ${Math.floor(myShipRatio * 100)}% · Tiburón ${m.shark}`;
-  $('opTxt').textContent = `Barco ${Math.floor(opShipRatio * 100)}% · Tiburón ${o.shark}`;
+  $('meShipTxt').textContent = `🚢 ${Math.floor(myShipRatio * 100)}%`; $('opShipTxt').textContent = `🚢 ${Math.floor(opShipRatio * 100)}%`;
+  $('meSharkTxt').textContent = `🦈 ${m.shark}`; $('opSharkTxt').textContent = `🦈 ${o.shark}`;
   scene.setHealth({ me: { ship: myShipRatio, shark: m.shark / 50 }, op: { ship: opShipRatio, shark: o.shark / 50 } });
 }
 function showDamage(prev, next, me, op, heal = [0, 0]) {
@@ -1263,13 +1263,14 @@ function showDamage(prev, next, me, op, heal = [0, 0]) {
 }
 
 // Vida de cada cañón (25): se pintan en el panel y se desactivan los rotos en el formulario
+const CANNON_ICON = '<svg viewBox="0 0 24 12" width="18" height="9" aria-hidden="true"><rect x="1" y="2" width="15" height="6" rx="3" fill="#cfd8dc"/><circle cx="16" cy="5" r="4" fill="#78909c"/><circle cx="7" cy="10" r="2" fill="#ffd54f"/></svg>';
 let lastCan = null, myCan = [25, 25, 25, 25];
 function setCannons(c) {
   lastCan = c; myCan = c[pid];
   scene.setCannons({ me: c[pid], op: c[1 - pid] });
   for (const [who, idx] of [['me', pid], ['op', 1 - pid]]) {
     $(who + 'Can').innerHTML = c[idx].map((hp, i) =>
-      `<span class="can${hp <= 0 ? ' dead' : ''}" style="background:linear-gradient(90deg,#2e7d32 ${hp * 4}%,#1b3a5c ${hp * 4}%)"><b>${i + 1}</b>${hp}</span>`).join('');
+      `<span class="can${hp <= 0 ? ' dead' : ''}" style="background:linear-gradient(90deg,#2e7d32 ${hp * 4}%,#1b3a5c ${hp * 4}%)">${CANNON_ICON}${hp}</span>`).join('');
   }
   renderControls();
 }
