@@ -304,7 +304,7 @@ function resolveRound(room) {
   const events = [];
   const cann = room.cannons, mult = room.round % 4 === 0 || room.round >= 36 ? 2 : 1;
   const hpRatio0 = (room.maxShipHp[0] + room.maxShipHp[1]) / 2 / 105, capRatio = 255 / 105; // hasta el nivel 30 el daño crece poco y los duelos se alargan; a partir de ahí crece con la vida y la duración se estabiliza
-  const hpScale = Math.max(1, Math.pow(Math.min(hpRatio0, capRatio), 0.08) * Math.max(1, Math.pow(hpRatio0 / capRatio, 0.5)));
+  const hpScale = Math.max(1, Math.pow(Math.min(hpRatio0, capRatio), 0.04) * Math.max(1, Math.pow(hpRatio0 / capRatio, 0.5)));
   const hull = (n) => Math.round(n * hpScale);
   const iceAlive = [true, true]; // icebergs de la ronda de lluvia
   const wild = room.wildlife !== false;
