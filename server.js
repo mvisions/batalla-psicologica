@@ -11,7 +11,7 @@ import { limitLeaderboard, migrateLegacyRanking, upsertLeaderboard } from './src
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const DIR = path.join(ROOT, 'public');
-const DATA = path.join(ROOT, 'data');
+const DATA = process.env.DATA_DIR || path.join(ROOT, 'data');
 fs.mkdirSync(DATA, { recursive: true });
 
 // En hosting, una variable estable conserva sesiones e invitaciones entre reinicios.

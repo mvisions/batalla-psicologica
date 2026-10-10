@@ -1,5 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { spawn } from 'node:child_process';
 import net from 'node:net';
 import { fileURLToPath } from 'node:url';
@@ -142,7 +145,7 @@ test('el torneo de cuatro crea semifinales, final y partido por el tercer puesto
   const projectDir = fileURLToPath(new URL('..', import.meta.url));
   const child = spawn(process.execPath, ['server.js'], {
     cwd: projectDir,
-    env: { ...process.env, PORT: String(port), START_ROUND: '36', RATE_LIMIT: '100000', GOOGLE_CLIENT_ID: '', ALLOW_DEVELOPMENT_LOGIN: 'true' },
+    env: { ...process.env, PORT: String(port), START_ROUND: '36', DATA_DIR: fs.mkdtempSync(path.join(os.tmpdir(), 'bp-')), RATE_LIMIT: '100000', GOOGLE_CLIENT_ID: '', ALLOW_DEVELOPMENT_LOGIN: 'true' },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   const controllers = [];
@@ -219,7 +222,8 @@ test('el torneo de cuatro crea semifinales, final y partido por el tercer puesto
         assert.equal(updates[1].winner, result);
         if (result !== null) break;
       }
-      assert.notEqual(result, null, 'el duelo debe terminar');
+      
+      assert.notEqual(result, null, "el duelo debe terminar");
       return { winner: group[result].leaguePid, loser: group[1 - result].leaguePid };
     };
 
