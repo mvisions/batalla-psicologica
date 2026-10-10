@@ -56,7 +56,7 @@ test('el tiburón rival intercepta la bala en su carril', () => {
   const { events } = resolveRound(room);
   const shot = events[0].shots.find((s) => s.from === 0);
   assert.equal(shot.target, 'shark');
-  assert.equal(room.hp[1].shark, 50 - 5 * 4);
+  assert.equal(room.hp[1].shark, 50 - 8 * 4);
   assert.equal(room.hp[1].ship, 105);
 });
 
@@ -78,7 +78,7 @@ test('la ronda 15 es nevada y mantiene activa la defensa contra tiburones', () =
 test('la ronda 4 hace doble daño', () => {
   const room = setup({ round: 4, a: { attack: seq(1), defense: seq(4) }, b: { attack: seq(4), defense: seq(4) } });
   resolveRound(room);
-  assert.equal(room.hp[1].ship, 105 - 10 * 4);
+  assert.equal(room.hp[1].ship, 105 - 16 * 4);
 });
 
 test('un cañón roto no dispara y se regenera con 15 al acabar la ronda', () => {
@@ -163,7 +163,7 @@ test('el pulpo de ronda 2 devuelve el disparo por otro puesto contra el rival', 
   assert.notEqual(events[0].octopus.release.lane, 1);
   assert.ok([2, 3, 4].includes(events[0].octopus.release.lane));
   assert.equal(events[0].octopus.release.target, 'ship');
-  assert.equal(events[0].hp[1].ship, 100);
+  assert.equal(events[0].hp[1].ship, 97);
   assert.equal(room.octopusUsed, true);
   assert.equal(events[1].octopus, null);
 });
@@ -351,7 +351,7 @@ test('antes de la ronda 20 no hay troncos salvo en la ronda 7', () => {
 test('desde la ronda 36 todas las rondas son x2', () => {
   const room = setup({ round: 37, a: { attack: seq(4), defense: seq(2) }, b: { attack: seq(2), defense: seq(2) } });
   resolveRound(room);
-  assert.equal(room.hp[1].ship, 105 - 4 * 10);
+  assert.equal(room.hp[1].ship, 105 - 4 * 16);
 });
 
 test('si ambos alcanzan la gaviota, la vida es para quien envió antes la secuencia', () => {

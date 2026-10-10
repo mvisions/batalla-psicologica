@@ -261,7 +261,7 @@ function identify(b) {
 }
 const PORT = process.env.PORT || 3000;
 const START_ROUND = Number(process.env.START_ROUND) || 1; // solo para pruebas
-const DMG = 5;
+const DMG = 8;
 const rooms = new Map();
 const leagues = new Map();
 let leagueWriteQueue = Promise.resolve();
