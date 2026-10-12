@@ -398,7 +398,7 @@
         <div class="shop-item roulette-item">
           <svg viewBox="0 0 96 64" aria-hidden="true"><g transform="translate(48 32)"><circle r="29" fill="#3b2400"/><path d="M0 0 L0 -26 A26 26 0 0 1 22.5 -13 Z" fill="#e53935"/><path d="M0 0 L22.5 -13 A26 26 0 0 1 22.5 13 Z" fill="#fdd835"/><path d="M0 0 L22.5 13 A26 26 0 0 1 0 26 Z" fill="#43a047"/><path d="M0 0 L0 26 A26 26 0 0 1 -22.5 13 Z" fill="#1e88e5"/><path d="M0 0 L-22.5 13 A26 26 0 0 1 -22.5 -13 Z" fill="#8e24aa"/><path d="M0 0 L-22.5 -13 A26 26 0 0 1 0 -26 Z" fill="#fb8c00"/><circle r="6" fill="#ffd54f" stroke="#3b2400" stroke-width="2"/></g><path d="M48 0 L54 10 L42 10 Z" fill="#fff" stroke="#3b2400" stroke-width="1.5"/></svg>
           <h4>Ruleta</h4>
-          <p>Una sola tirada. Puede tocarte cualquier artículo de la tienda (los caros, menos probables) o un salvavidas para tu barco (25%).</p>
+          <p>Gira por 🪙 350 cada vez que quieras. Los premios no se repiten y podrás jugar hasta agotar los artículos y salvavidas disponibles.</p>
           <button id="openRoulette" type="button">Comprar</button>
         </div>
       </div>
@@ -786,6 +786,13 @@ function drawWheel(odds) {
   const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0);
   const c = size / 2, r = c - 2;
   g.clearRect(0, 0, size, size);
+  if (!odds.length) {
+    g.beginPath(); g.arc(c, c, r, 0, Math.PI * 2); g.fillStyle = '#45505b'; g.fill();
+    g.fillStyle = '#fff'; g.font = 'bold 20px system-ui, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillText('AGOTADA', c, c);
+    $('wheelLegend').innerHTML = '<li>Ya no quedan premios</li>';
+    return;
+  }
   let a = -Math.PI / 2;
   for (const o of odds) {
     const da = (o.pct / 100) * Math.PI * 2, p = PRIZES[o.id];
@@ -819,10 +826,10 @@ function renderRoulette() {
   const btn = $('spinBtn');
   if (rl.used) {
     btn.disabled = true; btn.textContent = '✔';
-    $('rouletteInfo').textContent = `Ya has tirado: te tocó ${PRIZES[rl.prize]?.icon || ''} ${PRIZES[rl.prize]?.name || rl.prize}.`;
+    $('rouletteInfo').textContent = 'Se agotaron los premios de la ruleta. ¡Ya tienes todos!';
   } else {
     btn.disabled = coins < rl.price || wheelSpinning; btn.textContent = 'GIRAR';
-    $('rouletteInfo').textContent = coins < rl.price ? `Tirar cuesta 🪙 ${rl.price}. Te faltan ${rl.price - coins}.` : rl.price ? `Una sola tirada por 🪙 ${rl.price}. ¡Pulsa GIRAR!` : 'Tienes una tirada gratis. ¡Pulsa GIRAR!';
+    $('rouletteInfo').textContent = coins < rl.price ? `Tirar cuesta 🪙 ${rl.price}. Te faltan ${rl.price - coins}.` : rl.price ? `Quedan ${rl.remaining} premios. Cada tirada cuesta 🪙 ${rl.price}. ¡Pulsa GIRAR!` : `Quedan ${rl.remaining} premios. ¡Tu tirada es gratis!`;
   }
 }
 function closeRoulette() { if (!wheelSpinning) { $('rouletteScreen').classList.add('hidden'); $('prizeReveal').classList.add('hidden'); } }
@@ -1061,8 +1068,8 @@ function renderCoins(profile) {
   if (rl) {
     const ob = $('openRoulette');
     ob.disabled = false;
-    ob.textContent = rl.used ? `✔ ${PRIZES[rl.prize]?.icon || ''} Usada` : rl.price ? `🪙 ${rl.price}` : 'GRATIS';
-    ob.title = rl.used ? `Te tocó ${PRIZES[rl.prize]?.name || rl.prize}` : rl.price ? `Tirar de la ruleta por ${rl.price} monedas` : 'Tirar gratis de la ruleta';
+    ob.textContent = rl.used ? '✔ Agotada' : rl.price ? `🪙 ${rl.price}` : 'GRATIS';
+    ob.title = rl.used ? 'Ya no quedan premios en la ruleta' : rl.price ? `Tirar de la ruleta por ${rl.price} monedas` : 'Tirar gratis de la ruleta';
     if (!$('rouletteScreen').classList.contains('hidden')) renderRoulette();
   }
   updateTroops();

@@ -152,18 +152,21 @@ const DAILY_WINS = 3, DAILY_COINS = 10;
 const SHOP = { swordfish: { name: 'Pez espada', price: 150 }, infernal: { name: 'Ataque infernal', price: 450 }, viking: { name: 'Barco vikingo', price: 250 }, fireballs: { name: 'Balas de fuego', price: 500 }, fireDragon: { name: 'Dragón de fuego', price: 1500 }, stormDragon: { name: 'Dragón de rayos', price: 1500 } };
 const SHOP_ACCESS_EMAIL = 'msabanda@gmail.com';
 const hasShopAccess = (user) => user?.emailVerified === true && String(user.email || '').trim().toLowerCase() === SHOP_ACCESS_EMAIL;
-// Ruleta de una sola tirada: el salvavidas sale el 25 % de las veces; el 75 % restante se reparte
-// entre los artículos de la tienda que aún no tienes, en proporción inversa a su precio.
+// La ruleta permite una tirada por cada premio disponible, sin repetir artículos ni salvavidas.
 const ROULETTE_PRICE = 350, LIFEBUOY_PCT = 25;
 function rouletteOdds(entry) {
   const items = Object.entries(SHOP).filter(([id]) => !entry?.[id]);
+  const lifebuoyAvailable = !entry?.lifebuoy;
+  if (!items.length && !lifebuoyAvailable) return [];
   const total = items.reduce((s, [, it]) => s + 1 / it.price, 0);
-  const odds = items.map(([id, it]) => ({ id, name: it.name, pct: ((100 - LIFEBUOY_PCT) * (1 / it.price)) / total }));
-  odds.push({ id: 'lifebuoy', name: 'Salvavidas', pct: items.length ? LIFEBUOY_PCT : 100 });
+  const itemPct = lifebuoyAvailable && items.length ? 100 - LIFEBUOY_PCT : 100;
+  const odds = items.map(([id, it]) => ({ id, name: it.name, pct: (itemPct * (1 / it.price)) / total }));
+  if (lifebuoyAvailable) odds.push({ id: 'lifebuoy', name: 'Salvavidas', pct: items.length ? LIFEBUOY_PCT : 100 });
   return odds;
 }
 function spinRoulette(entry, rnd = Math.random()) {
   const odds = rouletteOdds(entry);
+  if (!odds.length) return null;
   let acc = 0;
   for (const o of odds) { acc += o.pct; if (rnd * 100 < acc) return o.id; }
   return odds[odds.length - 1].id;
@@ -184,12 +187,13 @@ function countDailyWin(entry) {
 }
 function profileView(entry, storeAccess = false) {
   const points = Number(entry.points) || 0;
+  const odds = rouletteOdds(entry);
   return {
     points, wins: Number(entry.wins) || 0, level: Number(entry.level) || levelForPoints(points),
     coins: Number(entry.coins) || 0, swordfish: Boolean(entry.swordfish), infernal: Boolean(entry.infernal), viking: Boolean(entry.viking), fireballs: Boolean(entry.fireballs), fireDragon: Boolean(entry.fireDragon), stormDragon: Boolean(entry.stormDragon), skin: activeSkin(entry),
     lifebuoy: Boolean(entry.lifebuoy),
     storeAccess,
-    roulette: { price: storeAccess ? 0 : ROULETTE_PRICE, used: Boolean(entry.roulettePrize), prize: entry.roulettePrize || null, odds: rouletteOdds(entry.roulettePrize ? {} : entry) },
+    roulette: { price: storeAccess ? 0 : ROULETTE_PRICE, used: odds.length === 0, prize: entry.roulettePrize || null, remaining: odds.length, odds },
     daily: { wins: Math.min(DAILY_WINS, dailyProgress(entry)), goal: DAILY_WINS, reward: DAILY_COINS },
     shop: Object.entries(SHOP).map(([id, { name, price }]) => ({ id, name, price: storeAccess ? 0 : price })),
   };
@@ -1165,12 +1169,14 @@ const server = http.createServer(async (req, res) => {
     if (!user) return json(res, 401, { error: 'Inicia sesión con Google' });
     const storeAccess = hasShopAccess(user);
     const entry = ranking[user.sub] ||= { name: user.name, streak: 0, points: 0, wins: 0, level: 1, coins: 0 };
-    if (entry?.roulettePrize) return json(res, 409, { error: 'Ya has tirado de la ruleta' });
+    const odds = rouletteOdds(entry);
+    if (!odds.length) return json(res, 409, { error: 'Se agotaron los premios de la ruleta' });
     if (!storeAccess && (Number(entry.coins) || 0) < ROULETTE_PRICE) return json(res, 402, { error: `Necesitas ${ROULETTE_PRICE} monedas` });
-    const odds = rouletteOdds(entry), prize = spinRoulette(entry);
+    const prize = spinRoulette(entry);
     entry.coins = storeAccess ? Number(entry.coins) || 0 : Number(entry.coins) - ROULETTE_PRICE;
     entry[prize] = true;
     entry.roulettePrize = prize;
+    entry.roulettePrizes = [...new Set([...(Array.isArray(entry.roulettePrizes) ? entry.roulettePrizes : []), prize])];
     if (prize === 'viking') entry.vikingTier = skinTier(entry.level);
     persistRanking([user.sub]);
     return json(res, 200, { prize, odds, profile: profileView(entry, storeAccess) });
