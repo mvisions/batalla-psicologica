@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { resolveRound, makeRoom, botPlan, shipMaxHpForLevel } from '../server.js';
+import { resolveRound, makeRoom, botPlan, shipMaxHpForLevel, randomSpecialRounds } from '../server.js';
 
 // Partida de dos jugadores con las secuencias indicadas
 function setup({ round = 1, a, b, hp0 }) {
@@ -46,13 +46,23 @@ test('el Barco de la Justicia selecciona los extremos de vida y no duplica event
   assert.equal(room.justiceUsed, true);
 });
 
-test('cada partida sortea tres eventos en rondas distintas y fuera de las rondas fijas', () => {
+test('cada partida sortea eventos en rondas distintas y solo activa los estacionales en su fecha', () => {
   for (let attempt = 0; attempt < 50; attempt++) {
     const room = makeRoom({ name: 'A', sub: `event-test-${attempt}` }, false);
     const rounds = [room.justiceRound, room.santaRound, room.halloweenRound];
-    assert.equal(new Set(rounds).size, 3);
-    assert.ok(rounds.every((round) => round >= 3 && round <= 18 && ![9, 10, 11, 15].includes(round)));
+    const scheduled = rounds.filter((round) => round !== null);
+    assert.equal(new Set(scheduled).size, scheduled.length);
+    assert.ok(scheduled.every((round) => round >= 3 && round <= 18 && ![9, 10, 11, 15].includes(round)));
   }
+  const at = (month, day) => new Date(Date.UTC(2026, month, day, 12));
+  assert.equal(randomSpecialRounds(at(9, 24))[2], null);
+  assert.ok(randomSpecialRounds(at(9, 25))[2] >= 3);
+  assert.ok(randomSpecialRounds(at(9, 31))[2] >= 3);
+  assert.equal(randomSpecialRounds(at(10, 1))[2], null);
+  assert.equal(randomSpecialRounds(at(10, 31))[2], null);
+  assert.ok(randomSpecialRounds(at(11, 1))[1] >= 3);
+  assert.ok(randomSpecialRounds(at(11, 31))[1] >= 3);
+  assert.equal(randomSpecialRounds(at(0, 1))[1], null);
 });
 
 test('Santa concede una skin distinta a cada jugador en una única ronda', () => {

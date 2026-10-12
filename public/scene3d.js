@@ -2542,49 +2542,161 @@ export function createScene(container) {
   }
   const justiceShip = (() => {
     const g = new THREE.Group();
-    const wood = new THREE.MeshStandardMaterial({ color: 0x57351f, roughness: 0.78 });
-    const darkWood = new THREE.MeshStandardMaterial({ color: 0x30221b, roughness: 0.82 });
-    const gold = new THREE.MeshStandardMaterial({ color: 0xc59a4b, metalness: 0.58, roughness: 0.32 });
-    const sail = new THREE.MeshStandardMaterial({ color: 0xd9c8a3, side: THREE.DoubleSide, roughness: 0.88 });
+    const wood = new THREE.MeshStandardMaterial({ color: 0x74421f, roughness: 0.72 });
+    const darkWood = new THREE.MeshStandardMaterial({ color: 0x3b2418, roughness: 0.78 });
+    const plank = new THREE.MeshStandardMaterial({ color: 0x98602e, roughness: 0.76 });
+    const gold = new THREE.MeshStandardMaterial({ color: 0xd1a74d, metalness: 0.62, roughness: 0.28 });
+    const iron = new THREE.MeshStandardMaterial({ color: 0x29343a, metalness: 0.78, roughness: 0.3 });
+    const sail = new THREE.MeshStandardMaterial({ color: 0xf2e5c7, side: THREE.DoubleSide, roughness: 0.91 });
+    const sailRed = new THREE.MeshStandardMaterial({ color: 0x9e2f2a, side: THREE.DoubleSide, roughness: 0.84 });
+    const glass = new THREE.MeshStandardMaterial({ color: 0x142321, metalness: 0.28, roughness: 0.25, emissive: 0x27413a, emissiveIntensity: 0.24 });
+    const addRope = (points, radius = 0.035, material = darkWood) => {
+      const curve = new THREE.CatmullRomCurve3(points.map(([x, y, z]) => V(x, y, z)));
+      const rope = new THREE.Mesh(new THREE.TubeGeometry(curve, 20, radius, 7, false), material);
+      g.add(rope); return rope;
+    };
     const hullShape = new THREE.Shape();
-    hullShape.moveTo(-8, -2.15); hullShape.lineTo(6.5, -2.15); hullShape.quadraticCurveTo(8.2, -1.9, 8.1, 0);
-    hullShape.quadraticCurveTo(8.2, 1.9, 6.5, 2.15); hullShape.lineTo(-8, 2.15); hullShape.lineTo(-8, -2.15);
-    const hull = new THREE.Mesh(new THREE.ExtrudeGeometry(hullShape, { depth: 1.25, bevelEnabled: true, bevelThickness: 0.2, bevelSize: 0.18, bevelSegments: 3 }).rotateX(-Math.PI / 2), wood);
-    hull.position.y = 0.15; g.add(hull);
-    const deck = new THREE.Mesh(new THREE.BoxGeometry(13.5, 0.18, 3.7), gold); deck.position.set(-0.1, 0.9, 0); g.add(deck);
-    for (const [x, height, width] of [[-4.5, 4.1, 2.5], [0, 6.3, 3.5], [4.0, 4.7, 2.8]]) {
-      const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.2, height, 12), darkWood); mast.position.set(x, 0.95 + height / 2, 0); g.add(mast);
-      const yard = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, width + 0.5, 8), gold); yard.rotation.z = Math.PI / 2; yard.position.set(x, 0.95 + height * 0.68, 0.05); g.add(yard);
-      const sailMesh = new THREE.Mesh(new THREE.PlaneGeometry(width, height * 0.49), sail); sailMesh.position.set(x, 0.98 + height * 0.54, 0.18); g.add(sailMesh);
-      for (const side of [-1, 1]) {
-        const rope = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, height * 0.78, 5), gold);
-        rope.position.set(x + side * (width / 2 + 0.1), 0.95 + height * 0.42, 0.12); rope.rotation.z = side * -0.08; g.add(rope);
+    hullShape.moveTo(-7.8, -1.72); hullShape.lineTo(5.9, -1.72);
+    hullShape.quadraticCurveTo(7.0, -1.72, 8.25, -0.18);
+    hullShape.quadraticCurveTo(8.55, 0, 8.25, 0.18);
+    hullShape.quadraticCurveTo(7.0, 1.72, 5.9, 1.72);
+    hullShape.lineTo(-7.8, 1.72); hullShape.lineTo(-7.8, -1.72);
+    const lowerHull = new THREE.Mesh(new THREE.ExtrudeGeometry(hullShape, { depth: 1.48, bevelEnabled: true, bevelThickness: 0.22, bevelSize: 0.17, bevelSegments: 4, curveSegments: 20 }).rotateX(-Math.PI / 2), darkWood);
+    lowerHull.position.y = 0.2; g.add(lowerHull);
+    const upperHullShape = new THREE.Shape();
+    upperHullShape.moveTo(-7.75, -1.98); upperHullShape.lineTo(5.95, -1.98);
+    upperHullShape.quadraticCurveTo(7.25, -1.85, 8.05, -0.16);
+    upperHullShape.quadraticCurveTo(8.25, 0, 8.05, 0.16);
+    upperHullShape.quadraticCurveTo(7.25, 1.85, 5.95, 1.98);
+    upperHullShape.lineTo(-7.75, 1.98); upperHullShape.lineTo(-7.75, -1.98);
+    const upperHull = new THREE.Mesh(new THREE.ExtrudeGeometry(upperHullShape, { depth: 0.9, bevelEnabled: true, bevelThickness: 0.12, bevelSize: 0.12, bevelSegments: 3, curveSegments: 20 }).rotateX(-Math.PI / 2), wood);
+    upperHull.position.y = 0.9; g.add(upperHull);
+    const deck = new THREE.Mesh(new THREE.BoxGeometry(14.6, 0.24, 3.75), plank); deck.position.set(-0.15, 1.24, 0); g.add(deck);
+    const deckTrim = new THREE.Mesh(new THREE.BoxGeometry(14.9, 0.14, 3.98), gold); deckTrim.position.set(-0.15, 1.16, 0); g.add(deckTrim);
+    for (const side of [-1, 1]) {
+      for (let row = 0; row < 3; row++) {
+        const band = new THREE.Mesh(new THREE.BoxGeometry(13.8 - row * 0.3, 0.09, 0.055), row === 1 ? gold : plank);
+        band.position.set(-0.1, 0.42 + row * 0.39, side * (1.96 - row * 0.015)); g.add(band);
+      }
+      for (let index = 0; index < 15; index++) {
+        const x = -7.1 + index * 0.91;
+        const port = new THREE.Mesh(new THREE.TorusGeometry(0.19, 0.045, 8, 18), gold);
+        port.position.set(x, 0.74, side * 2.045); g.add(port);
+        const darkPort = new THREE.Mesh(new THREE.CircleGeometry(0.15, 16), iron);
+        darkPort.position.set(x, 0.74, side * 2.051); g.add(darkPort);
       }
     }
-    for (const side of [-1, 1]) for (const x of [-6.3, -4.4, -2.5, -0.6, 1.3, 3.2, 5.1]) {
-      const gun = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.16, 1.2, 10), darkWood); gun.rotation.x = Math.PI / 2;
-      gun.position.set(x, 1.15, side * 2.1); g.add(gun);
-      const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.11, 0.8, 10), new THREE.MeshStandardMaterial({ color: 0x343a3a, metalness: 0.75, roughness: 0.32 }));
-      barrel.rotation.x = Math.PI / 2; barrel.position.set(x, 1.2, side * 2.62); g.add(barrel);
+    const stair = new THREE.Mesh(new THREE.BoxGeometry(2.8, 0.18, 2.5), gold); stair.position.set(-4.5, 1.42, 0); g.add(stair);
+    const sternLower = new THREE.Mesh(new THREE.BoxGeometry(3.4, 2.05, 3.8), plank); sternLower.position.set(-5.5, 2.25, 0); g.add(sternLower);
+    const sternUpper = new THREE.Mesh(new THREE.BoxGeometry(2.75, 1.65, 3.05), wood); sternUpper.position.set(-5.45, 4.0, 0); g.add(sternUpper);
+    const sternRoof = new THREE.Mesh(new THREE.BoxGeometry(3.05, 0.2, 3.32), gold); sternRoof.position.set(-5.45, 4.88, 0); g.add(sternRoof);
+    for (const side of [-1, 1]) {
+      for (const x of [-6.45, -5.55, -4.65]) {
+        const window = new THREE.Mesh(new THREE.BoxGeometry(0.43, 0.58, 0.06), glass);
+        window.position.set(x, 3.95, side * 1.57); g.add(window);
+        const frame = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.08, 0.08), gold);
+        frame.position.set(x, 4.28, side * 1.61); g.add(frame);
+      }
+      const gallery = new THREE.Mesh(new THREE.BoxGeometry(3.65, 0.13, 0.28), gold); gallery.position.set(-5.5, 3.15, side * 2.02); g.add(gallery);
+      for (let post = 0; post < 7; post++) {
+        const railPost = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.05, 0.52, 7), darkWood);
+        railPost.position.set(-7.2 + post * 0.57, 3.43, side * 2.02); g.add(railPost);
+      }
+      const galleryRail = new THREE.Mesh(new THREE.BoxGeometry(3.55, 0.09, 0.1), gold); galleryRail.position.set(-5.5, 3.7, side * 2.02); g.add(galleryRail);
     }
-    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.08, 2.0, 8), darkWood); pole.position.set(0, 7.3, 0); g.add(pole);
-    const flagTex = canvasTex(256, 160, (ctx, width, height) => {
-      ctx.fillStyle = '#173b37'; ctx.fillRect(0, 0, width, height);
-      ctx.strokeStyle = '#e4c76b'; ctx.lineWidth = 8; ctx.strokeRect(6, 6, width - 12, height - 12);
-      ctx.strokeStyle = '#f3e7c5'; ctx.lineWidth = 14; ctx.lineCap = 'round';
-      for (const angle of [-0.68, 0.68]) {
-        const x0 = width / 2 - Math.sin(angle) * 48, y0 = height / 2 + Math.cos(angle) * 48;
-        const x1 = width / 2 + Math.sin(angle) * 48, y1 = height / 2 - Math.cos(angle) * 48;
-        ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
-        for (const end of [-1, 1]) {
-          ctx.beginPath(); ctx.moveTo(x0 + (end < 0 ? 0 : x1 - x0) - 12, y0 + (end < 0 ? 0 : y1 - y0)); ctx.lineTo(x0 + (end < 0 ? 0 : x1 - x0) + 12, y0 + (end < 0 ? 0 : y1 - y0)); ctx.stroke();
-        }
+    const forecastle = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.75, 3.25), plank); forecastle.position.set(5.25, 1.77, 0); g.add(forecastle);
+    const bowsprit = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.14, 3.5, 10), darkWood);
+    bowsprit.rotation.z = Math.PI / 2; bowsprit.position.set(7.55, 2.05, 0); g.add(bowsprit);
+    for (const side of [-1, 1]) {
+      addRope([[5.8, 1.35, side * 1.5], [7.2, 2.45, side * 0.8], [9.1, 2.35, 0]], 0.025, gold);
+      for (let index = 0; index < 7; index++) {
+        const x = -6.6 + index * 1.85;
+        const post = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.06, 0.52, 7), gold);
+        post.position.set(x, 1.55, side * 1.83); g.add(post);
+      }
+      addRope([[-7.35, 1.82, side * 1.83], [-2, 1.82, side * 1.83], [3.4, 1.82, side * 1.83], [6.3, 1.82, side * 1.55]], 0.045, gold);
+      for (const x of [-6.4, -4.55, -2.7, -0.85, 1, 2.85, 4.7]) {
+        const ring = new THREE.Mesh(new THREE.TorusGeometry(0.21, 0.035, 7, 16), gold);
+        ring.position.set(x, 1.0, side * 2.02); g.add(ring);
+        const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.16, 0.92, 10), iron);
+        barrel.rotation.x = Math.PI / 2; barrel.position.set(x, 1.05, side * 2.34); g.add(barrel);
+        const muzzle = new THREE.Mesh(new THREE.TorusGeometry(0.12, 0.035, 7, 12), gold);
+        muzzle.position.set(x, 1.05, side * 2.81); g.add(muzzle);
+      }
+    }
+    const masts = [];
+    const mastData = [[-3.5, 6.8, 2.8], [0.25, 8.8, 3.5], [3.75, 6.5, 2.7]];
+    const makeSail = (x, y, width, height, material, bulge = 0.42) => {
+      const geometry = new THREE.PlaneGeometry(width, height, 10, 8);
+      const positions = geometry.attributes.position;
+      for (let index = 0; index < positions.count; index++) {
+        const u = positions.getX(index) / (width / 2), v = positions.getY(index) / (height / 2);
+        positions.setZ(index, bulge * Math.max(0, 1 - u * u) * (0.55 + 0.45 * Math.cos(v * Math.PI / 2)));
+      }
+      geometry.computeVertexNormals();
+      const cloth = new THREE.Mesh(geometry, material); cloth.position.set(x, y, 0.34); g.add(cloth); masts.push(cloth);
+      const hem = new THREE.Mesh(new THREE.BoxGeometry(width + 0.24, 0.09, 0.11), gold);
+      hem.position.set(x, y - height / 2, 0.37); g.add(hem);
+      return cloth;
+    };
+    for (const [index, [x, height, width]] of mastData.entries()) {
+      const mastBase = 1.38;
+      const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.17, height, 12), darkWood);
+      mast.position.set(x, mastBase + height / 2, 0); g.add(mast);
+      const cap = new THREE.Mesh(new THREE.TorusGeometry(0.36, 0.055, 8, 24), gold); cap.position.set(x, mastBase + height * 0.48, 0); g.add(cap);
+      const yardY = mastBase + height * 0.59;
+      const yard = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.075, width + 0.9, 9), darkWood);
+      yard.rotation.z = Math.PI / 2; yard.position.set(x, yardY, 0); g.add(yard);
+      makeSail(x, mastBase + height * 0.34, width, height * 0.43, index === 1 ? sail : sailRed, 0.5);
+      const upperWidth = width * 0.68, upperHeight = height * 0.25;
+      const upperY = mastBase + height * 0.76;
+      const topYard = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.06, upperWidth + 0.5, 8), darkWood);
+      topYard.rotation.z = Math.PI / 2; topYard.position.set(x, upperY, 0); g.add(topYard);
+      makeSail(x, mastBase + height * 0.78, upperWidth, upperHeight, sail, 0.3);
+      for (const side of [-1, 1]) {
+        addRope([[x, mastBase, side * 0.15], [x + side * (width / 2 + 0.3), yardY, side * 0.18], [x, mastBase + height, side * 0.12]], 0.027, gold);
+        addRope([[x, mastBase + height * 0.52, side * 0.1], [x + side * (upperWidth / 2 + 0.2), upperY, side * 0.1], [x, mastBase + height, side * 0.1]], 0.023, darkWood);
+      }
+    }
+    for (const [a, b] of [[-7.2, -3.5], [-3.5, 0.25], [0.25, 3.75], [3.75, 6.1]]) {
+      addRope([[a, 1.55, -1.75], [b, 5.6, -0.35], [a, 1.55, 1.75]], 0.024, gold);
+    }
+    const crestTex = canvasTex(256, 256, (ctx, width, height) => {
+      ctx.clearRect(0, 0, width, height);
+      ctx.fillStyle = '#1d5146'; ctx.beginPath(); ctx.moveTo(width / 2, 8); ctx.lineTo(width - 20, 65); ctx.lineTo(width - 45, height - 40); ctx.lineTo(width / 2, height - 8); ctx.lineTo(45, height - 40); ctx.lineTo(20, 65); ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = '#e4c76b'; ctx.lineWidth = 9; ctx.stroke();
+      ctx.strokeStyle = '#f6edcf'; ctx.lineWidth = 11; ctx.lineCap = 'round';
+      for (const angle of [-0.7, 0.7]) {
+        ctx.save(); ctx.translate(width / 2, height / 2); ctx.rotate(angle);
+        ctx.beginPath(); ctx.moveTo(0, 48); ctx.lineTo(0, -53); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(-19, 21); ctx.lineTo(19, 21); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(-24, 53); ctx.lineTo(24, 53); ctx.stroke();
+        ctx.beginPath(); ctx.arc(0, 67, 5, 0, Math.PI * 2); ctx.fillStyle = '#d8b45e'; ctx.fill();
+        ctx.restore();
       }
     });
-    const flag = new THREE.Mesh(new THREE.PlaneGeometry(1.8, 1.1), new THREE.MeshStandardMaterial({ map: flagTex, side: THREE.DoubleSide }));
-    flag.position.set(0.9, 7.7, 0); g.add(flag);
+    const sailCrest = new THREE.Mesh(new THREE.PlaneGeometry(1.35, 1.35), new THREE.MeshBasicMaterial({ map: crestTex, transparent: true, side: THREE.DoubleSide, depthWrite: false }));
+    sailCrest.position.set(0.25, 4.6, 0.95); g.add(sailCrest);
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.065, 0.09, 2.45, 10), darkWood); pole.position.set(-5.5, 6.15, 0); g.add(pole);
+    const flagTex = canvasTex(320, 190, (ctx, width, height) => {
+      ctx.fillStyle = '#17463d'; ctx.fillRect(0, 0, width, height);
+      ctx.strokeStyle = '#e4c76b'; ctx.lineWidth = 9; ctx.strokeRect(7, 7, width - 14, height - 14);
+      ctx.strokeStyle = '#f5ecd5'; ctx.lineWidth = 15; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+      for (const angle of [-0.7, 0.7]) {
+        ctx.save(); ctx.translate(width / 2, height / 2); ctx.rotate(angle);
+        ctx.beginPath(); ctx.moveTo(0, 45); ctx.lineTo(0, -45); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(-20, 18); ctx.lineTo(20, 18); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(-25, 48); ctx.lineTo(25, 48); ctx.stroke();
+        ctx.beginPath(); ctx.arc(0, 61, 6, 0, Math.PI * 2); ctx.fillStyle = '#dfbd67'; ctx.fill();
+        ctx.restore();
+      }
+      ctx.fillStyle = '#dfbd67'; ctx.font = 'bold 23px serif'; ctx.textAlign = 'center'; ctx.fillText('JUSTICIA', width / 2, height - 19);
+    });
+    const flag = new THREE.Mesh(new THREE.PlaneGeometry(2.5, 1.48), new THREE.MeshStandardMaterial({ map: flagTex, side: THREE.DoubleSide, roughness: 0.75 }));
+    flag.position.set(-4.15, 6.55, 0.06); g.add(flag);
+    const flagFinial = new THREE.Mesh(new THREE.SphereGeometry(0.15, 12, 8), gold); flagFinial.position.set(-5.5, 7.42, 0); g.add(flagFinial);
     g.visible = false; g.position.set(-36, -1.5, 0); scene.add(g); applyModelShadows(g);
-    return { g, present: false, job: null };
+    return { g, flag, sails: masts, present: false, job: null };
   })();
   const santaScene = (() => {
     const g = new THREE.Group(), sleigh = new THREE.Group(); g.add(sleigh);
@@ -2629,30 +2741,53 @@ export function createScene(container) {
   })();
   const halloweenPumpkin = (() => {
     const g = new THREE.Group();
-    const orange = new THREE.MeshStandardMaterial({ color: 0xf07816, roughness: 0.55, emissive: 0x501700, emissiveIntensity: 0.22 });
+    const orange = new THREE.MeshStandardMaterial({ color: 0xf47b16, roughness: 0.48, metalness: 0.02, emissive: 0x6d2100, emissiveIntensity: 0.3 });
+    const ribMat = new THREE.MeshStandardMaterial({ color: 0xb94b0c, roughness: 0.65, emissive: 0x401000, emissiveIntensity: 0.18 });
     for (let index = 0; index < 9; index++) {
-      const lobe = new THREE.Mesh(new THREE.SphereGeometry(1.45, 18, 14), orange);
-      lobe.scale.set(0.34, 1.0, 0.91); lobe.position.set(Math.sin(index * Math.PI * 2 / 9) * 0.35, 0, Math.cos(index * Math.PI * 2 / 9) * 0.35); g.add(lobe);
+      const lobe = new THREE.Mesh(new THREE.SphereGeometry(1.45, 24, 18), orange);
+      lobe.scale.set(0.39, 1.0, 0.91); lobe.position.set(Math.sin(index * Math.PI * 2 / 9) * 0.36, 0, Math.cos(index * Math.PI * 2 / 9) * 0.36); g.add(lobe);
     }
-    const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.28, 0.8, 8), new THREE.MeshStandardMaterial({ color: 0x315b2f, roughness: 0.82 }));
-    stem.position.set(0, 1.55, 0); stem.rotation.z = -0.15; g.add(stem);
-    const leaf = new THREE.Mesh(new THREE.SphereGeometry(0.5, 12, 8), new THREE.MeshStandardMaterial({ color: 0x3b8a3c, roughness: 0.7 }));
-    leaf.scale.set(1, 0.15, 0.42); leaf.position.set(0.42, 1.65, 0); g.add(leaf);
+    for (let index = 0; index < 9; index++) {
+      const angle = index * Math.PI * 2 / 9;
+      const points = [-1.2, -0.8, 0, 0.8, 1.2].map((y) => {
+        const width = 0.18 + 0.57 * Math.sqrt(Math.max(0, 1 - (y / 1.35) ** 2));
+        return V(Math.sin(angle) * width, y, Math.cos(angle) * (width * 0.89 + 0.025));
+      });
+      const seam = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(points), 20, 0.035, 7, false), ribMat);
+      g.add(seam);
+    }
+    const vineMat = new THREE.MeshStandardMaterial({ color: 0x42652b, roughness: 0.8 });
+    const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.28, 0.9, 10), vineMat);
+    stem.position.set(0, 1.58, 0); stem.rotation.z = -0.18; g.add(stem);
+    const leafMat = new THREE.MeshStandardMaterial({ color: 0x57933b, roughness: 0.74, side: THREE.DoubleSide });
+    const leaf = new THREE.Mesh(new THREE.SphereGeometry(0.52, 16, 10), leafMat);
+    leaf.scale.set(1.15, 0.13, 0.48); leaf.position.set(0.45, 1.72, 0); leaf.rotation.z = -0.18; g.add(leaf);
+    const vine = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3([V(0.04, 1.82, 0), V(-0.25, 2.08, 0.02), V(-0.48, 2.02, 0.08), V(-0.55, 1.8, 0.08)]), 16, 0.045, 7, false), vineMat);
+    g.add(vine);
     const faceMat = new THREE.MeshBasicMaterial({ color: 0x21130e });
     for (const side of [-1, 1]) {
       const eye = new THREE.Mesh(new THREE.ConeGeometry(0.45, 0.68, 3), faceMat); eye.position.set(side * 0.58, 0.28, 1.17); eye.rotation.x = Math.PI / 2; eye.rotation.z = side * -0.1; g.add(eye);
+      const eyeGlow = new THREE.Mesh(new THREE.ConeGeometry(0.24, 0.36, 3), new THREE.MeshBasicMaterial({ color: 0xffc247 }));
+      eyeGlow.position.set(side * 0.58, 0.25, 1.195); eyeGlow.rotation.x = Math.PI / 2; eyeGlow.rotation.z = side * -0.1; g.add(eyeGlow);
     }
     const mouthShape = new THREE.Shape();
     mouthShape.moveTo(-0.85, 0.02); mouthShape.lineTo(-0.55, -0.42); mouthShape.lineTo(-0.24, -0.08); mouthShape.lineTo(0, -0.48);
     mouthShape.lineTo(0.28, -0.1); mouthShape.lineTo(0.58, -0.4); mouthShape.lineTo(0.84, 0.02); mouthShape.lineTo(0.74, -0.55);
     mouthShape.lineTo(-0.72, -0.55); mouthShape.closePath();
     const mouth = new THREE.Mesh(new THREE.ShapeGeometry(mouthShape), faceMat); mouth.position.set(0, -0.35, 1.21); g.add(mouth);
-    const glow = new THREE.PointLight(0xffa126, 2.5, 8); glow.position.set(0, -0.1, 1.55); g.add(glow);
-    g.visible = false; g.position.set(0, 7.5, 0); scene.add(g); applyModelShadows(g);
+    const mouthGlow = new THREE.Mesh(new THREE.ShapeGeometry(mouthShape), new THREE.MeshBasicMaterial({ color: 0xff8a19, side: THREE.DoubleSide }));
+    mouthGlow.scale.set(0.68, 0.68, 1); mouthGlow.position.set(0, -0.37, 1.225); g.add(mouthGlow);
+    const glow = new THREE.PointLight(0xff8a20, 16, 24); glow.position.set(0, -0.1, 1.7); g.add(glow);
+    g.scale.setScalar(4);
+    g.visible = false; g.position.set(0, 6.2, 0); scene.add(g); applyModelShadows(g);
     return { g, present: false, job: null, glow };
   })();
   frameHooks.push((dt, time) => {
-    if (justiceShip.present) justiceShip.g.rotation.z = Math.sin(time * 0.7) * 0.012;
+    if (justiceShip.present) {
+      justiceShip.g.rotation.z = Math.sin(time * 0.7) * 0.012;
+      justiceShip.flag.rotation.y = Math.sin(time * 1.7) * 0.12;
+      justiceShip.sails.forEach((sailMesh, index) => { sailMesh.rotation.y = Math.sin(time * 1.2 + index) * 0.018; });
+    }
     if (santaScene.present) santaScene.deer.forEach((deer, index) => { deer.position.y = 0.4 + Math.sin(time * 5 + index) * 0.1; });
     if (halloweenPumpkin.present) {
       halloweenPumpkin.g.rotation.y = Math.sin(time * 0.5) * 0.08;
@@ -2675,10 +2810,10 @@ export function createScene(container) {
         if (on) { state.g.visible = true; state.g.position.set(-34, 2.6, 0); await tween(2600, (t) => { state.g.position.x = -34 * (1 - easeOut(t)); state.g.position.y = 2.6 + Math.sin(t * Math.PI) * 0.55; }); }
         else { await tween(1700, (t) => { state.g.position.x = 34 * easeIn(t); state.g.position.y = 2.6 + t * 3; }); state.g.visible = false; }
       } else if (on) {
-        state.g.visible = true; state.g.position.set(0, 7.5, 0);
-        await tween(1700, (t) => { state.g.position.y = 7.5 - t * 3.1; });
+        state.g.visible = true; state.g.position.set(0, 6.2, 0);
+        await tween(1700, (t) => { state.g.position.y = 6.2 - t * 0.4; });
       } else {
-        await tween(1300, (t) => { state.g.position.y = 4.4 + t * 4; }); state.g.visible = false;
+        await tween(1300, (t) => { state.g.position.y = 5.8 + t * 5; }); state.g.visible = false;
       }
     })();
     return state.job;

@@ -373,13 +373,17 @@ const isJusticeRound = (room) => !room.tutorial && !room.justiceUsed && room.rou
 const isSantaRound = (room) => !room.tutorial && !room.santaUsed && room.round === room.santaRound;
 const isHalloweenRound = (room) => !room.tutorial && !room.halloweenUsed && room.round === room.halloweenRound;
 const isCalmRound = (room) => isWarshipRound(room) || isIslandRound(room) || isJusticeRound(room) || isSantaRound(room) || isHalloweenRound(room);
-function randomSpecialRounds() {
+const isHalloweenWeek = (date) => date.getUTCMonth() === 9 && date.getUTCDate() >= 25;
+function randomSpecialRounds(date = new Date()) {
   const pool = [...SPECIAL_EVENT_ROUNDS];
   for (let index = pool.length - 1; index > 0; index--) {
     const swap = Math.floor(Math.random() * (index + 1));
     [pool[index], pool[swap]] = [pool[swap], pool[index]];
   }
-  return pool.slice(0, 3);
+  const justice = pool.pop();
+  const santa = date.getUTCMonth() === 11 ? pool.pop() : null;
+  const halloween = isHalloweenWeek(date) ? pool.pop() : null;
+  return [justice, santa, halloween];
 }
 function grantEventSkin(player, skin) {
   if (player.bot) return;
@@ -1578,4 +1582,4 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     });
 }
 
-export { resolveRound, makeRoom, botPlan, workingSeq, shipMaxHpForLevel, rouletteOdds, spinRoulette };
+export { resolveRound, makeRoom, botPlan, workingSeq, shipMaxHpForLevel, rouletteOdds, spinRoulette, randomSpecialRounds };
