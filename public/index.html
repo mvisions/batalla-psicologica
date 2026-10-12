@@ -1595,7 +1595,7 @@ function updateTroops() {
   inf.classList.toggle('hidden', b.classList.contains('hidden') || !infernoOwned[pid]);
   inf.classList.toggle('cooldown', !iready);
   inf.disabled = !iready;
-  inf.title = infernoSent ? 'Ataque infernal preparado' : il > 0 ? `Ataque infernal listo en ${il} ${il === 1 ? 'ronda' : 'rondas'}` : 'Ataque infernal: los 4 cañones disparan a la vez en los 4 disparos';
+  inf.title = infernoSent ? 'Ataque infernal preparado' : il > 0 ? `Ataque infernal listo en ${il} ${il === 1 ? 'ronda' : 'rondas'}` : 'Ataque infernal: los 4 cañones disparan a la vez en la primera secuencia';
   const fc = fireCd[pid] || 0, lit = !!fireOn[pid], fb = $('fireBtn');
   fb.classList.toggle('hidden', b.classList.contains('hidden') || !fireOwned[pid]);
   fb.classList.toggle('on', lit);
