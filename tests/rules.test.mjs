@@ -440,7 +440,7 @@ test('el cubo flotante (rondas 8, 11, 14…) se hunde con un disparo y cura 10',
   }
 });
 
-test('el barco de guerra pirata (rondas 11, 22 y 33) espanta a los animales, se traga las balas y quita el 20 % a cada barco', () => {
+test('el barco de guerra pirata tiene vida compartida, se puede hundir y quita el 20 % a cada barco', () => {
   for (const round of [13, 21, 44]) {
     const room = setup({ round, a: { attack: seq(1), defense: seq(2) }, b: { attack: seq(4), defense: seq(2) } });
     assert.ok(resolveRound(room).events.every((ev) => !ev.warship));
@@ -448,6 +448,7 @@ test('el barco de guerra pirata (rondas 11, 22 y 33) espanta a los animales, se 
   for (const round of [11, 22, 33]) {
     const room = setup({ round, a: { attack: [1, 2, 3, 4], defense: seq(1) }, b: { attack: [4, 3, 2, 1], defense: seq(1) }, hp0: 100 });
     room.wildlife = true; room.medkitMatch = true;
+    room.players.forEach((player) => { player.bot = true; });
     room.players[0].sword = true; room.players[0].troops = true;
     const { events } = resolveRound(room);
     assert.equal(events.length, 4);
@@ -457,13 +458,36 @@ test('el barco de guerra pirata (rondas 11, 22 y 33) espanta a los animales, se 
       assert.equal(ev.gull, null); assert.equal(ev.squid, null); assert.equal(ev.log, null); assert.equal(ev.bucket, null); assert.equal(ev.medkit, null); assert.equal(ev.whale, null); assert.equal(ev.sub, null);
       assert.equal(ev.troops, undefined); assert.equal(ev.sword, undefined);
     }
+    assert.deepEqual(events.map((ev) => ev.warship.hp), [42, 28, 14, 0]);
+    assert.equal(events[0].warship.hpBefore, 56);
+    assert.equal(events[3].warship.sunkBy, 1);
+    assert.equal(events[3].warship.reward, 0);
+    assert.equal(events.flatMap((ev) => ev.shots).reduce((damage, shot) => damage + shot.damage, 0), 56);
+    for (const [owner, lane] of events[3].warship.disabledCannons.entries()) {
+      const hitCounts = [0, 0, 0, 0];
+      for (const ev of events) hitCounts[ev.warship.targetCannons[owner]]++;
+      assert.equal(hitCounts[lane], Math.max(...hitCounts));
+      assert.equal(events[3].cannons[owner][lane], 0);
+      assert.equal(room.cannons[owner][lane], 0);
+    }
     assert.deepEqual(events.map((ev) => ev.warship.laser === null), [true, false, true, false]);
     assert.notEqual(events[1].warship.laser, events[3].warship.laser);
     assert.equal(room.hp[0].ship, 80);
     assert.equal(room.hp[1].ship, 105 - 21);
     assert.equal(room.hp[0].shark, 50);
+
+    for (let owner = 0; owner < 2; owner++) {
+      const lane = events[3].warship.disabledCannons[owner] + 1;
+      Object.assign(room.players[owner], { attack: seq(lane), defense: seq(1), wave: seq(0) });
+    }
+    const { events: repairEvents } = resolveRound(room);
+    for (const [owner, lane] of events[3].warship.disabledCannons.entries()) {
+      assert.ok(repairEvents.every((ev) => ev.shots.find((shot) => shot.from === owner).target === 'broken'));
+      assert.equal(room.cannons[owner][lane], 15);
+    }
   }
   const low = setup({ round: 22, a: { attack: seq(1), defense: seq(1) }, b: { attack: seq(1), defense: seq(1) }, hp0: 1 });
+  low.cannons.forEach((cannons) => cannons.fill(0));
   resolveRound(low);
   assert.equal(low.hp[0].ship, 1); // el barco de guerra no hunde a nadie
 });

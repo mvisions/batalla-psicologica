@@ -338,8 +338,8 @@ const FIRE_COOLDOWN = 6, FIRE_DMG = 3; // las balas de fuego quitan 3 más; sigu
 const DRAGON_COOLDOWN = 6, DRAGON_PCT = 0.25; // dragones de la tienda: el de fuego quita el 25% de la vida actual del barco rival y el de rayos el 25% de cada cañón rival
 const dragonsOf = (p) => ({ fire: !p?.bot && Boolean(ranking[p?.sub]?.fireDragon), storm: !p?.bot && Boolean(ranking[p?.sub]?.stormDragon) });
 const INFERNO_COOLDOWN = 6; // el ataque infernal comprado en la tienda dispara los 4 cañones en los 4 disparos, cada 6 rondas
-// barco de guerra pirata (solo rondas 11, 22 y 33): espanta a los animales, absorbe las balas y quita a cada barco el 20 % de su vida en la ronda
-const WARSHIP_ROUNDS = [11, 22, 33], WARSHIP_PCT = 0.2, WARSHIP_BONUS = 250;
+// barco de guerra pirata (rondas 11, 22 y 33): entre ambos jugadores pueden hundirlo con 8 disparos básicos
+const WARSHIP_ROUNDS = [11, 22, 33], WARSHIP_PCT = 0.2, WARSHIP_HP = DMG * 8, WARSHIP_BONUS = 250;
 const isWarshipRound = (room) => !room.tutorial && WARSHIP_ROUNDS.includes(room.round);
 // isla de los monos (solo ronda 9): tapa los 4 carriles; 4 monos lanzan cocos (2 a cada barco) y cada mono abatido da 1 moneda
 const ISLAND_ROUND = 9, COCONUT_DMG = 3, MONKEY_DRAGON_BONUS = 50; // monedas por cada dragón que ataca a los monos
@@ -362,6 +362,9 @@ function resolveRound(room) {
   const [p0, p1] = room.players;
   const P = [p0, p1];
   const events = [];
+  let warshipHp = warship ? WARSHIP_HP : 0, warshipSunkBy = null;
+  const warshipTurretHits = [Array(4).fill(0), Array(4).fill(0)];
+  const warshipDisabledCannons = [null, null];
   const cann = room.cannons, mult = room.round % 4 === 0 || room.round >= 36 ? 2 : 1;
   const hpRatio0 = (room.maxShipHp[0] + room.maxShipHp[1]) / 2 / 105, capRatio = 255 / 105; // hasta el nivel 30 el daño crece poco y los duelos se alargan; a partir de ahí crece con la vida y la duración se estabiliza
   const hpScale = Math.max(1, Math.pow(Math.min(hpRatio0, capRatio), 0.04) * Math.max(1, Math.pow(hpRatio0 / capRatio, 0.5)));
@@ -414,6 +417,13 @@ function resolveRound(room) {
     const def = [p0.defense[i], p1.defense[i]];
     if (swell) for (const k of [0, 1]) pos[k] = Math.max(-2, Math.min(2, pos[k] + MOVE[P[k].wave[i]]));
     const whaleX = whaleRound ? [-3, -1, 1, 3][Math.floor(Math.random() * 4)] : null;
+    const warshipTargets = warship ? [0, 1].map((k) => {
+      const available = [0, 1, 2, 3].filter((lane) => cann[k][lane] > 0);
+      if (!available.length) return null;
+      const lane = available[Math.floor(Math.random() * available.length)];
+      warshipTurretHits[k][lane]++;
+      return lane;
+    }) : null;
     // submarino (rondas múltiplo de 3): cruza el centro en un carril al azar, dispara a un lado al azar y se va antes del último disparo
     const subRound = !calm && room.round % 3 === 0 && i < 3;
     const subX = subRound ? [-3, -1, 1, 3][Math.floor(Math.random() * 4)] : null;
@@ -432,6 +442,8 @@ function resolveRound(room) {
     const lanePool = [-3, -1, 1, 3].sort(() => Math.random() - 0.5);
     const iceX = rain && !calm ? [iceAlive[0] ? lanePool[0] : null, iceAlive[1] ? lanePool[1] : null] : null;
     const iceAt = (x) => (iceX ? iceX.findIndex((v) => v !== null && v === x) : -1);
+    const warshipHpBefore = warshipHp;
+    let warshipReward = 0;
     const ev = { step: i, atk, def, pos: [...pos], swell, whale: whaleX, ice: iceX, sub: subRound ? { x: subX, toward: Math.floor(Math.random() * 2) } : null, octopus: octopusX === null ? null : { x: octopusX, release: null }, medkit: medkitX === null ? null : { x: medkitX }, gull: gullX === null ? null : { x: gullX }, squid: squidX === null ? null : { x: squidX, up: squidUp, owner: squidOwner }, log: logX === null ? null : { x: logX, lanes: logXs }, bucket: bucketX === null ? null : { x: bucketX }, shots: [] };
     ev.dome = [...domeIdx];
     if (island) { // cada mono vive en su posición fija de la isla (carril 1-4) y lanza un coco a su barco
@@ -517,7 +529,7 @@ function resolveRound(room) {
       if (!extra && blocked[from]) { ev.shots.push({ from, lane, x, target: 'blocked', ...tag }); return; }
       const sharkAt = (k) => !rain && !calm && room.hp[k].shark > 0 && 2 * def[k] - 5 === x;
       let target, owner, iceId;
-      if (warship) { target = 'warship'; } // la bala se queda clavada en el casco sin hacerle daño
+      if (warship) { target = 'warship'; }
       else if (island && ev.monkeys.some((mk) => mk.x === x && monkeyAlive[mk.id])) { // el mono de ese carril cae y da 1 moneda; la isla no sufre daño
         const m = ev.monkeys.find((mk) => mk.x === x && monkeyAlive[mk.id]);
         target = 'monkey'; monkeyAlive[m.id] = false;
@@ -571,7 +583,20 @@ function resolveRound(room) {
       else { target = 'miss'; owner = other; }
       const fire = Boolean(room.fireOn?.[from]);
       const amount = DMG * mult + (fire ? FIRE_DMG : 0);
-      if (target === 'ship') {
+      let warshipDamage = 0;
+      if (target === 'warship' && warshipHp > 0) {
+        warshipDamage = Math.min(warshipHp, amount);
+        warshipHp -= warshipDamage;
+        if (warshipHp === 0 && warshipSunkBy === null) {
+          warshipSunkBy = from;
+          if (!P[from].bot) {
+            const entry = (ranking[P[from].sub] ||= { name: P[from].name, streak: 0, points: 0, wins: 0, level: 1 });
+            entry.coins = (Number(entry.coins) || 0) + WARSHIP_BONUS;
+            warshipReward = WARSHIP_BONUS;
+            persistRanking([P[from].sub]);
+          }
+        }
+      } else if (target === 'ship') {
         const c = nearestCannon(owner, x);
         if (!shielded(owner, c)) { dmg[owner].ship += hull(amount); cdmg[owner][c] += amount; hitBy[owner][c] = from; }
       } else if (target === 'shark') dmg[owner].shark += amount;
@@ -579,7 +604,7 @@ function resolveRound(room) {
         const c = nearestCannon(from, x);
         if (!shielded(from, c)) { dmg[from].ship += hull(amount); cdmg[from][c] += amount; }
       }
-      ev.shots.push({ from, lane, x, target, owner, ice: iceId, ...tag });
+      ev.shots.push({ from, lane, x, target, owner, ice: iceId, ...(target === 'warship' ? { damage: warshipDamage, warshipHp, ...(warshipReward ? { coin: warshipReward } : {}) } : {}), ...tag });
     };
     if (simultaneousCollision && xu[0] !== medkitX && xu[0] !== octopusX) {
       ev.shots = [0, 1].map((from) => ({ from, lane: atk[from], x: xu[from], target: 'collision', ...(room.fireOn?.[from] ? { fire: true } : {}) }));
@@ -602,10 +627,21 @@ function resolveRound(room) {
       ev.coconuts = ev.monkeys.map((m) => ({ id: m.id, x: m.x, target: m.target, dmg: hull(COCONUT_DMG) }));
       for (const c of ev.coconuts) dmg[c.target].ship += c.dmg;
     }
+    let disabledCannons = [null, null];
     if (warship) {
       const share = [0, 1].map((k) => Math.ceil(warshipLeft[k] / (4 - i)));
       for (const k of [0, 1]) { warshipLeft[k] -= share[k]; dmg[k].ship += share[k]; }
-      ev.warship = { dmg: share, laser: i === 1 ? laserFirst : i === 3 ? 1 - laserFirst : null };
+      if (i === 3) for (const k of [0, 1]) {
+        const available = [0, 1, 2, 3].filter((lane) => cann[k][lane] > 0);
+        if (!available.length) continue;
+        const mostHits = Math.max(...available.map((lane) => warshipTurretHits[k][lane]));
+        const candidates = available.filter((lane) => warshipTurretHits[k][lane] === mostHits);
+        const lane = candidates[Math.floor(Math.random() * candidates.length)];
+        cann[k][lane] = 0;
+        warshipDisabledCannons[k] = lane;
+        disabledCannons[k] = lane;
+      }
+      ev.warship = { dmg: share, hpBefore: warshipHpBefore, hp: warshipHp, maxHp: WARSHIP_HP, sunkBy: warshipSunkBy, reward: warshipReward, targetCannons: warshipTargets, disabledCannons: i === 3 ? disabledCannons : null, laser: i === 1 ? laserFirst : i === 3 ? 1 - laserFirst : null };
     }
     if (gullHits.length) { gullAlive = false; heal[gullHits.includes(firstSubmitter) ? firstSubmitter : gullHits[0]] += 15; }
     // disparo del submarino hacia el jugador elegido: lo para su tiburón si está en ese carril; si no, da al barco
@@ -654,7 +690,7 @@ function resolveRound(room) {
   room.fireCd = (room.fireCd || [0, 0]).map((n) => Math.max(0, n - 1));
   room.dragonCd = (room.dragonCd || [0, 0]).map((n) => Math.max(0, n - 1));
   // un cañón roto se regenera con 15 de vida para la siguiente ronda
-  for (const k of [0, 1]) for (let l = 0; l < 4; l++) if (cann[k][l] === 0) cann[k][l] = 15;
+  for (const k of [0, 1]) for (let l = 0; l < 4; l++) if (cann[k][l] === 0 && warshipDisabledCannons[k] !== l) cann[k][l] = 15;
   room.round = room.leagueMatch ? 1 + Math.floor(Math.random() * 37) : room.round + 1; // en torneos y ligas las rondas son aleatorias (1-37)
   return { events, winner, seqs };
 }

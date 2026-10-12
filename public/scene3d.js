@@ -2052,9 +2052,11 @@ export function createScene(container) {
     g.scale.setScalar(0.88); g.position.set(-40, 0, 0); g.visible = false; scene.add(g);
     return { g, wrap, funnels, radar, flag, flagGeo, flagBase, turrets, pods, laser, lens, navs, beam, core, halo, present: false, moving: 0, hitT: 0, smokeAcc: 0, wakeAcc: 0, stuck: [], job: null };
   })();
+  let warHealthElement = null;
   const warWorld = (lx, ly, lz) => war.wrap.localToWorld(V(lx, ly, lz));
   frameHooks.push((dt, t) => {
     if (!war.g.visible) return;
+    updateWarshipHealthPosition();
     war.wrap.rotation.z = Math.sin(t * 0.7) * 0.015; war.wrap.rotation.x = Math.sin(t * 0.55) * 0.012;
     war.wrap.position.y = Math.sin(t * 0.9) * 0.06;
     if (war.hitT > 0) { war.hitT -= dt; war.wrap.position.x = Math.sin(war.hitT * 70) * 0.12 * war.hitT; }
@@ -2086,6 +2088,34 @@ export function createScene(container) {
       }
     }
   });
+  function updateWarshipHealthPosition() {
+    if (!warHealthElement || !war.g.visible) return;
+    const { x, y } = toScreen(warWorld(0, 10, 0));
+    warHealthElement.style.left = `${x}px`;
+    warHealthElement.style.top = `${y}px`;
+  }
+  function setWarshipHealth(hp, maxHp) {
+    if (!warHealthElement) {
+      warHealthElement = document.createElement('div');
+      warHealthElement.className = 'warship-health';
+      warHealthElement.setAttribute('role', 'meter');
+      const title = document.createElement('div');
+      const track = document.createElement('span');
+      track.className = 'warship-health-track';
+      const fill = document.createElement('span');
+      fill.className = 'warship-health-fill';
+      track.appendChild(fill);
+      warHealthElement.append(title, track);
+      container.appendChild(warHealthElement);
+    }
+    const current = Math.max(0, Number(hp) || 0), maximum = Math.max(1, Number(maxHp) || 1);
+    warHealthElement.firstElementChild.textContent = `BARCO PIRATA ${current}/${maximum}`;
+    warHealthElement.setAttribute('aria-valuemin', '0');
+    warHealthElement.setAttribute('aria-valuemax', String(maximum));
+    warHealthElement.setAttribute('aria-valuenow', String(current));
+    warHealthElement.lastElementChild.firstElementChild.style.width = `${Math.min(100, current / maximum * 100)}%`;
+    updateWarshipHealthPosition();
+  }
   function warshipArrive() {
     if (war.present) return war.job;
     war.present = true;
@@ -2105,6 +2135,8 @@ export function createScene(container) {
   function warshipLeave() {
     if (!war.present) return war.job;
     war.present = false; war.beam.visible = false;
+    warHealthElement?.remove();
+    warHealthElement = null;
     const prev = war.job;
     war.job = (async () => {
       if (prev) await prev;
@@ -2116,7 +2148,7 @@ export function createScene(container) {
     })();
     return war.job;
   }
-  // una bala de jugador se queda clavada en el casco sin hacerle daño
+  // las balas de jugador se quedan clavadas en el casco
   function warshipStick(x, dir) {
     const zSide = -dir * 1.9, p = V(x, 0.8, zSide * 0.88);
     clash(p); sparks(p, 18, 5, 0xffd27a);
@@ -2146,16 +2178,17 @@ export function createScene(container) {
     }, easeIn).then(() => { scene.remove(m); });
   }
   function shipPoint(who) { const sp = ships[who].g.position; return V(sp.x + rnd(-3.5, 3.5), 1.1, zOf(who) * SHIP_Z + rnd(-0.6, 0.6)); }
-  async function warshipFire(who) { // andanada: misiles múltiples + cañonazo de torreta contra un barco
+  async function warshipFire(who, targetCannon) { // andanada: misiles múltiples + cañonazo contra la torreta apuntada
     const jobs = [];
     const s = zOf(who), pods = war.pods.filter((p) => p.side === s);
+    const cannon = Number.isInteger(targetCannon) ? ships[who].turrets[targetCannon].node : null;
     for (let i = 0; i < 4; i++) {
       const pod = pods[i % pods.length];
       jobs.push(wait(i * 170 + rnd(0, 80)).then(() => {
         const from = warWorld(pod.x + rnd(-0.4, 0.4), 2.2, pod.z);
         spawn({ pos: from, life: 0.3, s0: 1.4, s1: 0.2, add: true, color: 0xffd27a });
         for (let k = 0; k < 4; k++) spawn({ pos: from, tex: smokeTex, vel: V(rnd(-1, 1), rnd(0.2, 1), rnd(-1, 1)), life: 1.2, s0: 0.6, s1: 2.2, color: 0xcfcfcf, op: 0.6 });
-        const to = shipPoint(who);
+        const to = cannon ? cannon.getWorldPosition(new THREE.Vector3()).add(V(0, 0.8, 0)) : shipPoint(who);
         return launchMissile(from, to, 1500 + rnd(0, 300)).then(() => {
           flashLight(to, 30, 0xff7a1a);
           spawn({ pos: to, life: 0.25, s0: 1, s1: 5, add: true, color: 0xfff1b8 });
@@ -2175,7 +2208,7 @@ export function createScene(container) {
         flashLight(mp, 40, 0xffc070);
         spawn({ pos: mp, life: 0.2, s0: 2.6, s1: 0.4, add: true, color: 0xfff0b0 });
         for (let k = 0; k < 5; k++) spawn({ pos: mp, tex: smokeTex, vel: V(rnd(-0.6, 0.6), rnd(0, 0.6), s * rnd(1.5, 3.5)), drag: 1.4, life: 1.4, s0: 0.7, s1: 2.6, color: 0xbdbdbd, op: 0.6 });
-        const to = shipPoint(who);
+        const to = cannon ? cannon.getWorldPosition(new THREE.Vector3()).add(V(0, 0.8, 0)) : shipPoint(who);
         launchMissile(mp, to, 650, false).then(() => { explodeShip(to); hitShip(who); });
         shake(0.18, 0.2);
         await wait(140);
@@ -2222,8 +2255,8 @@ export function createScene(container) {
     burns.push({ who, left: 4.5 });
     shake(0.25, 0.4);
   }
-  async function warshipVolley(targets, laserWho) {
-    const jobs = targets.map((w) => warshipFire(w));
+  async function warshipVolley(targets, laserWho, targetCannons) {
+    const jobs = targets.map((w) => warshipFire(w, targetCannons?.[w === 'me' ? 0 : 1]));
     if (laserWho) jobs.push(wait(400).then(() => warshipLaser(laserWho)));
     await Promise.all(jobs);
     war.turrets.forEach((tr) => { const r0 = tr.t.rotation.y; tween(700, (t) => { tr.t.rotation.y = r0 + (tr.rest - r0) * t; }, easeInOut); });
@@ -2817,6 +2850,6 @@ export function createScene(container) {
     return best;
   }
 
-  Object.assign(api, { lightningStrike, setHealth, setCannons, setCannonLabels, setShipLevel, setLifebuoy, pickFlag, subMove, subLeave, iceShow, iceClear, octopusShow, octopusSpin, octopusLeave, medkitShow, medkitLeave, bucketShow, bucketLeave, gullFly, gullLeave, logShow, logLeave, squidShow, squidLeave, heliSupport, troopShip, swordfishAttack, setDragons, dragonAttack, warshipArrive, warshipLeave, warshipVolley, warshipLabel, islandShow, islandLeave, monkeyThrow, monkeyKill, monkeyLabel, setDome, domeBlock, feedShark, dud, labelCannon, moveFin, moveShip, fire, label, trackLabel, trackPoint, trackShip, setWeather, setFlag, setInsets, SHIP_Z });
+  Object.assign(api, { lightningStrike, setHealth, setCannons, setCannonLabels, setShipLevel, setLifebuoy, pickFlag, subMove, subLeave, iceShow, iceClear, octopusShow, octopusSpin, octopusLeave, medkitShow, medkitLeave, bucketShow, bucketLeave, gullFly, gullLeave, logShow, logLeave, squidShow, squidLeave, heliSupport, troopShip, swordfishAttack, setDragons, dragonAttack, warshipArrive, warshipLeave, warshipVolley, warshipLabel, setWarshipHealth, islandShow, islandLeave, monkeyThrow, monkeyKill, monkeyLabel, setDome, domeBlock, feedShark, dud, labelCannon, moveFin, moveShip, fire, label, trackLabel, trackPoint, trackShip, setWeather, setFlag, setInsets, SHIP_Z });
   return api;
 }

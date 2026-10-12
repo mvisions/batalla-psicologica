@@ -94,6 +94,11 @@
     text-shadow: 0 0 6px #000, 0 0 12px #000; animation: dmgblink .45s steps(2, start) 6, dmgfloat 2.8s ease-out forwards; }
   .dmg small { display: block; font-size: 15px; color: #ff5252; }
   .dmg span { font-size: 28px; color: #fff; }
+  .warship-health { position: absolute; z-index: 8; transform: translate(-50%, -50%); width: min(190px, 48vw); padding: 5px 8px; box-sizing: border-box;
+    border: 1px solid #ffd54f; border-radius: 8px; background: #101820e8; color: #fff; text-align: center; font-size: 12px; font-weight: 900;
+    text-shadow: 0 1px 3px #000; pointer-events: none; box-shadow: 0 0 12px #000a; }
+  .warship-health-track { display: block; height: 10px; margin-top: 4px; overflow: hidden; border: 1px solid #b7c2cc; border-radius: 6px; background: #3a1717; }
+  .warship-health-fill { display: block; width: 100%; height: 100%; background: linear-gradient(90deg, #b71c1c, #ff5252); transition: width .25s ease; }
   @keyframes dmgblink { 50% { opacity: 0; } }
   @keyframes dmgfloat { to { margin-top: -26px; } }
   #x2 { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 4; pointer-events: none; display: none;
@@ -1369,7 +1374,7 @@ const promptMsg = () => {
   if (curRound === 25) notes.push('Caen rayos sobre el campo de batalla');
   if (curRound === 35) notes.push('La niebla cubre el mar');
   if (curRound % 7 === 0 && !isWarship() && !isIsland()) notes.push('La orca extra rebota las balas contra tu propio barco');
-  if (isWarship()) notes.push('☠️ Un barco de guerra pirata ataca a los dos barcos (−20% de vida): tus balas se le quedan clavadas sin dañarlo; solo tus dragones pueden atacarlo y te dan +250 monedas');
+  if (isWarship()) notes.push('☠️ El barco de guerra ataca a ambos barcos (−20% de vida). Tiene 56 de vida compartida: entre los dos podéis hundirlo; quien dé el último impacto gana 250 monedas. Cada dragón también da +250 monedas');
   if (isIsland()) notes.push('🏝️ Isla de los monos: cada mono (carril 1-4) te lanza cocos; dispárale para tumbarlo y ganar 1 moneda; si ya no está, tu bala pasa y da al barco rival. 🐉 Tus dragones atacan a los monos: +50 monedas por dragón');
   if (curRound % 3 === 0 && !isWarship() && !isIsland()) notes.push('Un submarino cruza el mar: si tu bala le da, recuperas 5 y repara 5 el cañón que disparó');
   return notes.length ? notes.join(' · ') : 'Toca los cañones (ataque) y los círculos de agua (defensa)';
@@ -1916,6 +1921,7 @@ async function playRoundInner(r, replay = false) {
   if (ev0?.warship || ev0?.monkeys) { // el barco de guerra o la isla tienen que estar en su sitio antes del primer disparo
     const faces = []; for (const m of ev0.monkeys || []) faces[m.id] = side(m.target);
     await guard(Promise.all([ev0.warship ? scene.warshipArrive() : null, ev0.monkeys ? scene.islandShow(faces) : null]), 9000);
+    if (ev0.warship) scene.setWarshipHealth(ev0.warship.hpBefore, ev0.warship.maxHp);
   }
   for (const ev of r.events) {
     const slotEnd = Date.now() + SHOT_MS;
@@ -1959,7 +1965,7 @@ async function playRoundInner(r, replay = false) {
     for (const c of ev.coconuts || []) impacts.push(scene.monkeyThrow(c.id, side(c.target)));
     if (ev.warship) {
       sfx('bomb');
-      impacts.push(scene.warshipVolley([0, 1].filter((k) => ev.warship.dmg[k] > 0).map(side), ev.warship.laser == null ? null : side(ev.warship.laser)));
+      impacts.push(scene.warshipVolley([0, 1].filter((k) => ev.warship.dmg[k] > 0).map(side), ev.warship.laser == null ? null : side(ev.warship.laser), ev.warship.targetCannons));
     }
     if (ev.heli) {
       sfx('heli');
@@ -2007,12 +2013,25 @@ async function playRoundInner(r, replay = false) {
       impacts.push(sf.done);
     }
     await guard(Promise.all(impacts), 20000);
+    if (ev.warship) {
+      scene.setWarshipHealth(ev.warship.hp, ev.warship.maxHp);
+      if (ev.warship.reward) {
+        scene.warshipLabel(`<small style="color:#ffd54f">☠️ Hundido · +${ev.warship.reward} 🪙${ev.warship.sunkBy === me ? '' : ' rival'}</small>`);
+        if (ev.warship.sunkBy === me) {
+          sfx('coins');
+          if (!replay && googleOn) showCoinRain(ev.warship.reward);
+        }
+      }
+    }
     await wait(60);
     const prev = lastHp, prevC = lastCan;
     setHp(ev.hp, ev.maxShipHp); setCannons(ev.cannons);
     showDamage(prev, ev.hp, me, op, ev.heal);
     showCannonDamage(prevC, ev.cannons, me, op);
     showCannonRepair(prevC, ev.cannons, me, op);
+    for (const [owner, lane] of ev.warship?.disabledCannons?.entries() || []) {
+      if (lane !== null) scene.labelCannon(side(owner), lane + 1, '<small style="color:#ff7043">⚠️ TORRETA ANULADA</small>', 4500);
+    }
     await wait(Math.max(0, slotEnd - Date.now()));
   }
   scene.subLeave(); scene.octopusLeave(); scene.medkitLeave(); scene.bucketLeave(); scene.gullLeave(); scene.squidLeave(); scene.logLeave(); scene.iceClear();

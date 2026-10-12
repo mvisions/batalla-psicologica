@@ -531,8 +531,19 @@ test('en la ronda del barco de guerra los dragones le atacan y dan 250 monedas',
     const round = await next('round');
     assert.deepEqual(round.events[0].dragon.map((d) => [d.owner, d.target, d.bonus]), [[0, 'warship', 250]]);
     assert.ok(round.events.every((ev) => ev.warship && ev.shots.every((s) => s.target === 'warship')));
+    assert.deepEqual(round.events.map((ev) => ev.warship.hp), [42, 28, 14, 0]);
+    assert.equal(round.events[3].warship.sunkBy, 1);
+    assert.equal(round.events[3].warship.reward, 250);
+    for (const [owner, lane] of round.events[3].warship.disabledCannons.entries()) {
+      const hitCounts = [0, 0, 0, 0];
+      for (const ev of round.events) hitCounts[ev.warship.targetCannons[owner]]++;
+      assert.equal(hitCounts[lane], Math.max(...hitCounts));
+      assert.equal(round.events[3].cannons[owner][lane], 0);
+      assert.equal(round.cannons[owner][lane], 0);
+    }
     assert.equal(round.warship, false);
     assert.equal((await post('/api/profile', { name: 'Ana' })).body.coins, 255);
+    assert.equal((await post('/api/profile', { name: 'Beto' })).body.coins, 250);
   } finally {
     controller.abort();
     child.kill();
