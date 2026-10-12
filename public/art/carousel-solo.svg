@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 480" fill="none">
+  <defs>
+    <linearGradient id="sky" x2="0" y2="1"><stop stop-color="#10264c"/><stop offset=".55" stop-color="#556c89"/><stop offset="1" stop-color="#f3a46e"/></linearGradient>
+    <linearGradient id="sea" x2="0" y2="1"><stop stop-color="#53849b"/><stop offset=".45" stop-color="#174765"/><stop offset="1" stop-color="#07182d"/></linearGradient>
+    <linearGradient id="wood" x2="0" y2="1"><stop stop-color="#d49a5b"/><stop offset=".55" stop-color="#754630"/><stop offset="1" stop-color="#352721"/></linearGradient>
+    <linearGradient id="sail"><stop stop-color="#fff0cf"/><stop offset="1" stop-color="#c8c2ad"/></linearGradient>
+    <linearGradient id="shade" x2="1"><stop stop-color="#06182b" stop-opacity=".96"/><stop offset=".58" stop-color="#06182b" stop-opacity=".55"/><stop offset="1" stop-color="#06182b" stop-opacity=".08"/></linearGradient>
+    <radialGradient id="sun"><stop stop-color="#ffdda8" stop-opacity=".8"/><stop offset="1" stop-color="#ffbd7b" stop-opacity="0"/></radialGradient>
+    <filter id="glow"><feGaussianBlur stdDeviation="18"/></filter>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="170%"><feDropShadow dx="0" dy="14" stdDeviation="12" flood-color="#020914" flood-opacity=".8"/></filter>
+  </defs>
+  <path fill="url(#sky)" d="M0 0h1200v258H0z"/>
+  <circle cx="946" cy="211" r="124" fill="url(#sun)"/>
+  <path d="M0 247q220 30 430 1t392 8q186 23 378-14v238H0z" fill="url(#sea)"/>
+  <g stroke="#c0e2e8" stroke-linecap="round" opacity=".4"><path d="M310 301h235m67-24h155m58 42h243M451 363h157m73-19h230m-387 75h180m89-27h184" stroke-width="3"/></g>
+  <g transform="translate(906 102)" filter="url(#shadow)">
+    <path d="M-209 259h404l-52 70h-302z" fill="url(#wood)" stroke="#33251f" stroke-width="9"/>
+    <path d="M-156 249V9M-18 249V-25m132 274V33" stroke="#3d2b20" stroke-width="13"/>
+    <path d="M-151 27q57 16 102-1v121q-49-12-102 3zM-13-1q67 15 114-2v147q-50-13-114 1zM119 46q47 12 83-1v108q-37-10-83 2z" fill="url(#sail)" stroke="#e6d5b7" stroke-width="4"/>
+    <path d="M-151 28q57 16 102-1v20q-49 15-102 1zM-13 0q67 15 114-2v20Q50 34-13 19z" fill="#a53d38"/>
+    <path d="M-193 251h379v32h-379z" fill="#98603b" stroke="#e2b67d" stroke-width="6"/>
+    <g fill="#dfc08e" stroke="#382c24" stroke-width="4"><circle cx="-150" cy="293" r="8"/><circle cx="-86" cy="293" r="8"/><circle cx="-22" cy="293" r="8"/><circle cx="42" cy="293" r="8"/><circle cx="106" cy="293" r="8"/></g>
+    <path d="M-18 116v91m-42-46h84" stroke="#63442d" stroke-width="4"/><path d="M-18 122l32 39-32 38-32-38z" fill="#edce83"/>
+  </g>
+  <g transform="translate(601 201)" opacity=".38" filter="url(#glow)"><circle r="51" fill="#ffd679"/></g>
+  <path d="M0 0h1200v480H0z" fill="url(#shade)"/>
+</svg>

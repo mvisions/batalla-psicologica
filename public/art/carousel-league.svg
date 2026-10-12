@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 480" fill="none">
+  <defs>
+    <linearGradient id="sky" x2="0" y2="1"><stop stop-color="#15294e"/><stop offset=".55" stop-color="#7c7181"/><stop offset="1" stop-color="#f0a471"/></linearGradient>
+    <linearGradient id="sea" x2="0" y2="1"><stop stop-color="#578a99"/><stop offset=".48" stop-color="#164762"/><stop offset="1" stop-color="#07192e"/></linearGradient>
+    <linearGradient id="wood" x2="0" y2="1"><stop stop-color="#d8a365"/><stop offset=".5" stop-color="#815131"/><stop offset="1" stop-color="#372721"/></linearGradient>
+    <linearGradient id="sail"><stop stop-color="#f8efd9"/><stop offset="1" stop-color="#bbb8a6"/></linearGradient>
+    <linearGradient id="shade" x2="1"><stop stop-color="#06182b" stop-opacity=".96"/><stop offset=".58" stop-color="#06182b" stop-opacity=".58"/><stop offset="1" stop-color="#06182b" stop-opacity=".12"/></linearGradient>
+    <radialGradient id="sun"><stop stop-color="#ffe4ad" stop-opacity=".86"/><stop offset="1" stop-color="#ffb878" stop-opacity="0"/></radialGradient>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="170%"><feDropShadow dx="0" dy="9" stdDeviation="8" flood-color="#020914" flood-opacity=".75"/></filter>
+  </defs>
+  <path fill="url(#sky)" d="M0 0h1200v257H0z"/><circle cx="933" cy="181" r="119" fill="url(#sun)"/>
+  <path d="M0 244q206 27 389 0t389 8q224 32 422-14v242H0z" fill="url(#sea)"/>
+  <g stroke="#c1e0e3" stroke-linecap="round" opacity=".38"><path d="M280 303h210m40-24h126m73 43h200M399 359h142m75-16h194m-333 77h152m71-24h179" stroke-width="3"/></g>
+  <g fill="#ffd979" font-family="system-ui,sans-serif" font-weight="800" text-anchor="middle">
+    <path d="M590 55h20v76h-20z" fill="#f4d392" opacity=".8"/><path d="M600 59l34 20-34 20z" fill="#ffd76a"/><text x="600" y="178" font-size="29">I</text>
+    <path d="M432 93h13v53h-13z" fill="#f4d392" opacity=".65"/><path d="M439 96l24 15-24 15z" fill="#c6e8fa"/><text x="439" y="177" font-size="23">II</text>
+    <path d="M751 91h13v54h-13z" fill="#f4d392" opacity=".65"/><path d="M758 94l24 15-24 15z" fill="#c6e8fa"/><text x="758" y="177" font-size="23">III</text>
+  </g>
+  <g transform="translate(600 185)" filter="url(#shadow)">
+    <g opacity=".7" transform="translate(-225 34) scale(.52)"><path d="M-198 259h390l-48 67h-294z" fill="url(#wood)" stroke="#35251d" stroke-width="9"/><path d="M-134 249V16M0 249V-19m125 268V38" stroke="#3a2a20" stroke-width="13"/><path d="M-130 32q55 15 99-1v119q-48-12-99 3zM4 5q61 15 105-2v143q-46-12-105 1zM129 50q43 10 77-1v101q-34-9-77 2z" fill="url(#sail)"/><path d="M-185 250h367v34h-367z" fill="#8d5937" stroke="#e0b16f" stroke-width="6"/></g>
+    <g opacity=".76" transform="translate(225 34) scale(.52)"><path d="M-198 259h390l-48 67h-294z" fill="url(#wood)" stroke="#35251d" stroke-width="9"/><path d="M-134 249V16M0 249V-19m125 268V38" stroke="#3a2a20" stroke-width="13"/><path d="M-130 32q55 15 99-1v119q-48-12-99 3zM4 5q61 15 105-2v143q-46-12-105 1zM129 50q43 10 77-1v101q-34-9-77 2z" fill="url(#sail)"/><path d="M-185 250h367v34h-367z" fill="#8d5937" stroke="#e0b16f" stroke-width="6"/></g>
+    <path d="M-215 240h430l-54 74h-322z" fill="url(#wood)" stroke="#33251e" stroke-width="10"/>
+    <path d="M-146 231V-5M-2 231V-37m138 268V18" stroke="#3a2a20" stroke-width="14"/>
+    <path d="M-142 11q61 17 107-1v122q-51-13-107 3zM2-9q67 16 112-2v145q-49-13-112 1zM140 31q48 12 83-1v104q-36-9-83 2z" fill="url(#sail)" stroke="#e8d9bc" stroke-width="4"/>
+    <path d="M-142 12q61 17 107-1v20q-51 16-107 1zM2-8q67 16 112-2v20Q62 27 2 12z" fill="#a63b34"/>
+    <path d="M-197 230h412v36h-412z" fill="#94603a" stroke="#e3b573" stroke-width="7"/>
+    <g fill="#e9c88c" stroke="#352a22" stroke-width="4"><circle cx="-153" cy="279" r="8"/><circle cx="-92" cy="279" r="8"/><circle cx="-31" cy="279" r="8"/><circle cx="30" cy="279" r="8"/><circle cx="91" cy="279" r="8"/><circle cx="152" cy="279" r="8"/></g>
+    <path d="M-2 96v89m-43-44h86" stroke="#62442c" stroke-width="4"/><path d="M-2 103l31 38-31 38-31-38z" fill="#f0d387"/>
+  </g>
+  <path d="M0 0h1200v480H0z" fill="url(#shade)"/>
+</svg>

@@ -143,33 +143,41 @@
   @keyframes levelUpSpark { to { opacity: 0; transform: rotate(var(--spark-angle)) translateX(var(--spark-distance)) scale(.15); } }
   @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; } }
   @media (prefers-reduced-motion: reduce) { .level-up-card::before, .level-up-badge, .level-up-spark { animation-duration: .01ms; animation-iteration-count: 1; } }
-  .game-carousel { padding: 0; overflow: hidden; border: 1px solid #74c8ff55; background: #071d34; box-shadow: 0 10px 28px #0007; }
+  .game-carousel { margin: 0; padding: 0; overflow: hidden; border: 1px solid #74c8ff66; background: #071d34; box-shadow: 0 10px 28px #0007; }
+  .carousel-heading { margin: 0; padding: 12px 14px 8px; font-size: 16px; }
   .carousel-viewport { position: relative; overflow: hidden; touch-action: pan-y; }
-  .carousel-track { display: flex; transition: transform .72s cubic-bezier(.2,.75,.25,1); }
-  .carousel-slide { position: relative; flex: 0 0 100%; min-height: 218px; overflow: hidden; isolation: isolate; }
-  .carousel-slide img { position: absolute; z-index: -2; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: .92; }
-  .carousel-slide::after { position: absolute; z-index: -1; inset: 0; content: ""; background: linear-gradient(90deg,#06182bf2 0%,#06182bdb 36%,#06182b45 72%,#06182b12); }
-  .carousel-slide.is-active img { animation: carouselArtDrift 7s ease-in-out both; }
-  @keyframes carouselArtDrift { from { transform: scale(1.02); } to { transform: scale(1.11); } }
-  .carousel-copy { width: min(72%, 365px); min-height: 218px; display: flex; flex-direction: column; justify-content: center; padding: 22px 54px 22px 22px; }
+  .carousel-track { display: flex; transition: transform .68s cubic-bezier(.2,.75,.25,1); }
+  .carousel-slide { position: relative; flex: 0 0 100%; min-height: 268px; overflow: hidden; isolation: isolate; }
+  .carousel-slide img { position: absolute; z-index: -2; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: .94; }
+  .carousel-slide::after { position: absolute; z-index: -1; inset: 0; content: ""; background: linear-gradient(90deg,#06182be6 0%,#06182ba8 43%,#06182b33 76%,#06182b12); }
+  .carousel-slide.is-active img { animation: carouselArtDrift 8s ease-in-out both; }
+  @keyframes carouselArtDrift { from { transform: scale(1.02); } to { transform: scale(1.1); } }
+  .carousel-copy { width: min(76%, 370px); min-height: 268px; display: flex; flex-direction: column; align-items: flex-start; justify-content: center; padding: 24px 60px 24px 22px; }
   .carousel-kicker { margin: 0 0 7px; color: #ffd76a; font-size: 11px; font-weight: 800; letter-spacing: .15em; text-transform: uppercase; }
-  .carousel-copy h3 { margin: 0; font-size: clamp(21px, 5vw, 30px); line-height: 1.08; text-wrap: balance; }
-  .carousel-copy p:last-child { margin: 9px 0 0; color: #d7e9f7; font-size: 13px; line-height: 1.4; }
-  .carousel-arrow { position: absolute; z-index: 2; top: 50%; width: 36px; height: 36px; margin: 0; padding: 0; transform: translateY(-50%); border: 1px solid #ffffffbb; border-radius: 50%; background: #06182bcc; font-size: 22px; line-height: 1; box-shadow: 0 2px 12px #0008; }
+  .carousel-copy h4 { margin: 0; font-size: clamp(22px, 5vw, 30px); line-height: 1.08; text-wrap: balance; }
+  .carousel-copy p { max-width: 300px; margin: 9px 0 13px; color: #e2edf4; font-size: 14px; line-height: 1.4; }
+  .carousel-copy button { width: min(100%, 285px); min-height: 46px; margin: 0; text-align: left; font-weight: 700; box-shadow: 0 4px 14px #0006; }
+  .carousel-arrow { position: absolute; z-index: 2; top: 50%; width: 39px; height: 39px; margin: 0; padding: 0; transform: translateY(-50%); border: 1px solid #ffffffcc; border-radius: 50%; background: #06182bdc; font-size: 24px; line-height: 1; box-shadow: 0 2px 12px #0008; }
   .carousel-arrow:hover, .carousel-arrow:focus-visible { background: #1e88e5; }
   .carousel-prev { left: auto; right: 54px; } .carousel-next { right: 9px; }
-  .carousel-controls { display: flex; align-items: center; justify-content: center; gap: 10px; min-height: 35px; padding: 4px 10px 8px; }
-  .carousel-dots { display: flex; align-items: center; justify-content: center; gap: 7px; }
+  .carousel-controls { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 39px; padding: 4px 10px 8px; }
+  .carousel-dots { display: flex; align-items: center; justify-content: center; gap: 2px; }
   .carousel-dot, .carousel-toggle { width: auto; min-width: 0; margin: 0; padding: 0; border: 0; background: transparent; }
-  .carousel-dot { width: 9px; height: 9px; border-radius: 50%; background: #a8c5d788; transition: width .25s, background .25s; }
-  .carousel-dot[aria-pressed="true"] { width: 23px; border-radius: 9px; background: #ffd76a; }
+  .carousel-dot { display: grid; place-items: center; width: 24px; height: 26px; border-radius: 0; }
+  .carousel-dot::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: #a8c5d788; transition: width .25s, background .25s; }
+  .carousel-dot[aria-pressed="true"] { width: 30px; border-radius: 0; background: transparent; }
+  .carousel-dot[aria-pressed="true"]::before { width: 18px; border-radius: 9px; background: #ffd76a; }
   .carousel-toggle { padding: 4px 8px; border-radius: 6px; color: #d7e9f7; font-size: 11px; }
   .carousel-toggle:hover, .carousel-toggle:focus-visible { background: #ffffff1c; }
   @media (max-width: 420px) {
-    .carousel-slide, .carousel-copy { min-height: 190px; }
-    .carousel-copy { width: 78%; padding: 18px 44px 18px 17px; }
-    .carousel-copy p:last-child { max-width: 230px; font-size: 12px; }
+    .carousel-slide, .carousel-copy { min-height: 252px; }
+    .carousel-copy { width: 82%; padding: 18px 50px 18px 17px; }
+    .carousel-copy p { max-width: 235px; font-size: 13px; }
+    .carousel-arrow { width: 35px; height: 35px; }
+    .carousel-prev { right: 47px; } .carousel-next { right: 7px; }
+    .carousel-dots { gap: 1px; }
   }
+  @media (prefers-reduced-motion: reduce) { .carousel-slide.is-active img { animation: none; } }
   #coinRain { position: fixed; inset: 0; z-index: 85; overflow: hidden; pointer-events: none; display: grid; place-items: center; background: radial-gradient(circle, #3a2a0066 0%, #03111d88 70%); }
   .coin-drop { position: absolute; top: -140px; left: var(--x); width: var(--s); height: var(--s); border-radius: 50%;
     background: radial-gradient(circle at 35% 30%, #fff6c2 0 12%, #ffd84a 13% 55%, #e0a100 56% 72%, #a86b00 73%);
@@ -210,8 +218,6 @@
   #copyInvite { width: auto; flex: none; margin: 0; padding: 8px 10px; font-size: 13px; }
   #activeLeagues { margin: 12px 0; }
   .mode-menu { display: grid; gap: 7px; margin-top: 8px; }
-  .mode-menu > h3 { margin: 0 0 2px; font-size: 16px; }
-  .mode-menu > button { min-height: 46px; margin: 0; text-align: left; }
   #vsBot { background: #187f67; }
   #create { background: #216da8; }
   #leagueCreate, #tournament4Create { background: #b87819; }
@@ -469,34 +475,6 @@
     </div>
   </div>
   <div id="lobby" class="panel">
-    <section id="gameCarousel" class="game-carousel panel" role="region" aria-label="Descubre Batalla Psicológica" aria-roledescription="carrusel">
-      <div class="carousel-viewport">
-        <div class="carousel-track">
-          <article class="carousel-slide is-active" role="group" aria-roledescription="diapositiva" aria-label="1 de 3" aria-hidden="false">
-            <img src="./art/carousel-battle.svg" alt="Dos barcos de guerra enfrentados sobre un mar iluminado por el atardecer" fetchpriority="high">
-            <div class="carousel-copy"><p class="carousel-kicker">Estrategia naval</p><h3>Lee al rival. Apunta. ¡Dispara!</h3><p>Anticipa sus movimientos y protege tu barco en cada ronda.</p></div>
-          </article>
-          <article class="carousel-slide" role="group" aria-roledescription="diapositiva" aria-label="2 de 3" aria-hidden="true" inert>
-            <img src="./art/carousel-events.svg" alt="El galeón de la justicia y una calabaza gigante de los eventos del juego" loading="lazy">
-            <div class="carousel-copy"><p class="carousel-kicker">Encuentros inesperados</p><h3>El mar nunca es igual</h3><p>Sobrevive a tormentas, animales y eventos especiales con grandes recompensas.</p></div>
-          </article>
-          <article class="carousel-slide" role="group" aria-roledescription="diapositiva" aria-label="3 de 3" aria-hidden="true" inert>
-            <img src="./art/carousel-tournaments.svg" alt="Flota de barcos reunida para disputar un torneo" loading="lazy">
-            <div class="carousel-copy"><p class="carousel-kicker">Compite y progresa</p><h3>Tu próxima gran batalla</h3><p>Juega contra amigos, desafía a la máquina o lucha por el torneo.</p></div>
-          </article>
-        </div>
-        <button class="carousel-arrow carousel-prev" type="button" aria-label="Imagen anterior">‹</button>
-        <button class="carousel-arrow carousel-next" type="button" aria-label="Imagen siguiente">›</button>
-      </div>
-      <div class="carousel-controls">
-        <div class="carousel-dots" role="group" aria-label="Elegir imagen del carrusel">
-          <button class="carousel-dot" type="button" aria-label="Mostrar imagen 1 de 3: Batalla naval" aria-pressed="true"></button>
-          <button class="carousel-dot" type="button" aria-label="Mostrar imagen 2 de 3: Eventos especiales" aria-pressed="false"></button>
-          <button class="carousel-dot" type="button" aria-label="Mostrar imagen 3 de 3: Torneos" aria-pressed="false"></button>
-        </div>
-        <button id="carouselToggle" class="carousel-toggle" type="button" aria-label="Pausar carrusel">Pausar</button>
-      </div>
-    </section>
     <h2>Batalla Psicológica</h2>
     <label for="country">País (la bandera de tu barco)</label>
     <select id="country"></select>
@@ -513,14 +491,55 @@
       <label for="level">Dificultad de la máquina</label>
       <select id="level"><option value="easy">Fácil</option><option value="normal" selected>Normal</option><option value="hard">Difícil</option></select>
       <div class="mode-menu">
-        <h3>Modos de juego</h3>
-        <button id="tutorialBtn" type="button">Tutorial de batalla</button>
-        <button id="vsBot" type="button">1 jugador · Contra la máquina</button>
-        <button id="create" type="button">2 jugadores · Invitar a un rival</button>
-        <button id="tournament4Create" type="button">Torneo · 4 jugadores</button>
-        <button id="leagueCreate" type="button">Liga · 8 jugadores</button>
-        <button id="joinRandom" type="button">Unirme a partida</button>
-        <button id="shopBtn" type="button">🛒 Tienda</button>
+        <section id="gameCarousel" class="game-carousel" role="region" aria-label="Elige un modo de juego" aria-roledescription="carrusel">
+          <h3 class="carousel-heading">Modos de juego</h3>
+          <div class="carousel-viewport">
+            <div class="carousel-track">
+              <article class="carousel-slide is-active" role="group" aria-roledescription="diapositiva" aria-label="1 de 7" aria-hidden="false">
+                <img src="./art/carousel-battle.svg" alt="Dos barcos de guerra se enfrentan en el mar al atardecer" fetchpriority="high">
+                <div class="carousel-copy"><p class="carousel-kicker">Aprende a jugar</p><h4>Tutorial de batalla</h4><p>Practica los disparos, las defensas y los movimientos del barco sin límite de tiempo.</p><button id="tutorialBtn" type="button">Empezar tutorial</button></div>
+              </article>
+              <article class="carousel-slide" role="group" aria-roledescription="diapositiva" aria-label="2 de 7" aria-hidden="true" inert>
+                <img src="./art/carousel-solo.svg" alt="Un barco preparado para desafiar a un rival en una batalla naval" loading="lazy">
+                <div class="carousel-copy"><p class="carousel-kicker">Desafía a la máquina</p><h4>Un jugador</h4><p>Elige la dificultad y pon a prueba tu estrategia contra un rival controlado por la máquina.</p><button id="vsBot" type="button">Jugar contra la máquina</button></div>
+              </article>
+              <article class="carousel-slide" role="group" aria-roledescription="diapositiva" aria-label="3 de 7" aria-hidden="true" inert>
+                <img src="./art/carousel-duel.svg" alt="Dos barcos enfrentados frente a frente sobre las olas" loading="lazy">
+                <div class="carousel-copy"><p class="carousel-kicker">Invita a un amigo</p><h4>Duelo entre jugadores</h4><p>Crea una partida privada y comparte el enlace con quien quieras retar.</p><button id="create" type="button">Crear partida e invitar</button></div>
+              </article>
+              <article class="carousel-slide" role="group" aria-roledescription="diapositiva" aria-label="4 de 7" aria-hidden="true" inert>
+                <img src="./art/carousel-tournaments.svg" alt="Una flota de barcos se reúne para competir en un torneo" loading="lazy">
+                <div class="carousel-copy"><p class="carousel-kicker">Demuestra tu estrategia</p><h4>Torneo · 4 jugadores</h4><p>Organiza una competición rápida con semifinales y una gran final.</p><button id="tournament4Create" type="button">Crear torneo</button></div>
+              </article>
+              <article class="carousel-slide" role="group" aria-roledescription="diapositiva" aria-label="5 de 7" aria-hidden="true" inert>
+                <img src="./art/carousel-league.svg" alt="Ocho barcos compiten por el primer puesto de la liga" loading="lazy">
+                <div class="carousel-copy"><p class="carousel-kicker">Compite por el título</p><h4>Liga · 8 jugadores</h4><p>Crea una liga y reúne a ocho capitanes en una competición completa.</p><button id="leagueCreate" type="button">Crear liga</button></div>
+              </article>
+              <article class="carousel-slide" role="group" aria-roledescription="diapositiva" aria-label="6 de 7" aria-hidden="true" inert>
+                <img src="./art/carousel-matchmaking.svg" alt="Dos barcos navegan al encuentro para iniciar una batalla" loading="lazy">
+                <div class="carousel-copy"><p class="carousel-kicker">Encuentra un rival</p><h4>Partida rápida</h4><p>Busca a otro jugador conectado y entra directamente en combate.</p><button id="joinRandom" type="button">Buscar partida</button></div>
+              </article>
+              <article class="carousel-slide" role="group" aria-roledescription="diapositiva" aria-label="7 de 7" aria-hidden="true" inert>
+                <img src="./art/carousel-shop.svg" alt="Un cofre con monedas y objetos para personalizar el barco" loading="lazy">
+                <div class="carousel-copy"><p class="carousel-kicker">Personaliza tu barco</p><h4>Tienda y recompensas</h4><p>Descubre skins, mejoras y premios para preparar tu próxima travesía.</p><button id="shopBtn" type="button">🛒 Abrir tienda</button></div>
+              </article>
+            </div>
+            <button class="carousel-arrow carousel-prev" type="button" aria-label="Modo anterior">‹</button>
+            <button class="carousel-arrow carousel-next" type="button" aria-label="Modo siguiente">›</button>
+          </div>
+          <div class="carousel-controls">
+            <div class="carousel-dots" role="group" aria-label="Elegir modo de juego">
+              <button class="carousel-dot" type="button" aria-label="Modo 1 de 7: Tutorial" aria-pressed="true"></button>
+              <button class="carousel-dot" type="button" aria-label="Modo 2 de 7: Un jugador" aria-pressed="false"></button>
+              <button class="carousel-dot" type="button" aria-label="Modo 3 de 7: Duelo entre jugadores" aria-pressed="false"></button>
+              <button class="carousel-dot" type="button" aria-label="Modo 4 de 7: Torneo" aria-pressed="false"></button>
+              <button class="carousel-dot" type="button" aria-label="Modo 5 de 7: Liga" aria-pressed="false"></button>
+              <button class="carousel-dot" type="button" aria-label="Modo 6 de 7: Partida rápida" aria-pressed="false"></button>
+              <button class="carousel-dot" type="button" aria-label="Modo 7 de 7: Tienda" aria-pressed="false"></button>
+            </div>
+            <button id="carouselToggle" class="carousel-toggle" type="button" aria-label="Pausar carrusel">Pausar</button>
+          </div>
+        </section>
         <div id="leagueSetup" class="league-setup hidden">
           <label for="leagueName">Nombre del torneo</label>
           <input id="leagueName" maxlength="48" placeholder="Copa de verano">
@@ -616,13 +635,14 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
   const slides = [...carousel.querySelectorAll('.carousel-slide')];
   const dots = [...carousel.querySelectorAll('.carousel-dot')];
   const toggle = $('carouselToggle');
+  const menuBtns = $('menuBtns');
   const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
   let index = 0, timer = 0, paused = reducedMotion.matches, pointerStart = null;
   const stop = () => { clearTimeout(timer); timer = 0; };
   const schedule = () => {
     stop();
-    if (paused || reducedMotion.matches || document.hidden || carousel.matches(':hover') || carousel.contains(document.activeElement)) return;
-    timer = setTimeout(() => { show(index + 1); schedule(); }, 6200);
+    if (paused || reducedMotion.matches || document.hidden || menuBtns.classList.contains('hidden') || carousel.matches(':hover') || carousel.contains(document.activeElement)) return;
+    timer = setTimeout(() => { show(index + 1); schedule(); }, 7800);
   };
   const show = (next) => {
     index = (next + slides.length) % slides.length;
@@ -631,6 +651,7 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
       const active = i === index;
       slide.classList.toggle('is-active', active);
       slide.setAttribute('aria-hidden', String(!active));
+      slide.setAttribute('aria-label', `${i + 1} de ${slides.length}`);
       slide.inert = !active;
       dots[i].setAttribute('aria-pressed', String(active));
     });
@@ -661,6 +682,7 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
   carousel.addEventListener('focusout', () => { queueMicrotask(schedule); });
   document.addEventListener('visibilitychange', schedule);
   reducedMotion.addEventListener('change', () => { if (reducedMotion.matches) paused = true; syncToggle(); schedule(); });
+  new MutationObserver(schedule).observe(menuBtns, { attributes: true, attributeFilter: ['class'] });
   syncToggle();
   schedule();
 }
