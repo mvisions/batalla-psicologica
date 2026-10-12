@@ -134,7 +134,7 @@ function ensureCurrentWeek() {
     profile.weekKey = key;
     profile.wStreak = 0;
   }
-  persistRanking([winner.sub, loser.sub]);
+  persistRanking();
 }
 
 const RONALDO_SUB = 'tournament-bot-ronaldo'; // el único bot que sube de nivel: 1 punto por partida ganada

@@ -1,7 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
+import fs from 'node:fs';
 import net from 'node:net';
+import os from 'node:os';
+import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 async function unusedPort() {
@@ -18,6 +21,7 @@ function waitForServer(child) {
     child.stdout.on('data', (chunk) => {
       if (chunk.toString().includes('Servidor en')) { clearTimeout(timeout); resolve(); }
     });
+
     child.once('error', (error) => { clearTimeout(timeout); reject(error); });
     child.once('exit', (code) => { clearTimeout(timeout); reject(new Error(`el servidor terminó con código ${code}`)); });
   });
@@ -26,11 +30,19 @@ function waitForServer(child) {
 test('CORS permite GitHub Pages configurado y rechaza otros sitios', async () => {
   const port = await unusedPort();
   const projectDir = fileURLToPath(new URL('..', import.meta.url));
+  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'bp-deployment-'));
+  fs.writeFileSync(path.join(dataDir, 'ranking.json'), JSON.stringify({
+    version: 2,
+    weekKey: '1900-W01',
+    allTime: [],
+    weekly: [],
+  }));
   const child = spawn(process.execPath, ['server.js'], {
     cwd: projectDir,
     env: {
       ...process.env,
       PORT: String(port),
+      DATA_DIR: dataDir,
       GOOGLE_CLIENT_ID: '',
       ALLOW_DEVELOPMENT_LOGIN: 'true',
       PUBLIC_URL: 'https://mvisions.github.io/batalla-psicologica',
@@ -57,6 +69,10 @@ test('CORS permite GitHub Pages configurado y rechaza otros sitios', async () =>
     assert.equal(forbidden.status, 403);
     assert.equal(forbidden.headers.get('access-control-allow-origin'), null);
 
+    const ranking = await fetch(`${base}/api/ranking?period=week`);
+    assert.equal(ranking.status, 200);
+    assert.deepEqual(await ranking.json(), []);
+
     const health = await fetch(`${base}/api/health`);
     assert.equal(health.status, 200);
     assert.deepEqual(await health.json(), { ok: true });
@@ -66,5 +82,6 @@ test('CORS permite GitHub Pages configurado y rechaza otros sitios', async () =>
       child.kill();
       await exited;
     }
+    fs.rmSync(dataDir, { recursive: true, force: true });
   }
 });
