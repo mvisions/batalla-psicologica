@@ -749,7 +749,8 @@ $('shopClose').onclick = () => $('shopModal').classList.add('hidden');
 $('shopModal').onclick = (event) => { if (event.target === $('shopModal')) $('shopModal').classList.add('hidden'); };
 async function buyItem(item, btn, label, price, done) {
   if (!session) { $('shopMsg').textContent = 'Inicia sesión para comprar'; return; }
-  if (!confirm(`¿Comprar ${label} por ${price} monedas?`)) return;
+  const actualPrice = myProfile?.storeAccess ? 0 : price;
+  if (!confirm(actualPrice ? `¿Comprar ${label} por ${actualPrice} monedas?` : `¿Obtener ${label} gratis?`)) return;
   $(btn).disabled = true;
   try {
     const profile = await post('/api/shop/buy', { session, item });
@@ -821,7 +822,7 @@ function renderRoulette() {
     $('rouletteInfo').textContent = `Ya has tirado: te tocó ${PRIZES[rl.prize]?.icon || ''} ${PRIZES[rl.prize]?.name || rl.prize}.`;
   } else {
     btn.disabled = coins < rl.price || wheelSpinning; btn.textContent = 'GIRAR';
-    $('rouletteInfo').textContent = coins < rl.price ? `Tirar cuesta 🪙 ${rl.price}. Te faltan ${rl.price - coins}.` : `Una sola tirada por 🪙 ${rl.price}. ¡Pulsa GIRAR!`;
+    $('rouletteInfo').textContent = coins < rl.price ? `Tirar cuesta 🪙 ${rl.price}. Te faltan ${rl.price - coins}.` : rl.price ? `Una sola tirada por 🪙 ${rl.price}. ¡Pulsa GIRAR!` : 'Tienes una tirada gratis. ¡Pulsa GIRAR!';
   }
 }
 function closeRoulette() { if (!wheelSpinning) { $('rouletteScreen').classList.add('hidden'); $('prizeReveal').classList.add('hidden'); } }
@@ -1050,9 +1051,9 @@ function renderCoins(profile) {
   $('meCoins').classList.remove('hidden');
   for (const [id, owned, price] of [['buySwordfish', !!profile.swordfish, 150], ['buyInfernal', !!profile.infernal, 450], ['buyViking', !!profile.viking, 250], ['buyFire', !!profile.fireballs, 500], ['buyFireDragon', !!profile.fireDragon, 1500], ['buyStormDragon', !!profile.stormDragon, 1500]]) {
     const buy = $(id);
-    buy.disabled = owned || coins < price;
-    buy.textContent = owned ? '✔ Comprado' : `🪙 ${price}`;
-    buy.title = owned ? 'Ya lo tienes' : coins < price ? `Te faltan ${price - coins} monedas` : `Comprar por ${price} monedas`;
+    buy.disabled = owned || (!profile.storeAccess && coins < price);
+    buy.textContent = owned ? '✔ Comprado' : profile.storeAccess ? 'GRATIS' : `🪙 ${price}`;
+    buy.title = owned ? 'Ya lo tienes' : profile.storeAccess ? 'Obtener gratis' : coins < price ? `Te faltan ${price - coins} monedas` : `Comprar por ${price} monedas`;
   }
   if (!room) scene.setDragons('me', { fire: !!profile.fireDragon, storm: !!profile.stormDragon });
   if (!room) scene.setLifebuoy('me', !!profile.lifebuoy);
@@ -1060,8 +1061,8 @@ function renderCoins(profile) {
   if (rl) {
     const ob = $('openRoulette');
     ob.disabled = false;
-    ob.textContent = rl.used ? `✔ ${PRIZES[rl.prize]?.icon || ''} Usada` : `🪙 ${rl.price}`;
-    ob.title = rl.used ? `Te tocó ${PRIZES[rl.prize]?.name || rl.prize}` : `Tirar de la ruleta por ${rl.price} monedas`;
+    ob.textContent = rl.used ? `✔ ${PRIZES[rl.prize]?.icon || ''} Usada` : rl.price ? `🪙 ${rl.price}` : 'GRATIS';
+    ob.title = rl.used ? `Te tocó ${PRIZES[rl.prize]?.name || rl.prize}` : rl.price ? `Tirar de la ruleta por ${rl.price} monedas` : 'Tirar gratis de la ruleta';
     if (!$('rouletteScreen').classList.contains('hidden')) renderRoulette();
   }
   updateTroops();

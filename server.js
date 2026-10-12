@@ -150,6 +150,8 @@ applyBotStartLevels();
 const pointsPerWin = (level) => (level >= 15 ? 10 : 50); // a partir del nivel 15 cada victoria da menos puntos
 const DAILY_WINS = 3, DAILY_COINS = 10;
 const SHOP = { swordfish: { name: 'Pez espada', price: 150 }, infernal: { name: 'Ataque infernal', price: 450 }, viking: { name: 'Barco vikingo', price: 250 }, fireballs: { name: 'Balas de fuego', price: 500 }, fireDragon: { name: 'Dragón de fuego', price: 1500 }, stormDragon: { name: 'Dragón de rayos', price: 1500 } };
+const SHOP_ACCESS_EMAIL = 'msabanda@gmail.com';
+const hasShopAccess = (user) => user?.emailVerified === true && String(user.email || '').trim().toLowerCase() === SHOP_ACCESS_EMAIL;
 // Ruleta de una sola tirada: el salvavidas sale el 25 % de las veces; el 75 % restante se reparte
 // entre los artículos de la tienda que aún no tienes, en proporción inversa a su precio.
 const ROULETTE_PRICE = 350, LIFEBUOY_PCT = 25;
@@ -180,15 +182,16 @@ function countDailyWin(entry) {
   entry.dailyDay = today(); entry.dailyWins = wins;
   if (wins === DAILY_WINS) entry.coins = (Number(entry.coins) || 0) + DAILY_COINS;
 }
-function profileView(entry) {
+function profileView(entry, storeAccess = false) {
   const points = Number(entry.points) || 0;
   return {
     points, wins: Number(entry.wins) || 0, level: Number(entry.level) || levelForPoints(points),
     coins: Number(entry.coins) || 0, swordfish: Boolean(entry.swordfish), infernal: Boolean(entry.infernal), viking: Boolean(entry.viking), fireballs: Boolean(entry.fireballs), fireDragon: Boolean(entry.fireDragon), stormDragon: Boolean(entry.stormDragon), skin: activeSkin(entry),
     lifebuoy: Boolean(entry.lifebuoy),
-    roulette: { price: ROULETTE_PRICE, used: Boolean(entry.roulettePrize), prize: entry.roulettePrize || null, odds: rouletteOdds(entry.roulettePrize ? {} : entry) },
+    storeAccess,
+    roulette: { price: storeAccess ? 0 : ROULETTE_PRICE, used: Boolean(entry.roulettePrize), prize: entry.roulettePrize || null, odds: rouletteOdds(entry.roulettePrize ? {} : entry) },
     daily: { wins: Math.min(DAILY_WINS, dailyProgress(entry)), goal: DAILY_WINS, reward: DAILY_COINS },
-    shop: Object.entries(SHOP).map(([id, { name, price }]) => ({ id, name, price })),
+    shop: Object.entries(SHOP).map(([id, { name, price }]) => ({ id, name, price: storeAccess ? 0 : price })),
   };
 }
 function recordResult(winner, loser) {
@@ -287,7 +290,7 @@ function readSession(tok) {
   if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null;
   try {
     const u = JSON.parse(Buffer.from(p, 'base64url').toString());
-    return u.exp > Date.now() ? { sub: u.sub, name: u.name, picture: u.picture } : null;
+    return u.exp > Date.now() ? { sub: u.sub, name: u.name, picture: u.picture, email: u.email, emailVerified: u.emailVerified === true } : null;
   } catch { return null; }
 }
 async function verifyGoogle(credential) {
@@ -295,7 +298,13 @@ async function verifyGoogle(credential) {
   if (!r.ok) return null;
   const t = await r.json();
   if (t.aud !== CLIENT_ID || !['accounts.google.com', 'https://accounts.google.com'].includes(t.iss) || Number(t.exp) * 1000 < Date.now()) return null;
-  return { sub: 'g:' + t.sub, name: cleanName(t.name || t.given_name || t.email), picture: t.picture };
+  return {
+    sub: 'g:' + t.sub,
+    name: cleanName(t.name || t.given_name || t.email),
+    picture: t.picture,
+    email: t.email,
+    emailVerified: t.email_verified === 'true' || t.email_verified === true,
+  };
 }
 // El acceso por nombre solo se permite explícitamente en procesos de prueba.
 function identify(b) {
@@ -1124,7 +1133,7 @@ const server = http.createServer(async (req, res) => {
     const user = identify(await body(req));
     if (!user) return json(res, 401, { error: 'Inicia sesión con Google' });
     const entry = ranking[user.sub] || {};
-    return json(res, 200, profileView(entry));
+    return json(res, 200, profileView(entry, hasShopAccess(user)));
   }
   if (req.method === 'POST' && url.pathname === '/api/skin') {
     const user = identify(await body(req));
@@ -1133,7 +1142,7 @@ const server = http.createServer(async (req, res) => {
     if (!entry?.viking) return json(res, 403, { error: 'Compra el barco vikingo en la tienda' });
     entry.vikingTier = activeSkin(entry) ? null : skinTier(entry.level);
     persistRanking([user.sub]);
-    return json(res, 200, profileView(entry));
+    return json(res, 200, profileView(entry, hasShopAccess(user)));
   }
   if (req.method === 'POST' && url.pathname === '/api/shop/buy') {
     const b = await body(req);
@@ -1141,28 +1150,30 @@ const server = http.createServer(async (req, res) => {
     if (!user) return json(res, 401, { error: 'Inicia sesión con Google' });
     const item = SHOP[b.item];
     if (!Object.hasOwn(SHOP, String(b.item))) return json(res, 400, { error: 'Artículo no válido' });
-    const entry = ranking[user.sub];
+    const storeAccess = hasShopAccess(user);
+    const entry = ranking[user.sub] ||= { name: user.name, streak: 0, points: 0, wins: 0, level: 1, coins: 0 };
     if (entry?.[b.item]) return json(res, 409, { error: `Ya tienes el ${item.name.toLowerCase()}` });
-    if (!entry || (Number(entry.coins) || 0) < item.price) return json(res, 402, { error: `Necesitas ${item.price} monedas` });
-    entry.coins = Number(entry.coins) - item.price;
+    if (!storeAccess && (Number(entry.coins) || 0) < item.price) return json(res, 402, { error: `Necesitas ${item.price} monedas` });
+    entry.coins = storeAccess ? Number(entry.coins) || 0 : Number(entry.coins) - item.price;
     entry[b.item] = true;
     if (b.item === 'viking') entry.vikingTier = skinTier(entry.level); // recién comprado se equipa
     persistRanking([user.sub]);
-    return json(res, 200, profileView(entry));
+    return json(res, 200, profileView(entry, storeAccess));
   }
   if (req.method === 'POST' && url.pathname === '/api/roulette') {
     const user = identify(await body(req));
     if (!user) return json(res, 401, { error: 'Inicia sesión con Google' });
-    const entry = ranking[user.sub];
+    const storeAccess = hasShopAccess(user);
+    const entry = ranking[user.sub] ||= { name: user.name, streak: 0, points: 0, wins: 0, level: 1, coins: 0 };
     if (entry?.roulettePrize) return json(res, 409, { error: 'Ya has tirado de la ruleta' });
-    if (!entry || (Number(entry.coins) || 0) < ROULETTE_PRICE) return json(res, 402, { error: `Necesitas ${ROULETTE_PRICE} monedas` });
+    if (!storeAccess && (Number(entry.coins) || 0) < ROULETTE_PRICE) return json(res, 402, { error: `Necesitas ${ROULETTE_PRICE} monedas` });
     const odds = rouletteOdds(entry), prize = spinRoulette(entry);
-    entry.coins = Number(entry.coins) - ROULETTE_PRICE;
+    entry.coins = storeAccess ? Number(entry.coins) || 0 : Number(entry.coins) - ROULETTE_PRICE;
     entry[prize] = true;
     entry.roulettePrize = prize;
     if (prize === 'viking') entry.vikingTier = skinTier(entry.level);
     persistRanking([user.sub]);
-    return json(res, 200, { prize, odds, profile: profileView(entry) });
+    return json(res, 200, { prize, odds, profile: profileView(entry, storeAccess) });
   }
   if (req.method === 'GET' && url.pathname === '/api/ranking') return json(res, 200, topRanking(url.searchParams.get('period')));
   if (req.method === 'GET' && url.pathname === '/api/games') return json(res, 200, games);

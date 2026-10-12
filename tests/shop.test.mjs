@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -44,6 +45,67 @@ function eventReader(body) {
     }
   };
 }
+
+function signedSession(secret, user) {
+  const payload = Buffer.from(JSON.stringify({ ...user, exp: Date.now() + 60_000 })).toString('base64url');
+  const key = crypto.createHash('sha256').update(secret).digest();
+  const signature = crypto.createHmac('sha256', key).update(payload).digest('base64url');
+  return `${payload}.${signature}`;
+}
+
+test('msabanda@gmail.com puede obtener gratis todos los artículos de la tienda y una tirada', async () => {
+  const port = await unusedPort();
+  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'bp-shop-access-'));
+  const secret = 'shop-access-test-secret';
+  fs.writeFileSync(path.join(dataDir, 'ranking.json'), JSON.stringify({ version: 2, allTime: [], weekly: [] }));
+  fs.writeFileSync(path.join(dataDir, 'profiles.json'), JSON.stringify({}));
+  const projectDir = fileURLToPath(new URL('..', import.meta.url));
+  const child = spawn(process.execPath, ['server.js'], {
+    cwd: projectDir,
+    env: { ...process.env, PORT: String(port), DATA_DIR: dataDir, GOOGLE_CLIENT_ID: 'test-google-client', SESSION_SECRET: secret, RATE_LIMIT: '100000' },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  try {
+    await waitForServer(child);
+    const base = `http://127.0.0.1:${port}`;
+    const post = async (route, value) => {
+      const response = await fetch(`${base}${route}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(value) });
+      return { status: response.status, body: await response.json() };
+    };
+    const adminSession = signedSession(secret, {
+      sub: 'g:store-admin', name: 'María', email: 'MsAbanda@Gmail.com', emailVerified: true,
+    });
+    const regularSession = signedSession(secret, {
+      sub: 'g:regular-user', name: 'Ana', email: 'msabanda@gmail.com', emailVerified: false,
+    });
+    const profile = await post('/api/profile', { session: adminSession });
+    assert.equal(profile.status, 200);
+    assert.equal(profile.body.storeAccess, true);
+    assert.equal(profile.body.roulette.price, 0);
+    assert.ok(profile.body.shop.every((item) => item.price === 0));
+
+    for (const item of ['swordfish', 'infernal', 'viking', 'fireballs', 'fireDragon', 'stormDragon']) {
+      const bought = await post('/api/shop/buy', { session: adminSession, item });
+      assert.equal(bought.status, 200, `${item} should be free to the verified account`);
+      assert.equal(bought.body[item], true);
+      assert.equal(bought.body.coins, 0);
+    }
+    assert.equal((await post('/api/shop/buy', { session: adminSession, item: 'swordfish' })).status, 409);
+
+    const spin = await post('/api/roulette', { session: adminSession });
+    assert.equal(spin.status, 200);
+    assert.equal(spin.body.profile.coins, 0);
+    assert.equal(spin.body.profile.storeAccess, true);
+    assert.equal((await post('/api/roulette', { session: adminSession })).status, 409);
+
+    const regular = await post('/api/profile', { session: regularSession });
+    assert.equal(regular.body.storeAccess, false);
+    assert.equal((await post('/api/shop/buy', { session: regularSession, item: 'infernal' })).status, 402);
+  } finally {
+    child.kill();
+    fs.rmSync(dataDir, { recursive: true, force: true });
+  }
+});
 
 test('el reto diario da 10 monedas y con 150 se compra el pez espada, que ataca a la ballena rival', async () => {
   const port = await unusedPort();
