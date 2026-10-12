@@ -337,7 +337,7 @@ const SWORD_COOLDOWN = 4, SWORD_DMG = 10; // el pez espada comprado en la tienda
 const FIRE_COOLDOWN = 6, FIRE_DMG = 3; // las balas de fuego quitan 3 más; siguen encendidas hasta apagarlas y solo se encienden cada 6 rondas
 const DRAGON_COOLDOWN = 6, DRAGON_PCT = 0.25; // dragones de la tienda: el de fuego quita el 25% de la vida actual del barco rival y el de rayos el 25% de cada cañón rival
 const dragonsOf = (p) => ({ fire: !p?.bot && Boolean(ranking[p?.sub]?.fireDragon), storm: !p?.bot && Boolean(ranking[p?.sub]?.stormDragon) });
-const INFERNO_COOLDOWN = 6; // el ataque infernal comprado en la tienda dispara los 4 cañones en los 4 disparos, cada 6 rondas
+const INFERNO_COOLDOWN = 6; // el ataque infernal dispara los 4 cañones en la primera secuencia, cada 6 rondas
 // barco de guerra pirata (rondas 11, 22 y 33): entre ambos jugadores pueden hundirlo con 8 disparos básicos
 const WARSHIP_ROUNDS = [11, 22, 33], WARSHIP_PCT = 0.2, WARSHIP_HP = DMG * 8, WARSHIP_BONUS = 250;
 const isWarshipRound = (room) => !room.tutorial && WARSHIP_ROUNDS.includes(room.round);
@@ -613,8 +613,8 @@ function resolveRound(room) {
       const order = island ? [firstSubmitter, 1 - firstSubmitter] : squidHit(xu[0]) && squidHit(xu[1]) ? [squidOwner, 1 - squidOwner] : [0, 1];
       for (const from of order) fireShot(from, atk[from], xu[from]);
     }
-    // ataque infernal: además del disparo elegido, disparan a la vez el resto de cañones en pie
-    for (const k of [0, 1]) if (infernoFor[k]) {
+    // ataque infernal: en la primera secuencia disparan a la vez los cañones restantes
+    for (const k of [0, 1]) if (i === 0 && infernoFor[k]) {
       for (let lane = 1; lane <= 4; lane++) {
         if (lane === atk[k] || cann[k][lane - 1] <= 0) continue;
         const x = 2 * lane - 5 + pos[k];
@@ -622,7 +622,7 @@ function resolveRound(room) {
         fireShot(k, lane, x, true);
       }
     }
-    if (infernoFor.some(Boolean)) ev.infernal = [0, 1].filter((k) => infernoFor[k]);
+    if (i === 0 && infernoFor.some(Boolean)) ev.infernal = [0, 1].filter((k) => infernoFor[k]);
     if (ev.monkeys?.length) {
       ev.coconuts = ev.monkeys.map((m) => ({ id: m.id, x: m.x, target: m.target, dmg: hull(COCONUT_DMG) }));
       for (const c of ev.coconuts) dmg[c.target].ship += c.dmg;

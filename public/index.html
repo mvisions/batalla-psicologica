@@ -374,7 +374,7 @@
         <div class="shop-item">
           <svg viewBox="0 0 96 64" aria-hidden="true"><path d="M48 4 C58 18 70 22 66 38 C72 34 74 28 74 24 C84 36 82 54 66 60 L30 60 C14 54 12 36 22 24 C22 30 26 34 30 38 C26 22 40 16 48 4 Z" fill="#e8501f"/><path d="M48 24 C54 32 60 36 58 46 C56 54 40 54 38 46 C36 38 44 32 48 24 Z" fill="#ffc107"/><g fill="#2b2b2b"><rect x="14" y="52" width="14" height="8" rx="2"/><rect x="32" y="52" width="14" height="8" rx="2"/><rect x="50" y="52" width="14" height="8" rx="2"/><rect x="68" y="52" width="14" height="8" rx="2"/></g></svg>
           <h4>Ataque infernal</h4>
-          <p>Cada 6 rondas tus 4 cañones disparan a la vez en los 4 disparos.</p>
+          <p>Cada 6 rondas tus 4 cañones disparan a la vez en la primera secuencia.</p>
           <button id="buyInfernal" type="button">Comprar</button>
         </div>
         <div class="shop-item">
@@ -771,7 +771,7 @@ $('buyStormDragon').onclick = () => buyItem('stormDragon', 'buyStormDragon', 'el
 const PRIZES = {
   swordfish: { icon: '🐟', color: '#1e88e5', short: 'Pez espada', name: 'Pez espada', note: 'Ya tienes su botón en la partida: cada 4 rondas embiste a la ballena rival (−10).' },
   viking: { icon: '⛵', color: '#8d5524', short: 'Vikingo', name: 'Barco vikingo', note: 'Tu barco ya es un drakkar. Cámbialo con su botón en la partida.' },
-  infernal: { icon: '💥', color: '#e64a19', short: 'Infernal', name: 'Ataque infernal', note: 'Ya tienes su botón: cada 6 rondas tus 4 cañones disparan a la vez.' },
+  infernal: { icon: '💥', color: '#e64a19', short: 'Infernal', name: 'Ataque infernal', note: 'Ya tienes su botón: cada 6 rondas tus 4 cañones disparan a la vez en la primera secuencia.' },
   fireballs: { icon: '☄️', color: '#fb8c00', short: 'Balas fuego', name: 'Balas de fuego', note: 'Ya tienes su botón: tus balas arden y quitan 3 más de vida.' },
   fireDragon: { icon: '🐉', color: '#c62828', name: 'Dragón de fuego', note: 'Ya vuela junto a tu barco. Lánzalo con el botón del dragón.' },
   stormDragon: { icon: '⚡', color: '#3949ab', name: 'Dragón de rayos', note: 'Ya vuela junto a tu barco. Lánzalo con el botón del dragón.' },
@@ -1633,7 +1633,7 @@ $('sword').onclick = async () => {
   catch (e) { $('msg').textContent = e.message; }
 };
 $('infernal').onclick = async () => {
-  try { await post('/api/infernal', { room, pid, key }); infernoSent = true; updateTroops(); $('msg').textContent = 'Ataque infernal preparado: tus 4 cañones dispararán a la vez en los 4 disparos de esta ronda'; }
+  try { await post('/api/infernal', { room, pid, key }); infernoSent = true; updateTroops(); $('msg').textContent = 'Ataque infernal preparado: tus 4 cañones dispararán a la vez en la primera secuencia de esta ronda'; }
   catch (e) { $('msg').textContent = e.message; }
 };
 $('dragonBtn').onclick = async () => {

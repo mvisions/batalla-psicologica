@@ -125,7 +125,7 @@ test('el reto diario da 10 monedas y con 150 se compra el pez espada, que ataca 
   }
 });
 
-test('con 450 monedas se compra el ataque infernal y dispara los 4 cañones en la ronda', async () => {
+test('con 450 monedas se compra el ataque infernal y dispara los 4 cañones en la primera secuencia', async () => {
   const port = await unusedPort();
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'bp-shop-'));
   fs.writeFileSync(path.join(dataDir, 'ranking.json'), JSON.stringify({ version: 2, allTime: [], weekly: [] }));
@@ -182,9 +182,11 @@ test('con 450 monedas se compra el ataque infernal y dispara los 4 cañones en l
     await post('/api/submit', { room: second.a.room, pid: 0, key: second.a.key, ...seq });
     await post('/api/submit', { room: second.a.room, pid: 1, key: second.b.key, ...seq, attack: [3, 3, 3, 3] });
     const round = await second.nextA('round');
-    for (const ev of round.events) {
-      assert.deepEqual(ev.infernal, [0]);
-      assert.deepEqual(ev.shots.filter((shot) => shot.from === 0).map((shot) => shot.lane).sort(), [1, 2, 3, 4]);
+    assert.deepEqual(round.events[0].infernal, [0]);
+    assert.deepEqual(round.events[0].shots.filter((shot) => shot.from === 0).map((shot) => shot.lane).sort(), [1, 2, 3, 4]);
+    for (const ev of round.events.slice(1)) {
+      assert.equal(ev.infernal, undefined);
+      assert.deepEqual(ev.shots.filter((shot) => shot.from === 0).map((shot) => shot.lane), [2]);
     }
     assert.deepEqual(round.infernoCd, [5, 0]);
     assert.equal((await post('/api/infernal', { room: second.a.room, pid: 0, key: second.a.key })).status, 409);

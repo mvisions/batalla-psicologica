@@ -360,7 +360,7 @@ test('el pez espada quita 10 a la ballena rival y vuelve a estar listo a las 4 r
   assert.deepEqual(room.swordCd, [0, 0]);
 });
 
-test('el ataque infernal dispara los 4 cañones en los 4 disparos y vuelve a estar listo a las 6 rondas', () => {
+test('el ataque infernal dispara los 4 cañones en la primera secuencia y vuelve a estar listo a las 6 rondas', () => {
   const room = setup({ round: 1, a: { attack: seq(2), defense: seq(1) }, b: { attack: seq(3), defense: seq(1) } });
   room.hp[0].shark = 0; room.hp[1].shark = 0;
   room.hp[1].ship = 100000;
@@ -371,12 +371,18 @@ test('el ataque infernal dispara los 4 cañones en los 4 disparos y vuelve a est
   const baseHit = 100000 - resolveRound(base).events[0].hp[1].ship;
   const { events } = resolveRound(room);
   assert.equal(events.length, 4);
-  for (const ev of events) {
+  const firstSequence = events[0].shots.filter((s) => s.from === 0);
+  assert.deepEqual(firstSequence.map((s) => s.lane).sort(), [1, 2, 3, 4]);
+  assert.ok(firstSequence.every((s) => s.target === 'ship' && s.owner === 1));
+  assert.equal(firstSequence.filter((s) => s.infernal).length, 3);
+  assert.deepEqual(events[0].infernal, [0]);
+  for (const ev of events.slice(1)) {
     const mine = ev.shots.filter((s) => s.from === 0);
-    assert.deepEqual(mine.map((s) => s.lane).sort(), [1, 2, 3, 4]);
-    assert.ok(mine.every((s) => s.target === 'ship' && s.owner === 1));
-    assert.equal(mine.filter((s) => s.infernal).length, 3);
-    assert.deepEqual(ev.infernal, [0]);
+    assert.deepEqual(mine.map((s) => s.lane), [2]);
+    assert.equal(mine[0].target, 'ship');
+    assert.equal(mine[0].owner, 1);
+    assert.equal(mine.some((s) => s.infernal), false);
+    assert.equal(ev.infernal, undefined);
   }
   assert.equal(100000 - events[0].hp[1].ship, 4 * baseHit);
   assert.deepEqual(room.infernoCd, [5, 0]);
