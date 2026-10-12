@@ -234,6 +234,7 @@ export function createScene(container) {
     s.scale.setScalar(0.95); s.renderOrder = 6; s.userData.tex = t; return s;
   };
 
+  const frameHooks = [];
   function buildShip(who) {
     const sign = who === 'me' ? 1 : -1;
     const g = new THREE.Group();
@@ -1417,7 +1418,6 @@ export function createScene(container) {
   }
 
   // ---------- Gaviota, calamar y helicóptero ----------
-  const frameHooks = [];
   const gull = (() => {
     const g = new THREE.Group();
     const white = new THREE.MeshStandardMaterial({ color: 0xfafafa, roughness: 0.6 });
