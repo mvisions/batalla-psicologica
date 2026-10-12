@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 480" fill="none">
+  <defs>
+    <linearGradient id="sky" x2="0" y2="1"><stop stop-color="#102944"/><stop offset=".55" stop-color="#617f91"/><stop offset="1" stop-color="#f6a46c"/></linearGradient>
+    <linearGradient id="sea" x2="0" y2="1"><stop stop-color="#477f93"/><stop offset=".4" stop-color="#17445f"/><stop offset="1" stop-color="#071d35"/></linearGradient>
+    <linearGradient id="wood" x2="0" y2="1"><stop stop-color="#bd8150"/><stop offset=".42" stop-color="#75462f"/><stop offset="1" stop-color="#382b2a"/></linearGradient>
+    <linearGradient id="sail" x2="1" y2="1"><stop stop-color="#fff1d4"/><stop offset="1" stop-color="#b8b8a4"/></linearGradient>
+    <radialGradient id="sun"><stop stop-color="#ffe6b1" stop-opacity=".9"/><stop offset="1" stop-color="#ffb877" stop-opacity="0"/></radialGradient>
+    <linearGradient id="haze" x2="1"><stop stop-color="#06182b" stop-opacity=".9"/><stop offset=".58" stop-color="#06182b" stop-opacity=".35"/><stop offset="1" stop-color="#06182b" stop-opacity=".08"/></linearGradient>
+    <filter id="blur"><feGaussianBlur stdDeviation="18"/></filter>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="170%"><feDropShadow dx="0" dy="15" stdDeviation="12" flood-color="#020914" flood-opacity=".8"/></filter>
+    <pattern id="planks" width="46" height="15" patternUnits="userSpaceOnUse"><path d="M0 14.5h46M12 0v14M38 0v14" stroke="#e1ad73" stroke-opacity=".35"/></pattern>
+  </defs>
+  <path fill="url(#sky)" d="M0 0h1200v270H0z"/>
+  <circle cx="925" cy="236" r="130" fill="url(#sun)"/>
+  <path d="M0 250c175-23 274 5 420-3 185-10 274-47 443-18 138 24 224 13 337-7v258H0z" fill="url(#sea)"/>
+  <g stroke="#b6d9dc" stroke-linecap="round" opacity=".38">
+    <path d="M300 299h205m28-22h103m55 43h198m61-21h143M475 350h180m53-20h120m95 54h221M289 397h166m100-20h135m72 31h175" stroke-width="3"/>
+    <path d="M664 288h121m-48 54h159m119-25h93m-298 74h120" stroke-width="1.5"/>
+  </g>
+  <ellipse cx="856" cy="378" rx="300" ry="35" fill="#ffb475" opacity=".12" filter="url(#blur)"/>
+  <g transform="translate(777 91) scale(.72)" opacity=".58" filter="url(#shadow)">
+    <path d="M-190 261h348l-39 57H-144z" fill="#262d32"/>
+    <path d="M-152 251V25M-18 251V-7M97 251V47" stroke="#342820" stroke-width="12"/>
+    <path d="M-150 40q67 13 126-4v121q-61-11-126 3zM-16 9q64 12 120-2v133q-55-12-120 0zM99 57q52 9 96-2v99q-43-8-96 0z" fill="#d1c5aa"/>
+    <path d="M-150 41q67 13 126-4v18q-60 16-126 1zM-16 10q64 12 120-2v17q-55 14-120 1z" fill="#872f2e"/>
+    <path d="M-209 261h368l-40 61h-286z" fill="url(#wood)" stroke="#2d2422" stroke-width="8"/>
+  </g>
+  <g transform="translate(958 114)" filter="url(#shadow)">
+    <path d="M-235 260h440l-53 77h-335z" fill="url(#wood)" stroke="#34251e" stroke-width="9"/>
+    <path d="M-227 276h421v16h-432zm-11 32h399v12h-407z" fill="url(#planks)" opacity=".65"/>
+    <path d="M-166 252v-230m141 230V-18m132 270V30" stroke="#453021" stroke-width="14"/>
+    <path d="M-161 9q59 17 108 1v114q-52-13-108 4zM-21 0q72 16 127-3v143q-53-14-127 2zM111 40q49 12 89-2v110q-39-10-89 2z" fill="url(#sail)" stroke="#e4d3b2" stroke-width="4"/>
+    <path d="M-161 10q59 17 108 1v19q-50 15-108 0zM-21 1q72 16 127-3v19q-54 16-127 1z" fill="#a73b35"/>
+    <path d="M-205 251h415l-19 37h-412z" fill="#9d6038" stroke="#d9a36b" stroke-width="7"/>
+    <path d="M-188 263h384" stroke="#f2ca8b" stroke-opacity=".7" stroke-width="5"/>
+    <g fill="#e7c58e" stroke="#3c3027" stroke-width="5">
+      <circle cx="-165" cy="285" r="8"/><circle cx="-105" cy="285" r="8"/><circle cx="-45" cy="285" r="8"/><circle cx="15" cy="285" r="8"/><circle cx="75" cy="285" r="8"/><circle cx="135" cy="285" r="8"/>
+    </g>
+    <path d="M-242 262h-38l39 17zm478 0h29l-38 19z" fill="#f2f0dc"/>
+    <path d="M-24 114v92m-44-48h91" stroke="#563b27" stroke-width="4"/>
+    <path d="M-25 120l33 34-33 34-33-34z" fill="#f3d891" opacity=".8"/>
+    <path d="M-161 10v-44m140 34v-48m132 88V-5" stroke="#e8d6b0" stroke-width="4"/>
+    <path d="M-151-35h-37l37 18zm140-22h-40l40 20zm132 48h-34l34 17z" fill="#d7bd8f"/>
+  </g>
+  <path d="M705 270l-70 31" stroke="#ffdc9b" stroke-width="7" stroke-linecap="round"/>
+  <circle cx="704" cy="270" r="12" fill="#fff0bf"/>
+  <circle cx="704" cy="270" r="31" fill="#ffc878" opacity=".72" filter="url(#blur)"/>
+  <path fill="url(#haze)" d="M0 0h1200v480H0z"/>
+</svg>

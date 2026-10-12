@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 480" fill="none">
+  <defs>
+    <linearGradient id="sky" x2="0" y2="1"><stop stop-color="#09274b"/><stop offset=".52" stop-color="#316783"/><stop offset="1" stop-color="#f2a66d"/></linearGradient>
+    <linearGradient id="sea" x2="0" y2="1"><stop stop-color="#397c91"/><stop offset=".42" stop-color="#164765"/><stop offset="1" stop-color="#071b33"/></linearGradient>
+    <linearGradient id="gold" x2=".8" y2="1"><stop stop-color="#fff1a8"/><stop offset=".48" stop-color="#e4ad42"/><stop offset="1" stop-color="#9b5624"/></linearGradient>
+    <linearGradient id="wood" x2="0" y2="1"><stop stop-color="#bb8050"/><stop offset="1" stop-color="#372721"/></linearGradient>
+    <linearGradient id="shade" x2="1"><stop stop-color="#06182b" stop-opacity=".96"/><stop offset=".57" stop-color="#06182b" stop-opacity=".6"/><stop offset="1" stop-color="#06182b" stop-opacity=".14"/></linearGradient>
+    <radialGradient id="sun"><stop stop-color="#ffe5b1" stop-opacity=".9"/><stop offset="1" stop-color="#ffc57e" stop-opacity="0"/></radialGradient>
+    <filter id="glow"><feGaussianBlur stdDeviation="18"/></filter>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="170%"><feDropShadow dx="0" dy="14" stdDeviation="12" flood-color="#020914" flood-opacity=".8"/></filter>
+  </defs>
+  <path fill="url(#sky)" d="M0 0h1200v264H0z"/>
+  <circle cx="1005" cy="211" r="115" fill="url(#sun)"/>
+  <path d="M0 253q171 16 352-5 178-21 351 8 227 37 497-9v233H0z" fill="url(#sea)"/>
+  <g stroke="#b4d9dc" stroke-linecap="round" opacity=".35">
+    <path d="M399 306h177m48-22h142m29 45h235m-422 62h180m69-24h189m-476 75h163m88-27h232" stroke-width="3"/>
+    <path d="M674 294h103m119 39h138m-270 62h164" stroke-width="1.5"/>
+  </g>
+  <g transform="translate(688 165) scale(.55)" opacity=".72" filter="url(#shadow)">
+    <path d="M-190 250h350l-39 57h-286z" fill="url(#wood)" stroke="#382923" stroke-width="8"/>
+    <path d="M-143 245V-2M-15 245V-29M96 245V19" stroke="#382b20" stroke-width="12"/>
+    <path d="M-139 16q57 14 103-1v115q-48-11-103 4zM-11-5q62 13 112-2v136q-51-12-112 1zM100 29q46 11 83-1v102q-37-9-83 2z" fill="#e7ddc3"/>
+    <path d="M-190 250h350v24h-350z" fill="#845331" stroke="#d9a86e" stroke-width="5"/>
+  </g>
+  <g transform="translate(903 114)" filter="url(#shadow)">
+    <path d="M-171 251h333l-45 64h-244z" fill="url(#wood)" stroke="#35261f" stroke-width="8"/>
+    <path d="M-123 241V4M-5 241V-31m108 272V37" stroke="#3c2c20" stroke-width="13"/>
+    <path d="M-119 20q51 15 91-1v115q-43-10-91 4zM-1-7q57 14 97-2v139q-42-11-97 2zM106 46q39 10 72-1v99q-33-9-72 2z" fill="#f0e4c8" stroke="#dac8a8" stroke-width="4"/>
+    <path d="M-166 241h329v29h-329z" fill="#946039" stroke="#d8a76a" stroke-width="6"/>
+    <g fill="#e5c38a" stroke="#392b22" stroke-width="4"><circle cx="-128" cy="284" r="7"/><circle cx="-72" cy="284" r="7"/><circle cx="-16" cy="284" r="7"/><circle cx="40" cy="284" r="7"/><circle cx="96" cy="284" r="7"/></g>
+    <path d="M-5 102v83m-38-41h76" stroke="#604127" stroke-width="4"/>
+    <path d="M-5 109l31 35-31 35-31-35z" fill="#e6c372"/>
+  </g>
+  <g transform="translate(1081 247)" filter="url(#shadow)">
+    <circle r="92" fill="#ffcb62" opacity=".2" filter="url(#glow)"/>
+    <path d="M-37-19q0-41 37-41t37 41v50q0 19-17 19h-40q-17 0-17-19z" fill="url(#gold)" stroke="#744719" stroke-width="8"/>
+    <path d="M-55-18h110m-81 68-15 44m88-44 15 44" stroke="#b56e24" stroke-width="12" stroke-linecap="round"/>
+    <path d="M-20-41h40v19h-40zM-14-62h28v21h-28z" fill="#f4d477" stroke="#805322" stroke-width="6"/>
+    <path d="M-14-8h28v21h-28z" fill="#fff0b4" opacity=".8"/>
+  </g>
+  <path fill="url(#shade)" d="M0 0h1200v480H0z"/>
+</svg>

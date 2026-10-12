@@ -143,6 +143,33 @@
   @keyframes levelUpSpark { to { opacity: 0; transform: rotate(var(--spark-angle)) translateX(var(--spark-distance)) scale(.15); } }
   @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; } }
   @media (prefers-reduced-motion: reduce) { .level-up-card::before, .level-up-badge, .level-up-spark { animation-duration: .01ms; animation-iteration-count: 1; } }
+  .game-carousel { padding: 0; overflow: hidden; border: 1px solid #74c8ff55; background: #071d34; box-shadow: 0 10px 28px #0007; }
+  .carousel-viewport { position: relative; overflow: hidden; touch-action: pan-y; }
+  .carousel-track { display: flex; transition: transform .72s cubic-bezier(.2,.75,.25,1); }
+  .carousel-slide { position: relative; flex: 0 0 100%; min-height: 218px; overflow: hidden; isolation: isolate; }
+  .carousel-slide img { position: absolute; z-index: -2; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: .92; }
+  .carousel-slide::after { position: absolute; z-index: -1; inset: 0; content: ""; background: linear-gradient(90deg,#06182bf2 0%,#06182bdb 36%,#06182b45 72%,#06182b12); }
+  .carousel-slide.is-active img { animation: carouselArtDrift 7s ease-in-out both; }
+  @keyframes carouselArtDrift { from { transform: scale(1.02); } to { transform: scale(1.11); } }
+  .carousel-copy { width: min(72%, 365px); min-height: 218px; display: flex; flex-direction: column; justify-content: center; padding: 22px 54px 22px 22px; }
+  .carousel-kicker { margin: 0 0 7px; color: #ffd76a; font-size: 11px; font-weight: 800; letter-spacing: .15em; text-transform: uppercase; }
+  .carousel-copy h3 { margin: 0; font-size: clamp(21px, 5vw, 30px); line-height: 1.08; text-wrap: balance; }
+  .carousel-copy p:last-child { margin: 9px 0 0; color: #d7e9f7; font-size: 13px; line-height: 1.4; }
+  .carousel-arrow { position: absolute; z-index: 2; top: 50%; width: 36px; height: 36px; margin: 0; padding: 0; transform: translateY(-50%); border: 1px solid #ffffffbb; border-radius: 50%; background: #06182bcc; font-size: 22px; line-height: 1; box-shadow: 0 2px 12px #0008; }
+  .carousel-arrow:hover, .carousel-arrow:focus-visible { background: #1e88e5; }
+  .carousel-prev { left: auto; right: 54px; } .carousel-next { right: 9px; }
+  .carousel-controls { display: flex; align-items: center; justify-content: center; gap: 10px; min-height: 35px; padding: 4px 10px 8px; }
+  .carousel-dots { display: flex; align-items: center; justify-content: center; gap: 7px; }
+  .carousel-dot, .carousel-toggle { width: auto; min-width: 0; margin: 0; padding: 0; border: 0; background: transparent; }
+  .carousel-dot { width: 9px; height: 9px; border-radius: 50%; background: #a8c5d788; transition: width .25s, background .25s; }
+  .carousel-dot[aria-pressed="true"] { width: 23px; border-radius: 9px; background: #ffd76a; }
+  .carousel-toggle { padding: 4px 8px; border-radius: 6px; color: #d7e9f7; font-size: 11px; }
+  .carousel-toggle:hover, .carousel-toggle:focus-visible { background: #ffffff1c; }
+  @media (max-width: 420px) {
+    .carousel-slide, .carousel-copy { min-height: 190px; }
+    .carousel-copy { width: 78%; padding: 18px 44px 18px 17px; }
+    .carousel-copy p:last-child { max-width: 230px; font-size: 12px; }
+  }
   #coinRain { position: fixed; inset: 0; z-index: 85; overflow: hidden; pointer-events: none; display: grid; place-items: center; background: radial-gradient(circle, #3a2a0066 0%, #03111d88 70%); }
   .coin-drop { position: absolute; top: -140px; left: var(--x); width: var(--s); height: var(--s); border-radius: 50%;
     background: radial-gradient(circle at 35% 30%, #fff6c2 0 12%, #ffd84a 13% 55%, #e0a100 56% 72%, #a86b00 73%);
@@ -442,6 +469,34 @@
     </div>
   </div>
   <div id="lobby" class="panel">
+    <section id="gameCarousel" class="game-carousel panel" role="region" aria-label="Descubre Batalla Psicológica" aria-roledescription="carrusel">
+      <div class="carousel-viewport">
+        <div class="carousel-track">
+          <article class="carousel-slide is-active" role="group" aria-roledescription="diapositiva" aria-label="1 de 3" aria-hidden="false">
+            <img src="./art/carousel-battle.svg" alt="Dos barcos de guerra enfrentados sobre un mar iluminado por el atardecer" fetchpriority="high">
+            <div class="carousel-copy"><p class="carousel-kicker">Estrategia naval</p><h3>Lee al rival. Apunta. ¡Dispara!</h3><p>Anticipa sus movimientos y protege tu barco en cada ronda.</p></div>
+          </article>
+          <article class="carousel-slide" role="group" aria-roledescription="diapositiva" aria-label="2 de 3" aria-hidden="true" inert>
+            <img src="./art/carousel-events.svg" alt="El galeón de la justicia y una calabaza gigante de los eventos del juego" loading="lazy">
+            <div class="carousel-copy"><p class="carousel-kicker">Encuentros inesperados</p><h3>El mar nunca es igual</h3><p>Sobrevive a tormentas, animales y eventos especiales con grandes recompensas.</p></div>
+          </article>
+          <article class="carousel-slide" role="group" aria-roledescription="diapositiva" aria-label="3 de 3" aria-hidden="true" inert>
+            <img src="./art/carousel-tournaments.svg" alt="Flota de barcos reunida para disputar un torneo" loading="lazy">
+            <div class="carousel-copy"><p class="carousel-kicker">Compite y progresa</p><h3>Tu próxima gran batalla</h3><p>Juega contra amigos, desafía a la máquina o lucha por el torneo.</p></div>
+          </article>
+        </div>
+        <button class="carousel-arrow carousel-prev" type="button" aria-label="Imagen anterior">‹</button>
+        <button class="carousel-arrow carousel-next" type="button" aria-label="Imagen siguiente">›</button>
+      </div>
+      <div class="carousel-controls">
+        <div class="carousel-dots" role="group" aria-label="Elegir imagen del carrusel">
+          <button class="carousel-dot" type="button" aria-label="Mostrar imagen 1 de 3: Batalla naval" aria-pressed="true"></button>
+          <button class="carousel-dot" type="button" aria-label="Mostrar imagen 2 de 3: Eventos especiales" aria-pressed="false"></button>
+          <button class="carousel-dot" type="button" aria-label="Mostrar imagen 3 de 3: Torneos" aria-pressed="false"></button>
+        </div>
+        <button id="carouselToggle" class="carousel-toggle" type="button" aria-label="Pausar carrusel">Pausar</button>
+      </div>
+    </section>
     <h2>Batalla Psicológica</h2>
     <label for="country">País (la bandera de tu barco)</label>
     <select id="country"></select>
@@ -555,6 +610,60 @@ const APP_CONFIG = window.BATALLA_CONFIG || {};
 const API_BASE_URL = String(APP_CONFIG.apiBaseUrl || '').replace(/\/+$/, '');
 const apiUrl = (route) => `${API_BASE_URL}${route.startsWith('/') ? route : `/${route}`}`;
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+{
+  const carousel = $('gameCarousel');
+  const track = carousel.querySelector('.carousel-track');
+  const slides = [...carousel.querySelectorAll('.carousel-slide')];
+  const dots = [...carousel.querySelectorAll('.carousel-dot')];
+  const toggle = $('carouselToggle');
+  const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
+  let index = 0, timer = 0, paused = reducedMotion.matches, pointerStart = null;
+  const stop = () => { clearTimeout(timer); timer = 0; };
+  const schedule = () => {
+    stop();
+    if (paused || reducedMotion.matches || document.hidden || carousel.matches(':hover') || carousel.contains(document.activeElement)) return;
+    timer = setTimeout(() => { show(index + 1); schedule(); }, 6200);
+  };
+  const show = (next) => {
+    index = (next + slides.length) % slides.length;
+    track.style.transform = `translateX(-${index * 100}%)`;
+    slides.forEach((slide, i) => {
+      const active = i === index;
+      slide.classList.toggle('is-active', active);
+      slide.setAttribute('aria-hidden', String(!active));
+      slide.inert = !active;
+      dots[i].setAttribute('aria-pressed', String(active));
+    });
+  };
+  const syncToggle = () => {
+    toggle.textContent = paused ? 'Reanudar' : 'Pausar';
+    toggle.setAttribute('aria-label', paused ? 'Reanudar carrusel' : 'Pausar carrusel');
+  };
+  carousel.querySelector('.carousel-prev').addEventListener('click', () => { show(index - 1); schedule(); });
+  carousel.querySelector('.carousel-next').addEventListener('click', () => { show(index + 1); schedule(); });
+  dots.forEach((dot, i) => dot.addEventListener('click', () => { show(i); schedule(); }));
+  toggle.addEventListener('click', () => { paused = !paused; syncToggle(); schedule(); });
+  carousel.addEventListener('pointerdown', (event) => {
+    pointerStart = event.target.closest('button') ? null : event.clientX;
+  });
+  carousel.addEventListener('pointerup', (event) => {
+    if (pointerStart === null) return;
+    const delta = event.clientX - pointerStart;
+    pointerStart = null;
+    if (Math.abs(delta) < 45) return;
+    show(index + (delta < 0 ? 1 : -1));
+    schedule();
+  });
+  carousel.addEventListener('pointercancel', () => { pointerStart = null; });
+  carousel.addEventListener('mouseenter', stop);
+  carousel.addEventListener('mouseleave', schedule);
+  carousel.addEventListener('focusin', stop);
+  carousel.addEventListener('focusout', () => { queueMicrotask(schedule); });
+  document.addEventListener('visibilitychange', schedule);
+  reducedMotion.addEventListener('change', () => { if (reducedMotion.matches) paused = true; syncToggle(); schedule(); });
+  syncToggle();
+  schedule();
+}
 const SHOT_MS = 5000; // 4 disparos x 5 s = 20 s por tanda
 let room, pid, key, isBot = false, names = ['', ''], playing = false, lastHp = null, lastMaxShipHp = [100, 100], curRound = 1, blockRound = false, heliAsked = false;
 let justiceRound = false, santaRound = false, halloweenRound = false;
