@@ -233,8 +233,10 @@
   #fireBtn { width: auto; margin: 0; padding: 3px 9px; flex: none; border-radius: 6px; border: 1px solid #fff8; background: #7a2e12; line-height: 0; }
   #fireBtn.on { background: #ff5a16; border-color: #ffd25a; box-shadow: 0 0 10px #ff7a1a; animation: fireGlow .9s ease-in-out infinite alternate; }
   #fireBtn.cooldown { background: #5b6670; opacity: .75; }
-  #dragonBtn { width: auto; margin: 0; padding: 3px 9px; flex: none; border-radius: 6px; border: 1px solid #ffd25a; background: linear-gradient(90deg, #b71c1c, #1565c0); line-height: 0; }
-  #dragonBtn.cooldown { background: #5b6670; border-color: #fff8; opacity: .75; }
+  #fireDragonBtn, #stormDragonBtn { width: auto; margin: 0; padding: 3px 7px; flex: none; border-radius: 6px; border: 1px solid #ffd25a; line-height: 1; }
+  #fireDragonBtn { background: #a52a22; }
+  #stormDragonBtn { background: #245b99; }
+  #fireDragonBtn.cooldown, #stormDragonBtn.cooldown { background: #5b6670; border-color: #fff8; opacity: .75; }
   @keyframes fireGlow { to { box-shadow: 0 0 18px #ffb830; } }
   #shopBtn { background: #8e44ad; }
   #skinBtn { width: auto; margin: 0; padding: 3px 9px; flex: none; border-radius: 6px; border: 1px solid #fff8; background: #6d4424; line-height: 0; }
@@ -513,7 +515,7 @@
         <div id="waveCtl" class="hidden"><span id="waveTxt"></span><button id="waveStay" type="button">Quieto</button></div>
         <div class="bars"><div class="bar ship-bar"><i id="meShip"></i><em id="meShipTxt"></em></div><div class="bar shark-bar"><i id="meShark"></i><em id="meSharkTxt"></em></div></div>
         <div class="cans" id="meCan"></div>
-        <div class="hudact"><div id="emotes" class="hidden"></div><span class="hudbtns"><button id="troops" class="hidden" type="button" aria-label="Mandar el dron contra el cañón más débil del rival" title="Dron de ataque"><svg viewBox="0 0 24 16" width="24" height="16" aria-hidden="true"><g fill="#fff"><rect x="8.5" y="6.5" width="7" height="3.5" rx="1.2"/><rect x="1" y="4" width="7" height="1.6" rx=".8"/><rect x="16" y="4" width="7" height="1.6" rx=".8"/><rect x="4" y="5.4" width="1.4" height="3"/><rect x="18.6" y="5.4" width="1.4" height="3"/><circle cx="12" cy="12.5" r="1.3"/></g></svg></button><button id="dragonBtn" class="hidden" type="button" aria-label="Lanzar tus dragones contra el barco rival" title="Dragones"><svg viewBox="0 0 28 18" width="26" height="17" aria-hidden="true"><path d="M9 8 C6 2 2 1 1 2 C3 4 4 6 4 8 C3 7 1 8 1 9 C4 9 6 10 8 11 Z M15 8 C18 2 23 1 25 2 C23 4 22 6 22 8 Z" fill="#fff"/><path d="M2 15 C5 16 8 14 10 12 C12 10 15 10 17 10.5 C20 11 21 9 22 7 C23 5 25 5 26.5 6 L27.5 5.5 L26 8 C25 10 23 11 21 11.5 C19 13.5 16 14 13 14 C10 14 8 16 6 17 C4 17.5 2.5 16.5 2 15 Z" fill="#fff"/><circle cx="25" cy="6.6" r=".7" fill="#b71c1c"/></svg></button><button id="food" class="hidden" type="button" aria-label="Dar de comer a tu ballena" title="Comida"><svg viewBox="0 0 24 16" width="22" height="16" aria-hidden="true"><path d="M3 8c3-5 10-6 14-2l4-3v10l-4-3c-4 4-11 3-14-2z" fill="#fff"/><circle cx="8" cy="7" r="1" fill="#0b3a66"/></svg></button><button id="dome" class="hidden" type="button" aria-label="Activar la cúpula sobre tu cañón más débil" title="Cúpula"><svg viewBox="0 0 24 16" width="22" height="16" aria-hidden="true"><path d="M2 14a10 10 0 0 1 20 0z" fill="none" stroke="#fff" stroke-width="1.8"/><rect x="9" y="9" width="6" height="5" rx="1" fill="#fff"/></svg></button><button id="sword" class="hidden" type="button" aria-label="Lanzar el pez espada contra la ballena rival" title="Pez espada"><svg viewBox="0 0 28 16" width="26" height="16" aria-hidden="true"><path d="M1 8 L10 7.2 C13 3.5 19 3.5 22 7 L27 3.5 L25.5 8 L27 12.5 L22 9 C19 12.5 13 12.5 10 8.8 Z" fill="#fff"/><circle cx="12.6" cy="7" r=".9" fill="#4a2a86"/></svg></button><button id="infernal" class="hidden" type="button" aria-label="Activar el ataque infernal: los 4 cañones disparan a la vez" title="Ataque infernal"><svg viewBox="0 0 24 16" width="22" height="16" aria-hidden="true"><path d="M12 1 C15 5 18 6 17 10 C19 9 19.5 7.5 19.5 6.5 C22 9.5 21.5 14 17.5 15 L6.5 15 C2.5 14 2 9.5 4.5 6.5 C4.5 8 5.5 9 6.5 10 C5.5 6 9 4.5 12 1 Z" fill="#fff"/><path d="M12 7 C13.5 9 15 10 14.5 12.5 C14 14.5 10 14.5 9.5 12.5 C9 10.5 11 9 12 7 Z" fill="#ffc107"/></svg></button><button id="fireBtn" class="hidden" type="button" aria-label="Encender o apagar las balas de fuego" title="Balas de fuego"><svg viewBox="0 0 26 16" width="24" height="16" aria-hidden="true"><path d="M1 6 C5 7 7 5 10 6 C8 8 9 9 11 9 C9 11 6 10 2 12 C5 10 4 8 1 6 Z" fill="#ffb830"/><circle cx="17" cy="8" r="6" fill="#ff4a12"/><circle cx="17" cy="8" r="3.4" fill="#ffd25a"/></svg></button><button id="skinBtn" class="hidden" type="button" aria-label="Cambiar entre el barco vikingo y el de tu nivel" title="Barco vikingo"><svg viewBox="0 0 28 18" width="26" height="17" aria-hidden="true"><path d="M2 11 H26 C24 15 21 16.5 18 16.5 H9 C6 16.5 3.5 15 2 11 Z" fill="#fff"/><path d="M26 11 C27.5 8 26.5 5.5 24.5 5 C25.5 6.5 25 8 23.5 9" fill="none" stroke="#fff" stroke-width="1.4" stroke-linecap="round"/><path d="M2 11 C0.8 8.5 1.8 6.5 3.5 6.3" fill="none" stroke="#fff" stroke-width="1.4" stroke-linecap="round"/><rect x="13.4" y="1" width="1.2" height="10" fill="#fff"/><path d="M8.5 2.2 H19.5 V9 H8.5 Z" fill="#ffd76a"/><path d="M10.7 2.2 H12.9 V9 H10.7 Z M15.1 2.2 H17.3 V9 H15.1 Z" fill="#c62828"/></svg></button><button id="resign" class="hidden" type="button">Retirarse</button></span></div>
+        <div class="hudact"><div id="emotes" class="hidden"></div><span class="hudbtns"><button id="troops" class="hidden" type="button" aria-label="Mandar el dron contra el cañón más débil del rival" title="Dron de ataque"><svg viewBox="0 0 24 16" width="24" height="16" aria-hidden="true"><g fill="#fff"><rect x="8.5" y="6.5" width="7" height="3.5" rx="1.2"/><rect x="1" y="4" width="7" height="1.6" rx=".8"/><rect x="16" y="4" width="7" height="1.6" rx=".8"/><rect x="4" y="5.4" width="1.4" height="3"/><rect x="18.6" y="5.4" width="1.4" height="3"/><circle cx="12" cy="12.5" r="1.3"/></g></svg></button><button id="fireDragonBtn" class="hidden" type="button" aria-label="Lanzar el dragón de fuego contra el barco rival" title="Dragón de fuego">🐉🔥</button><button id="stormDragonBtn" class="hidden" type="button" aria-label="Lanzar el dragón de rayos contra los cañones rivales" title="Dragón de rayos">🐉⚡</button><button id="food" class="hidden" type="button" aria-label="Dar de comer a tu ballena" title="Comida"><svg viewBox="0 0 24 16" width="22" height="16" aria-hidden="true"><path d="M3 8c3-5 10-6 14-2l4-3v10l-4-3c-4 4-11 3-14-2z" fill="#fff"/><circle cx="8" cy="7" r="1" fill="#0b3a66"/></svg></button><button id="dome" class="hidden" type="button" aria-label="Activar la cúpula sobre tu cañón más débil" title="Cúpula"><svg viewBox="0 0 24 16" width="22" height="16" aria-hidden="true"><path d="M2 14a10 10 0 0 1 20 0z" fill="none" stroke="#fff" stroke-width="1.8"/><rect x="9" y="9" width="6" height="5" rx="1" fill="#fff"/></svg></button><button id="sword" class="hidden" type="button" aria-label="Lanzar el pez espada contra la ballena rival" title="Pez espada"><svg viewBox="0 0 28 16" width="26" height="16" aria-hidden="true"><path d="M1 8 L10 7.2 C13 3.5 19 3.5 22 7 L27 3.5 L25.5 8 L27 12.5 L22 9 C19 12.5 13 12.5 10 8.8 Z" fill="#fff"/><circle cx="12.6" cy="7" r=".9" fill="#4a2a86"/></svg></button><button id="infernal" class="hidden" type="button" aria-label="Activar el ataque infernal: los 4 cañones disparan a la vez" title="Ataque infernal"><svg viewBox="0 0 24 16" width="22" height="16" aria-hidden="true"><path d="M12 1 C15 5 18 6 17 10 C19 9 19.5 7.5 19.5 6.5 C22 9.5 21.5 14 17.5 15 L6.5 15 C2.5 14 2 9.5 4.5 6.5 C4.5 8 5.5 9 6.5 10 C5.5 6 9 4.5 12 1 Z" fill="#fff"/><path d="M12 7 C13.5 9 15 10 14.5 12.5 C14 14.5 10 14.5 9.5 12.5 C9 10.5 11 9 12 7 Z" fill="#ffc107"/></svg></button><button id="fireBtn" class="hidden" type="button" aria-label="Encender o apagar las balas de fuego" title="Balas de fuego"><svg viewBox="0 0 26 16" width="24" height="16" aria-hidden="true"><path d="M1 6 C5 7 7 5 10 6 C8 8 9 9 11 9 C9 11 6 10 2 12 C5 10 4 8 1 6 Z" fill="#ffb830"/><circle cx="17" cy="8" r="6" fill="#ff4a12"/><circle cx="17" cy="8" r="3.4" fill="#ffd25a"/></svg></button><button id="skinBtn" class="hidden" type="button" aria-label="Cambiar entre tus barcos desbloqueados" title="Cambiar skin del barco"><svg viewBox="0 0 28 18" width="26" height="17" aria-hidden="true"><path d="M2 11 H26 C24 15 21 16.5 18 16.5 H9 C6 16.5 3.5 15 2 11 Z" fill="#fff"/><path d="M26 11 C27.5 8 26.5 5.5 24.5 5 C25.5 6.5 25 8 23.5 9" fill="none" stroke="#fff" stroke-width="1.4" stroke-linecap="round"/><path d="M2 11 C0.8 8.5 1.8 6.5 3.5 6.3" fill="none" stroke="#fff" stroke-width="1.4" stroke-linecap="round"/><rect x="13.4" y="1" width="1.2" height="10" fill="#fff"/><path d="M8.5 2.2 H19.5 V9 H8.5 Z" fill="#ffd76a"/><path d="M10.7 2.2 H12.9 V9 H10.7 Z M15.1 2.2 H17.3 V9 H15.1 Z" fill="#c62828"/></svg></button><button id="resign" class="hidden" type="button">Retirarse</button></span></div>
         <div class="hudtop"><b><img id="meFlag" class="flag" alt=""><span id="meLvl" class="lvl"></span><span id="meName"></span></b><span id="meCoins" class="coins hidden" title="Tus monedas"></span></div>
       </div>
     </div>
@@ -1514,7 +1516,7 @@ function connect() {
   es.addEventListener('state', (e) => {
     const s = JSON.parse(e.data);
     if (playing) return; // una reconexión durante la animación no debe romperla
-    tutorialUnlimited = !!s.tutorial; heliAsked = !!s.heli; troopsCd = s.troopsCd || [0, 0]; troopsSent = !!s.troops; domeCd = s.domeCd || [0, 0]; domeSent = !!s.dome; foodCd = s.foodCd || [0, 0]; foodSent = !!s.food; swordCd = s.swordCd || [0, 0]; swordSent = !!s.sword; swordOwned = s.swordfish || [false, false]; infernoCd = s.infernoCd || [0, 0]; infernoSent = !!s.infernalSent; infernoOwned = s.infernal || [false, false]; fireCd = s.fireCd || [0, 0]; fireOn = s.fireOn || [false, false]; fireOwned = s.fireballs || [false, false]; dragonCd = s.dragonCd || [0, 0]; dragonSent = !!s.dragonSent; setDragonsOwned(s.dragons);
+    tutorialUnlimited = !!s.tutorial; heliAsked = !!s.heli; troopsCd = s.troopsCd || [0, 0]; troopsSent = !!s.troops; domeCd = s.domeCd || [0, 0]; domeSent = !!s.dome; foodCd = s.foodCd || [0, 0]; foodSent = !!s.food; swordCd = s.swordCd || [0, 0]; swordSent = !!s.sword; swordOwned = s.swordfish || [false, false]; infernoCd = s.infernoCd || [0, 0]; infernoSent = !!s.infernalSent; infernoOwned = s.infernal || [false, false]; fireCd = s.fireCd || [0, 0]; fireOn = s.fireOn || [false, false]; fireOwned = s.fireballs || [false, false]; dragonFireCd = s.dragonFireCd || [0, 0]; dragonStormCd = s.dragonStormCd || [0, 0]; fireDragonSent = !!s.fireDragonSent; stormDragonSent = !!s.stormDragonSent; setDragonsOwned(s.dragons);
     if (tutorialMode && !tutorialStep) setTutorialStep(s.submitted ? 'watch' : 'attack');
     inputMs = s.inputMs; curRound = s.round; blockRound = !!s.blockRound; $('round').textContent = s.round; badge(s.round); setNames(s.names, s.countries, s.levels, s.skins, s.lifebuoys); setHp(s.hp, s.maxShipHp); setCannons(s.cannons); scene.setWeather(s.round); setupForm();
     $('invite').classList.add('hidden');
@@ -1571,7 +1573,7 @@ $('resign').onclick = async () => {
   try { await post('/api/resign', { room, pid, key }); } catch (e) { $('msg').textContent = e.message; }
   $('resign').disabled = false;
 };
-let troopsCd = [0, 0], troopsSent = false, domeCd = [0, 0], domeSent = false, foodCd = [0, 0], foodSent = false, swordCd = [0, 0], swordSent = false, swordOwned = [false, false], infernoCd = [0, 0], infernoSent = false, infernoOwned = [false, false], fireCd = [0, 0], fireOn = [false, false], fireOwned = [false, false], dragonCd = [0, 0], dragonSent = false, dragonOwned = [{}, {}];
+let troopsCd = [0, 0], troopsSent = false, domeCd = [0, 0], domeSent = false, foodCd = [0, 0], foodSent = false, swordCd = [0, 0], swordSent = false, swordOwned = [false, false], infernoCd = [0, 0], infernoSent = false, infernoOwned = [false, false], fireCd = [0, 0], fireOn = [false, false], fireOwned = [false, false], dragonFireCd = [0, 0], dragonStormCd = [0, 0], fireDragonSent = false, stormDragonSent = false, dragonOwned = [{}, {}];
 function setDragonsOwned(d) {
   if (!d) return;
   dragonOwned = d;
@@ -1611,17 +1613,22 @@ function updateTroops() {
   fb.disabled = !lit && fc > 0;
   fb.setAttribute('aria-pressed', String(lit));
   fb.title = lit ? 'Balas de fuego encendidas (+3 de daño): toca para apagarlas' : fc > 0 ? `Balas de fuego listas en ${fc} ${fc === 1 ? 'ronda' : 'rondas'}` : 'Encender las balas de fuego (+3 de daño)';
-  const gl = dragonCd[pid] || 0, gready = !dragonSent && gl === 0 && !playing, g = $('dragonBtn'), mine = dragonOwned[pid] || {};
-  const both = mine.fire && mine.storm, dragonName = both ? 'Dragones' : mine.fire ? 'Dragón de fuego' : 'Dragón de rayos';
-  g.classList.toggle('hidden', b.classList.contains('hidden') || !(mine.fire || mine.storm));
-  g.classList.toggle('cooldown', !gready);
-  g.disabled = !gready;
-  g.title = dragonSent ? `${dragonName} en camino` : gl > 0 ? `${dragonName} ${both ? 'listos' : 'listo'} en ${gl} ${gl === 1 ? 'ronda' : 'rondas'}` : [mine.fire && 'fuego: −25% de vida al barco rival', mine.storm && 'rayos: −25% a cada cañón rival'].filter(Boolean).join(' · ').replace(/^./, (c) => `Dragón de ${c}`);
-  const sk = $('skinBtn'), vikingOn = myProfile?.skin === 'viking';
-  sk.classList.toggle('hidden', b.classList.contains('hidden') || !myProfile?.viking);
-  sk.classList.toggle('on', vikingOn);
-  sk.title = vikingOn ? 'Barco vikingo puesto: toca para usar el de tu nivel' : 'Toca para ponerte el barco vikingo';
-  sk.setAttribute('aria-pressed', String(vikingOn));
+  const mine = dragonOwned[pid] || {};
+  const fireCdLeft = dragonFireCd[pid] || 0, fireReady = !fireDragonSent && fireCdLeft === 0 && !playing, fireDragon = $('fireDragonBtn');
+  fireDragon.classList.toggle('hidden', b.classList.contains('hidden') || !mine.fire);
+  fireDragon.classList.toggle('cooldown', !fireReady);
+  fireDragon.disabled = !fireReady;
+  fireDragon.title = fireDragonSent ? 'Dragón de fuego en camino' : fireCdLeft ? `Dragón de fuego listo en ${fireCdLeft} ${fireCdLeft === 1 ? 'ronda' : 'rondas'}` : 'Lanzar el dragón de fuego: −25% de vida al barco rival';
+  const stormCdLeft = dragonStormCd[pid] || 0, stormReady = !stormDragonSent && stormCdLeft === 0 && !playing, stormDragon = $('stormDragonBtn');
+  stormDragon.classList.toggle('hidden', b.classList.contains('hidden') || !mine.storm);
+  stormDragon.classList.toggle('cooldown', !stormReady);
+  stormDragon.disabled = !stormReady;
+  stormDragon.title = stormDragonSent ? 'Dragón de rayos en camino' : stormCdLeft ? `Dragón de rayos listo en ${stormCdLeft} ${stormCdLeft === 1 ? 'ronda' : 'rondas'}` : 'Lanzar el dragón de rayos: −25% a cada cañón rival';
+  const sk = $('skinBtn'), selectedSkin = myProfile?.skin;
+  sk.classList.toggle('hidden', b.classList.contains('hidden') || !(myProfile?.viking || myProfile?.pinta));
+  sk.classList.toggle('on', !!selectedSkin);
+  sk.title = selectedSkin ? `Barco ${selectedSkin === 'pinta' ? 'La Pinta' : 'vikingo'} puesto; toca para cambiar de skin` : 'Cambiar al siguiente barco desbloqueado';
+  sk.setAttribute('aria-pressed', String(!!selectedSkin));
   b.title = troopsSent ? 'Dron enviado' : left > 0 ? `Dron listo en ${left} ${left === 1 ? 'ronda' : 'rondas'}` : 'Mandar el dron contra el cañón más débil del rival';
 }
 $('troops').onclick = async () => {
@@ -1644,13 +1651,19 @@ $('infernal').onclick = async () => {
   try { await post('/api/infernal', { room, pid, key }); infernoSent = true; updateTroops(); $('msg').textContent = 'Ataque infernal preparado: tus 4 cañones dispararán a la vez en la primera secuencia de esta ronda'; }
   catch (e) { $('msg').textContent = e.message; }
 };
-$('dragonBtn').onclick = async () => {
+async function sendDragon(dragon) {
   try {
-    await post('/api/dragon', { room, pid, key }); dragonSent = true; updateTroops();
-    const mine = dragonOwned[pid] || {};
-    $('msg').textContent = mine.fire && mine.storm ? '🐉 Tus dragones atacarán al empezar los disparos: fuego al barco y rayos a los cañones rivales (−25% cada uno)' : mine.fire ? '🐉 El dragón de fuego quemará el barco rival al empezar los disparos (−25% de su vida)' : '🐉 El dragón de rayos electrocutará los 4 cañones rivales al empezar los disparos (−25% cada uno)';
+    await post('/api/dragon', { room, pid, key, dragon });
+    if (dragon === 'fire') fireDragonSent = true;
+    else stormDragonSent = true;
+    updateTroops();
+    $('msg').textContent = dragon === 'fire'
+      ? '🐉🔥 El dragón de fuego quemará el barco rival al empezar los disparos (−25% de su vida)'
+      : '🐉⚡ El dragón de rayos electrocutará los cañones rivales al empezar los disparos (−25% cada uno)';
   } catch (e) { $('msg').textContent = e.message; }
-};
+}
+$('fireDragonBtn').onclick = () => sendDragon('fire');
+$('stormDragonBtn').onclick = () => sendDragon('storm');
 $('fireBtn').onclick = async () => {
   try {
     const r = await post('/api/fire', { room, pid, key });
@@ -1912,7 +1925,7 @@ async function playRound(r, replay = false) {
   }
 }
 async function playRoundInner(r, replay = false) {
-  playing = true; if (!replay) { heliAsked = false; troopsSent = false; domeSent = false; foodSent = false; foodCd = r.foodCd || [0, 0]; troopsCd = r.troopsCd || [0, 0]; domeCd = r.domeCd || [0, 0]; swordSent = false; swordCd = r.swordCd || [0, 0]; if (r.swordfish) swordOwned = r.swordfish; infernoSent = false; infernoCd = r.infernoCd || [0, 0]; if (r.infernal) infernoOwned = r.infernal; fireCd = r.fireCd || [0, 0]; if (r.fireOn) fireOn = r.fireOn; if (r.fireballs) fireOwned = r.fireballs; dragonSent = false; dragonCd = r.dragonCd || [0, 0]; setDragonsOwned(r.dragons); } renderHeli(); updateTroops();
+  playing = true; if (!replay) { heliAsked = false; troopsSent = false; domeSent = false; foodSent = false; foodCd = r.foodCd || [0, 0]; troopsCd = r.troopsCd || [0, 0]; domeCd = r.domeCd || [0, 0]; swordSent = false; swordCd = r.swordCd || [0, 0]; if (r.swordfish) swordOwned = r.swordfish; infernoSent = false; infernoCd = r.infernoCd || [0, 0]; if (r.infernal) infernoOwned = r.infernal; fireCd = r.fireCd || [0, 0]; if (r.fireOn) fireOn = r.fireOn; if (r.fireballs) fireOwned = r.fireballs; fireDragonSent = false; stormDragonSent = false; dragonFireCd = r.dragonFireCd || [0, 0]; dragonStormCd = r.dragonStormCd || [0, 0]; setDragonsOwned(r.dragons); } renderHeli(); updateTroops();
   tutorialUnlimited = !!r.tutorial;
   renderWave();
   $('x2').style.display = 'none'; // el cartel solo se ve al elegir la secuencia
@@ -1985,6 +1998,7 @@ async function playRoundInner(r, replay = false) {
       if (ev.step === 0 && ev.dome.some((v) => v !== null)) sfx('heal');
     }
     for (const b of ev.domeBlocks || []) scene.domeBlock(side(b.owner), b.lane);
+    for (const c of ev.coconuts || []) if (c.lane !== null) scene.labelCannon(side(c.target), c.lane + 1, '<small style="color:#ff7043">🥥 TORRETA ANULADA</small>', 4500);
     if (ev.troops) {
       impacts.push((async () => { for (const t of ev.troops) { await scene.troopShip(side(t.owner), side(t.target), t.x); sfx('clash'); } })());
     }
@@ -2023,11 +2037,14 @@ async function playRoundInner(r, replay = false) {
     await guard(Promise.all(impacts), 20000);
     if (ev.warship) {
       scene.setWarshipHealth(ev.warship.hp, ev.warship.maxHp);
-      if (ev.warship.reward) {
-        scene.warshipLabel(`<small style="color:#ffd54f">☠️ Hundido · +${ev.warship.reward} 🪙${ev.warship.sunkBy === me ? '' : ' rival'}</small>`);
-        if (ev.warship.sunkBy === me) {
+      if (ev.warship.sunkNow) {
+        const reward = ev.warship.rewards?.[me] || 0;
+        const otherReward = ev.warship.rewards?.[op] || 0;
+        const pintaUnlocked = ev.warship.pintaUnlocked && ev.warship.sunkBy !== me;
+        scene.warshipLabel(`<small style="color:#ffd54f">☠️ Hundido${reward ? ` · tú +${reward} 🪙` : ''}${otherReward ? ` · rival +${otherReward} 🪙` : ''}${pintaUnlocked ? ' · 🏆 Skin La Pinta desbloqueada' : ''}</small>`);
+        if (reward) {
           sfx('coins');
-          if (!replay && googleOn) showCoinRain(ev.warship.reward);
+          if (!replay && googleOn) showCoinRain(reward);
         }
       }
     }
@@ -2087,7 +2104,7 @@ async function playRoundInner(r, replay = false) {
   } else {
     $('msg').textContent = promptMsg();
     setupForm(); scene.setWeather(r.round); showLastRound(r, me, op); updateTroops();
-    if (googleOn && r.events.some((ev) => ev.shots.some((x) => x.coin && x.from === me) || ev.dragon?.some((d) => d.bonus && d.owner === me))) loadProfile(); // monedas de monos o del barco de guerra
+    if (googleOn && r.events.some((ev) => ev.shots.some((x) => x.coin && x.from === me) || ev.dragon?.some((d) => d.bonus && d.owner === me) || (ev.warship?.rewards?.[me] || 0) > 0)) loadProfile(); // monedas de monos, dragones o barco de guerra
     showInputs(true);
     countdown();
   }

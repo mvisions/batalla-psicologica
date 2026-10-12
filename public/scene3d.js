@@ -516,6 +516,50 @@ export function createScene(container) {
     if (sign < 0) sail.scale.x = -1; // el rival está girado: así el emblema no sale en espejo
     vikingSkin.visible = false; wrap.add(vikingSkin);
 
+    const pintaSkin = new THREE.Group();
+    const pintaWood = new THREE.MeshStandardMaterial({ color: 0x6f351b, roughness: 0.72 });
+    const pintaDeck = new THREE.MeshStandardMaterial({ color: 0xb7783e, roughness: 0.78 });
+    const pintaGold = new THREE.MeshStandardMaterial({ color: 0xd6ae58, metalness: 0.62, roughness: 0.32 });
+    const pintaIron = new THREE.MeshStandardMaterial({ color: 0x343b40, metalness: 0.82, roughness: 0.3 });
+    const pintaSail = new THREE.MeshStandardMaterial({ color: 0xf2e5bd, side: THREE.DoubleSide, roughness: 0.92 });
+    const pintaRed = new THREE.MeshStandardMaterial({ color: 0x9f3027, side: THREE.DoubleSide, roughness: 0.8 });
+    const pintaBlob = (mat, x, y, z, sx, sy, sz) => {
+      const mesh = new THREE.Mesh(ball, mat);
+      mesh.position.set(x, y, z); mesh.scale.set(sx, sy, sz); mesh.castShadow = true; pintaSkin.add(mesh);
+      return mesh;
+    };
+    pintaBlob(pintaWood, 0, 0.08, 0, 7.15, 0.58, 1.5);
+    pintaBlob(pintaDeck, -0.1, 0.38, 0, 6.15, 0.14, 1.19);
+    for (const side of [-1, 1]) {
+      const rail = new THREE.CatmullRomCurve3([V(-6.5, 0.52, side * 0.95), V(-4, 0.58, side * 1.22), V(0, 0.6, side * 1.28), V(4.4, 0.55, side * 1.12), V(6.7, 0.42, side * 0.55)]);
+      pintaSkin.add(new THREE.Mesh(new THREE.TubeGeometry(rail, 34, 0.09, 7, false), pintaGold));
+      for (const x of [-5.2, -3.8, -2.4, -1, 0.4, 1.8, 3.2, 4.6]) {
+        const mount = new THREE.Mesh(new THREE.BoxGeometry(0.78, 0.28, 0.42), pintaDeck);
+        mount.position.set(x, 0.58, side * 0.95); pintaSkin.add(mount);
+        const cannon = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.18, 0.72, 12), pintaIron);
+        cannon.rotation.x = Math.PI / 2; cannon.position.set(x, 0.78, side * 1.12); pintaSkin.add(cannon);
+        const muzzle = new THREE.Mesh(new THREE.TorusGeometry(0.13, 0.035, 7, 12), pintaGold);
+        muzzle.rotation.y = Math.PI / 2; muzzle.position.set(x, 0.78, side * 1.49); pintaSkin.add(muzzle);
+      }
+    }
+    for (const [x, height, width] of [[-3.35, 3.35, 1.7], [0, 4.1, 2.1], [3.15, 3.35, 1.7]]) {
+      const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.13, height, 10), pintaWood);
+      mast.position.set(x, 0.62 + height / 2, 0); pintaSkin.add(mast);
+      const yard = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, width + 0.45, 8), pintaWood);
+      yard.rotation.z = Math.PI / 2; yard.position.set(x, 0.72 + height * 0.72, 0); pintaSkin.add(yard);
+      const sail = new THREE.Mesh(new THREE.PlaneGeometry(width, height * 0.58), pintaSail);
+      sail.position.set(x, 0.72 + height * 0.48, 0.04); pintaSkin.add(sail);
+      const crossV = new THREE.Mesh(new THREE.PlaneGeometry(0.18, height * 0.39), pintaRed);
+      crossV.position.set(x, sail.position.y, 0.07); pintaSkin.add(crossV);
+      const crossH = new THREE.Mesh(new THREE.PlaneGeometry(width * 0.48, 0.17), pintaRed);
+      crossH.position.set(x, sail.position.y + height * 0.06, 0.075); pintaSkin.add(crossH);
+      for (const dx of [-0.12, 0.12]) {
+        const rope = new THREE.CatmullRomCurve3([V(x + dx, 0.55, 0), V(x + dx * 1.4, 1.7, 0.06), V(x + dx * 1.6, 0.72 + height * 0.72, 0)]);
+        pintaSkin.add(new THREE.Mesh(new THREE.TubeGeometry(rope, 18, 0.018, 5, false), pintaGold));
+      }
+    }
+    pintaSkin.visible = false; wrap.add(pintaSkin);
+
     const box = (w, h, d, mat, x, y, z) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat); m.position.set(x, y, z); modern.add(m); return m; };
     const cyl = (r0, r1, h, mat, x, y, z) => { const m = new THREE.Mesh(new THREE.CylinderGeometry(r0, r1, h, 16), mat); m.position.set(x, y, z); modern.add(m); return m; };
 
@@ -615,7 +659,7 @@ export function createScene(container) {
     if (who === 'op') g.rotation.y = Math.PI;
     scene.add(g);
     applyModelShadows(g);
-    return { g, wrap, hullMat, steel, turrets, radar, flag, flagBase, buoy, flagHome: flag.position.clone(), flagMast: V(0, DY + 4.95 * Math.cos(0.55), -sign * 4.95 * Math.sin(0.55)), modern, oars, sail, skins: { dragon: dragonSkin, gondola: gondolaSkin, santa: santaSkin, ice: iceSkin, lava: lavaSkin, gold: goldSkin, viking: vikingSkin }, palette, base, red, ratio: 1, smokeAcc: 0, puffAcc: 0, phase: who === 'me' ? 0 : 2, hitT: 0, off: 0 };
+    return { g, wrap, hullMat, steel, turrets, radar, flag, flagBase, buoy, flagHome: flag.position.clone(), flagMast: V(0, DY + 4.95 * Math.cos(0.55), -sign * 4.95 * Math.sin(0.55)), pintaFlagMast: V(0, 4.65, 0), modern, oars, sail, skins: { dragon: dragonSkin, gondola: gondolaSkin, santa: santaSkin, ice: iceSkin, lava: lavaSkin, gold: goldSkin, viking: vikingSkin, pinta: pintaSkin }, palette, base, red, ratio: 1, smokeAcc: 0, puffAcc: 0, phase: who === 'me' ? 0 : 2, hitT: 0, off: 0 };
   }
 
   // ---------- Tiburones ----------
@@ -751,7 +795,8 @@ export function createScene(container) {
     const ship = ships[who];
     if (!ship) return;
     const currentLevel = Number(level) || 1;
-    const style = skin === 'viking' ? { skin: 'viking', hull: 0x5d3a1e, steel: 0x8d6e4c, turret: 0x9e8062, emissive: 0x000000, intensity: 0 }
+    const style = skin === 'pinta' ? { skin: 'pinta', hull: 0x71391d, steel: 0xd0a45a, turret: 0x554840, emissive: 0x000000, intensity: 0 }
+      : skin === 'viking' ? { skin: 'viking', hull: 0x5d3a1e, steel: 0x8d6e4c, turret: 0x9e8062, emissive: 0x000000, intensity: 0 }
       : currentLevel >= 30 ? { skin: 'gold', hull: 0xc79b35, steel: 0xffd778, turret: 0xf6c75a, emissive: 0x5b3d09, intensity: 0.16 }
       : currentLevel >= 25 ? { skin: 'lava', hull: 0x352024, steel: 0x743b2b, turret: 0x9d4f2b, emissive: 0xff3300, intensity: 0.46 }
         : currentLevel >= 20 ? { skin: 'ice', hull: 0xa8dce9, steel: 0xe7fbff, turret: 0xbee5f1, emissive: 0x297994, intensity: 0.17 }
@@ -760,10 +805,10 @@ export function createScene(container) {
               : currentLevel >= 5 ? { skin: 'dragon', hull: 0x77333a, steel: 0xc99f4b, turret: 0xc4a259, emissive: 0x240607, intensity: 0.08 }
                 : { skin: null, hull: 0x7d8a96, steel: 0x8e99a1, turret: 0xa4afb6, emissive: 0x000000, intensity: 0 };
     for (const [name, group] of Object.entries(ship.skins)) group.visible = name === style.skin;
-    const viking = style.skin === 'viking';
-    ship.modern.visible = !viking;
-    ship.flag.position.copy(viking ? ship.flagMast : ship.flagHome);
-    ship.flag.scale.setScalar(viking ? 0.75 : 1);
+    const viking = style.skin === 'viking', pinta = style.skin === 'pinta';
+    ship.modern.visible = !viking && !pinta;
+    ship.flag.position.copy(viking ? ship.flagMast : pinta ? ship.pintaFlagMast : ship.flagHome);
+    ship.flag.scale.setScalar(viking || pinta ? 0.75 : 1);
     ship.palette.hull.set(style.hull);
     ship.palette.steel.set(style.steel);
     ship.palette.turret.set(style.turret);

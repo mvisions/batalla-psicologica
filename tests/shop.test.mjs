@@ -346,7 +346,7 @@ test('con 500 monedas se compran las balas de fuego: +3 de daño, encendidas has
   }
 });
 
-test('los dragones cuestan 1500 cada uno; con los dos, un solo botón quita el 25% del barco y de cada cañón rival cada 6 rondas', async () => {
+test('los dragones se lanzan por separado y cada uno conserva su propio enfriamiento', async () => {
   const port = await unusedPort();
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'bp-shop-'));
   fs.writeFileSync(path.join(dataDir, 'ranking.json'), JSON.stringify({ version: 2, allTime: [], weekly: [] }));
@@ -383,7 +383,7 @@ test('los dragones cuestan 1500 cada uno; con los dos, un solo botón quita el 2
     };
     const first = await startMatch();
     assert.deepEqual(first.state.dragons, [{ fire: false, storm: false }, { fire: false, storm: false }]);
-    assert.equal((await post('/api/dragon', { room: first.a.room, pid: 0, key: first.a.key })).status, 403);
+    assert.equal((await post('/api/dragon', { room: first.a.room, pid: 0, key: first.a.key, dragon: 'fire' })).status, 403);
     assert.equal((await post('/api/resign', { room: first.a.room, pid: 1, key: first.b.key })).status, 200);
 
     const fireBuy = await post('/api/shop/buy', { name: 'Ana', item: 'fireDragon' });
@@ -398,8 +398,9 @@ test('los dragones cuestan 1500 cada uno; con los dos, un solo botón quita el 2
     const second = await startMatch();
     const { room } = second.a;
     assert.deepEqual(second.state.dragons, [{ fire: true, storm: true }, { fire: false, storm: false }]);
-    assert.equal((await post('/api/dragon', { room, pid: 1, key: second.b.key })).status, 403);
-    assert.equal((await post('/api/dragon', { room, pid: 0, key: second.a.key })).status, 200);
+    assert.equal((await post('/api/dragon', { room, pid: 1, key: second.b.key, dragon: 'fire' })).status, 403);
+    assert.equal((await post('/api/dragon', { room, pid: 0, key: second.a.key, dragon: 'fire' })).status, 200);
+    assert.equal((await post('/api/dragon', { room, pid: 0, key: second.a.key, dragon: 'fire' })).status, 409);
     const play = async (seqA, seqB) => {
       await post('/api/submit', { room, pid: 0, key: second.a.key, ...seqA });
       await post('/api/submit', { room, pid: 1, key: second.b.key, ...seqB });
@@ -408,18 +409,29 @@ test('los dragones cuestan 1500 cada uno; con los dos, un solo botón quita el 2
     const ana = { attack: [2, 2, 2, 2], defense: [1, 1, 1, 1], wave: [0, 0, 0, 0] };
     const beto = { attack: [4, 4, 4, 4], defense: [2, 2, 2, 2], wave: [0, 0, 0, 0] };
     const shipBefore = second.state.hp[1].ship;
-    const cannonsBefore = second.state.cannons[1];
     let round = await play(ana, beto);
     const [hit] = round.events[0].dragon;
     assert.equal(round.events[0].dragon.length, 1);
     assert.equal(hit.owner, 0); assert.equal(hit.target, 1);
-    assert.equal(hit.fire, true); assert.equal(hit.storm, true);
+    assert.equal(hit.fire, true); assert.equal(hit.storm, false);
     assert.equal(hit.shipDmg, Math.ceil(shipBefore * 0.25));
-    assert.deepEqual(hit.cannonDmg, cannonsBefore.map((c) => Math.ceil(c * 0.25)));
+    assert.deepEqual(hit.cannonDmg, [0, 0, 0, 0]);
     assert.ok(round.events[0].hp[1].ship < shipBefore); // puede haber curas aleatorias en el mismo disparo
     assert.ok(round.events.slice(1).every((ev) => !ev.dragon));
-    assert.deepEqual(round.dragonCd, [5, 0]);
-    assert.equal((await post('/api/dragon', { room, pid: 0, key: second.a.key })).status, 409);
+    assert.deepEqual(round.dragonFireCd, [5, 0]);
+    assert.deepEqual(round.dragonStormCd, [0, 0]);
+    const cannonsAfterFire = round.cannons[1];
+    assert.equal((await post('/api/dragon', { room, pid: 0, key: second.a.key, dragon: 'fire' })).status, 409);
+    assert.equal((await post('/api/dragon', { room, pid: 0, key: second.a.key, dragon: 'storm' })).status, 200);
+    round = await play(ana, beto);
+    const [stormHit] = round.events[0].dragon;
+    assert.equal(stormHit.fire, false); assert.equal(stormHit.storm, true);
+    assert.equal(stormHit.shipDmg, 0);
+    assert.deepEqual(stormHit.cannonDmg, cannonsAfterFire.map((c) => Math.ceil(c * 0.25)));
+    assert.deepEqual(round.dragonFireCd, [4, 0]);
+    assert.deepEqual(round.dragonStormCd, [5, 0]);
+    assert.ok(round.events.slice(1).every((ev) => !ev.dragon));
+    assert.equal((await post('/api/dragon', { room, pid: 0, key: second.a.key, dragon: 'storm' })).status, 409);
     round = await play(ana, beto);
     assert.ok(round.events.every((ev) => !ev.dragon));
   } finally {
@@ -435,7 +447,7 @@ test('el barco vikingo se compra por 250, se alterna con la skin de nivel y cede
   fs.writeFileSync(path.join(dataDir, 'ranking.json'), JSON.stringify({ version: 2, allTime: [], weekly: [] }));
   fs.writeFileSync(path.join(dataDir, 'profiles.json'), JSON.stringify({
     'n:ana': { name: 'Ana', streak: 0, points: 860, wins: 0, level: 9, coins: 260 },
-    'n:beto': { name: 'Beto', streak: 0, points: 560, wins: 0, level: 6, coins: 0, viking: true, vikingTier: 5 },
+    'n:beto': { name: 'Beto', streak: 0, points: 560, wins: 0, level: 6, coins: 0, viking: true, vikingTier: 5, pinta: true },
   }));
   const projectDir = fileURLToPath(new URL('..', import.meta.url));
   const child = spawn(process.execPath, ['server.js'], {
@@ -490,6 +502,9 @@ test('el barco vikingo se compra por 250, se alterna con la skin de nivel y cede
     const beto = (await post('/api/profile', { name: 'Beto' })).body;
     assert.equal(beto.level, 7);
     assert.equal(beto.skin, 'viking');
+    assert.equal((await post('/api/skin', { name: 'Beto' })).body.skin, 'pinta');
+    assert.equal((await post('/api/skin', { name: 'Beto' })).body.skin, null);
+    assert.equal((await post('/api/skin', { name: 'Beto' })).body.skin, 'viking');
     const saved = JSON.parse(fs.readFileSync(path.join(dataDir, 'profiles.json'), 'utf8'));
     assert.equal(saved['n:ana'].vikingTier, 10);
   } finally {
@@ -576,7 +591,7 @@ test('la ruleta cuesta 350 por tirada y permite reclamar cada premio disponible 
   }
 });
 
-test('en la ronda del barco de guerra los dragones le atacan y dan 250 monedas', async () => {
+test('hundir el barco reparte 70/30, desbloquea La Pinta al otro participante y conserva el premio del dragón', async () => {
   const port = await unusedPort();
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'bp-warship-'));
   fs.writeFileSync(path.join(dataDir, 'ranking.json'), JSON.stringify({ version: 2, allTime: [], weekly: [] }));
@@ -604,7 +619,7 @@ test('en la ronda del barco de guerra los dragones le atacan y dan 250 monedas',
     const state = await next('state');
     assert.equal(state.round, 11);
     assert.equal(state.warship, true);
-    assert.equal((await post('/api/dragon', { room: a.room, pid: 0, key: a.key })).status, 200);
+    assert.equal((await post('/api/dragon', { room: a.room, pid: 0, key: a.key, dragon: 'fire' })).status, 200);
     await post('/api/submit', { room: a.room, pid: 0, key: a.key, attack: [1, 2, 3, 4], defense: [1, 1, 1, 1], wave: [0, 0, 0, 0] });
     await post('/api/submit', { room: a.room, pid: 1, key: b.key, attack: [4, 3, 2, 1], defense: [2, 2, 2, 2], wave: [0, 0, 0, 0] });
     const round = await next('round');
@@ -612,7 +627,9 @@ test('en la ronda del barco de guerra los dragones le atacan y dan 250 monedas',
     assert.ok(round.events.every((ev) => ev.warship && ev.shots.every((s) => s.target === 'warship')));
     assert.deepEqual(round.events.map((ev) => ev.warship.hp), [42, 28, 14, 0]);
     assert.equal(round.events[3].warship.sunkBy, 1);
-    assert.equal(round.events[3].warship.reward, 250);
+    assert.equal(round.events[3].warship.reward, 175);
+    assert.deepEqual(round.events[3].warship.rewards, [75, 175]);
+    assert.equal(round.events[3].warship.sunkNow, true);
     for (const [owner, lane] of round.events[3].warship.disabledCannons.entries()) {
       const hitCounts = [0, 0, 0, 0];
       for (const ev of round.events) hitCounts[ev.warship.targetCannons[owner]]++;
@@ -621,8 +638,13 @@ test('en la ronda del barco de guerra los dragones le atacan y dan 250 monedas',
       assert.equal(round.cannons[owner][lane], 0);
     }
     assert.equal(round.warship, false);
-    assert.equal((await post('/api/profile', { name: 'Ana' })).body.coins, 255);
-    assert.equal((await post('/api/profile', { name: 'Beto' })).body.coins, 250);
+    const ana = (await post('/api/profile', { name: 'Ana' })).body;
+    const beto = (await post('/api/profile', { name: 'Beto' })).body;
+    assert.equal(ana.coins, 330);
+    assert.equal(beto.coins, 175);
+    assert.equal(ana.pinta, true);
+    assert.equal(beto.pinta, false);
+    assert.equal((await post('/api/skin', { name: 'Ana' })).body.skin, 'pinta');
   } finally {
     controller.abort();
     child.kill();
@@ -658,7 +680,8 @@ test('en la isla de los monos los dragones atacan a los monos y dan 50 monedas p
     const state = await next('state');
     assert.equal(state.round, 9);
     assert.equal(state.island, true);
-    assert.equal((await post('/api/dragon', { room: a.room, pid: 0, key: a.key })).status, 200);
+    assert.equal((await post('/api/dragon', { room: a.room, pid: 0, key: a.key, dragon: 'fire' })).status, 200);
+    assert.equal((await post('/api/dragon', { room: a.room, pid: 0, key: a.key, dragon: 'storm' })).status, 200);
     await post('/api/submit', { room: a.room, pid: 0, key: a.key, attack: [1, 2, 3, 4], defense: [1, 1, 1, 1], wave: [0, 0, 0, 0] });
     await post('/api/submit', { room: a.room, pid: 1, key: b.key, attack: [4, 3, 2, 1], defense: [2, 2, 2, 2], wave: [0, 0, 0, 0] });
     const round = await next('round');

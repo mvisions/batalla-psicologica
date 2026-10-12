@@ -173,8 +173,15 @@ function spinRoulette(entry, rnd = Math.random()) {
 }
 // las skins de nivel cambian en los niveles 5, 10, 15, 20, 25 y 30
 const skinTier = (level) => Math.min(30, Math.floor((Number(level) || 1) / 5) * 5);
-// el barco vikingo se mantiene mientras no se alcance un nivel con skin nueva
-const activeSkin = (entry) => (entry?.viking && entry.vikingTier === skinTier(entry.level) ? 'viking' : null);
+// Las elecciones explícitas de skin prevalecen; perfiles antiguos conservan su selección vikinga.
+const activeSkin = (entry) => {
+  if (Object.hasOwn(entry || {}, 'skinSelection')) {
+    if (entry.skinSelection === 'pinta' && entry.pinta) return 'pinta';
+    if (entry.skinSelection === 'viking' && entry.viking && entry.vikingTier === skinTier(entry.level)) return 'viking';
+    return null;
+  }
+  return entry?.viking && entry.vikingTier === skinTier(entry.level) ? 'viking' : null;
+};
 const today = () => new Date().toISOString().slice(0, 10);
 function dailyProgress(entry) {
   return entry.dailyDay === today() ? Number(entry.dailyWins) || 0 : 0;
@@ -190,7 +197,7 @@ function profileView(entry, storeAccess = false) {
   const odds = rouletteOdds(entry);
   return {
     points, wins: Number(entry.wins) || 0, level: Number(entry.level) || levelForPoints(points),
-    coins: Number(entry.coins) || 0, swordfish: Boolean(entry.swordfish), infernal: Boolean(entry.infernal), viking: Boolean(entry.viking), fireballs: Boolean(entry.fireballs), fireDragon: Boolean(entry.fireDragon), stormDragon: Boolean(entry.stormDragon), skin: activeSkin(entry),
+    coins: Number(entry.coins) || 0, swordfish: Boolean(entry.swordfish), infernal: Boolean(entry.infernal), viking: Boolean(entry.viking), pinta: Boolean(entry.pinta), fireballs: Boolean(entry.fireballs), fireDragon: Boolean(entry.fireDragon), stormDragon: Boolean(entry.stormDragon), skin: activeSkin(entry),
     lifebuoy: Boolean(entry.lifebuoy),
     storeAccess,
     roulette: { price: storeAccess ? 0 : ROULETTE_PRICE, used: odds.length === 0, prize: entry.roulettePrize || null, remaining: odds.length, odds },
@@ -378,6 +385,8 @@ function resolveRound(room) {
   let warshipHp = warship ? WARSHIP_HP : 0, warshipSunkBy = null;
   const warshipTurretHits = [Array(4).fill(0), Array(4).fill(0)];
   const warshipDisabledCannons = [null, null];
+  const monkeyDisabledCannons = [[], []];
+  const warshipHitBy = [false, false];
   const cann = room.cannons, mult = room.round % 4 === 0 || room.round >= 36 ? 2 : 1;
   const hpRatio0 = (room.maxShipHp[0] + room.maxShipHp[1]) / 2 / 105, capRatio = 255 / 105; // hasta el nivel 30 el daño crece poco y los duelos se alargan; a partir de ahí crece con la vida y la duración se estabiliza
   const hpScale = Math.max(1, Math.pow(Math.min(hpRatio0, capRatio), 0.04) * Math.max(1, Math.pow(hpRatio0 / capRatio, 0.5)));
@@ -410,9 +419,14 @@ function resolveRound(room) {
   room.swordCd ||= [0, 0];
   const swordFor = [0, 1].map((k) => !calm && room.swordCd[k] === 0 && Boolean(P[k].sword) && room.hp[1 - k].shark > 0);
   for (const k of [0, 1]) if (swordFor[k]) room.swordCd[k] = SWORD_COOLDOWN;
-  room.dragonCd ||= [0, 0];
-  const dragonFor = [0, 1].map((k) => { const d = dragonsOf(P[k]); return room.dragonCd[k] === 0 && Boolean(P[k].dragon) && (d.fire || d.storm); });
-  for (const k of [0, 1]) if (dragonFor[k]) room.dragonCd[k] = DRAGON_COOLDOWN;
+  room.dragonFireCd ||= [0, 0]; room.dragonStormCd ||= [0, 0];
+  const dragonFireFor = [0, 1].map((k) => !P[k].bot && dragonsOf(P[k]).fire && room.dragonFireCd[k] === 0 && Boolean(P[k].dragonFire));
+  const dragonStormFor = [0, 1].map((k) => !P[k].bot && dragonsOf(P[k]).storm && room.dragonStormCd[k] === 0 && Boolean(P[k].dragonStorm));
+  const dragonFor = [0, 1].map((k) => dragonFireFor[k] || dragonStormFor[k]);
+  for (const k of [0, 1]) {
+    if (dragonFireFor[k]) room.dragonFireCd[k] = DRAGON_COOLDOWN;
+    if (dragonStormFor[k]) room.dragonStormCd[k] = DRAGON_COOLDOWN;
+  }
   room.infernoCd ||= [0, 0];
   const infernoFor = [0, 1].map((k) => !warship && room.infernoCd[k] === 0 && Boolean(P[k].infernal));
   for (const k of [0, 1]) if (infernoFor[k]) room.infernoCd[k] = INFERNO_COOLDOWN;
@@ -456,7 +470,7 @@ function resolveRound(room) {
     const iceX = rain && !calm ? [iceAlive[0] ? lanePool[0] : null, iceAlive[1] ? lanePool[1] : null] : null;
     const iceAt = (x) => (iceX ? iceX.findIndex((v) => v !== null && v === x) : -1);
     const warshipHpBefore = warshipHp;
-    let warshipReward = 0;
+    let warshipReward = 0, warshipRewards = [0, 0], pintaUnlocked = false, warshipSunkNow = false;
     const ev = { step: i, atk, def, pos: [...pos], swell, whale: whaleX, ice: iceX, sub: subRound ? { x: subX, toward: Math.floor(Math.random() * 2) } : null, octopus: octopusX === null ? null : { x: octopusX, release: null }, medkit: medkitX === null ? null : { x: medkitX }, gull: gullX === null ? null : { x: gullX }, squid: squidX === null ? null : { x: squidX, up: squidUp, owner: squidOwner }, log: logX === null ? null : { x: logX, lanes: logXs }, bucket: bucketX === null ? null : { x: bucketX }, shots: [] };
     ev.dome = [...domeIdx];
     if (island) { // cada mono vive en su posición fija de la isla (carril 1-4) y lanza un coco a su barco
@@ -493,13 +507,13 @@ function resolveRound(room) {
         if (!blocked) { dmg[t].ship += hull(TROOP_DMG); cdmg[t][weak] += TROOP_DMG; hitBy[t][weak] = k; }
         (ev.troops ||= []).push({ owner: k, target: t, lane: weak + 1, x: 2 * (weak + 1) - 5 + pos[t], blocked });
       }
-      for (const k of [0, 1]) if (dragonFor[k] && warship) { // los dragones atacan al barco de guerra y dan una recompensa
-        const d = dragonsOf(P[k]), entry = !P[k].bot && ranking[P[k].sub];
+      for (const k of [0, 1]) if (dragonFor[k] && warship) { // cualquier dragón seleccionado conserva la recompensa del barco de guerra
+        const d = { fire: dragonFireFor[k], storm: dragonStormFor[k] }, entry = !P[k].bot && ranking[P[k].sub];
         if (entry) { entry.coins = (Number(entry.coins) || 0) + WARSHIP_BONUS; persistRanking([P[k].sub]); }
         (ev.dragon ||= []).push({ owner: k, target: 'warship', fire: d.fire, storm: d.storm, shipDmg: 0, cannonDmg: [0, 0, 0, 0], bonus: WARSHIP_BONUS });
       }
-      for (const k of [0, 1]) if (dragonFor[k] && island) { // en la isla los dragones atacan a los monos: 50 monedas por dragón
-        const d = dragonsOf(P[k]), entry = !P[k].bot && ranking[P[k].sub];
+      for (const k of [0, 1]) if (dragonFor[k] && island) { // en la isla los dragones atacan a los monos: 50 monedas cada uno
+        const d = { fire: dragonFireFor[k], storm: dragonStormFor[k] }, entry = !P[k].bot && ranking[P[k].sub];
         const bonus = MONKEY_DRAGON_BONUS * ((d.fire ? 1 : 0) + (d.storm ? 1 : 0));
         const monkeys = [0, 1, 2, 3].filter((id) => monkeyAlive[id]);
         for (const id of monkeys) monkeyAlive[id] = false;
@@ -507,7 +521,7 @@ function resolveRound(room) {
         (ev.dragon ||= []).push({ owner: k, target: 'monkeys', monkeys, fire: d.fire, storm: d.storm, shipDmg: 0, cannonDmg: [0, 0, 0, 0], bonus });
       }
       for (const k of [0, 1]) if (dragonFor[k] && !warship && !island) { // los dragones pasan sobre el barco rival
-        const t = 1 - k, d = dragonsOf(P[k]);
+        const t = 1 - k, d = { fire: dragonFireFor[k], storm: dragonStormFor[k] };
         const hit = { owner: k, target: t, fire: d.fire, storm: d.storm, shipDmg: 0, cannonDmg: [0, 0, 0, 0] };
         if (d.fire) { hit.shipDmg = Math.ceil(room.hp[t].ship * DRAGON_PCT); dmg[t].ship += hit.shipDmg; }
         if (d.storm) for (let l = 0; l < 4; l++) {
@@ -600,14 +614,26 @@ function resolveRound(room) {
       if (target === 'warship' && warshipHp > 0) {
         warshipDamage = Math.min(warshipHp, amount);
         warshipHp -= warshipDamage;
+        if (warshipDamage > 0) warshipHitBy[from] = true;
         if (warshipHp === 0 && warshipSunkBy === null) {
           warshipSunkBy = from;
-          if (!P[from].bot) {
-            const entry = (ranking[P[from].sub] ||= { name: P[from].name, streak: 0, points: 0, wins: 0, level: 1 });
-            entry.coins = (Number(entry.coins) || 0) + WARSHIP_BONUS;
-            warshipReward = WARSHIP_BONUS;
-            persistRanking([P[from].sub]);
+          warshipSunkNow = true;
+          warshipRewards[from] = P[from].bot ? 0 : Math.floor(WARSHIP_BONUS * 0.7);
+          const contributor = 1 - from;
+          if (warshipHitBy[contributor] && !P[contributor].bot) {
+            warshipRewards[contributor] = WARSHIP_BONUS - Math.floor(WARSHIP_BONUS * 0.7);
+            const entry = (ranking[P[contributor].sub] ||= { name: P[contributor].name, streak: 0, points: 0, wins: 0, level: 1 });
+            entry.pinta = true;
+            pintaUnlocked = true;
           }
+          const rewarded = [];
+          for (const k of [0, 1]) if (warshipRewards[k] > 0) {
+            const entry = (ranking[P[k].sub] ||= { name: P[k].name, streak: 0, points: 0, wins: 0, level: 1 });
+            entry.coins = (Number(entry.coins) || 0) + warshipRewards[k];
+            rewarded.push(P[k].sub);
+          }
+          warshipReward = warshipRewards[from];
+          if (rewarded.length) persistRanking(rewarded);
         }
       } else if (target === 'ship') {
         const c = nearestCannon(owner, x);
@@ -637,7 +663,15 @@ function resolveRound(room) {
     }
     if (i === 0 && infernoFor.some(Boolean)) ev.infernal = [0, 1].filter((k) => infernoFor[k]);
     if (ev.monkeys?.length) {
-      ev.coconuts = ev.monkeys.map((m) => ({ id: m.id, x: m.x, target: m.target, dmg: hull(COCONUT_DMG) }));
+      ev.coconuts = ev.monkeys.map((m) => {
+        const available = [0, 1, 2, 3].filter((lane) => cann[m.target][lane] > 0);
+        const lane = available.length ? available[Math.floor(Math.random() * available.length)] : null;
+        if (lane !== null) {
+          cann[m.target][lane] = 0;
+          monkeyDisabledCannons[m.target].push(lane);
+        }
+        return { id: m.id, x: m.x, target: m.target, dmg: hull(COCONUT_DMG), lane };
+      });
       for (const c of ev.coconuts) dmg[c.target].ship += c.dmg;
     }
     let disabledCannons = [null, null];
@@ -654,7 +688,7 @@ function resolveRound(room) {
         warshipDisabledCannons[k] = lane;
         disabledCannons[k] = lane;
       }
-      ev.warship = { dmg: share, hpBefore: warshipHpBefore, hp: warshipHp, maxHp: WARSHIP_HP, sunkBy: warshipSunkBy, reward: warshipReward, targetCannons: warshipTargets, disabledCannons: i === 3 ? disabledCannons : null, laser: i === 1 ? laserFirst : i === 3 ? 1 - laserFirst : null };
+      ev.warship = { dmg: share, hpBefore: warshipHpBefore, hp: warshipHp, maxHp: WARSHIP_HP, sunkBy: warshipSunkBy, sunkNow: warshipSunkNow, reward: warshipReward, rewards: warshipRewards, pintaUnlocked, targetCannons: warshipTargets, disabledCannons: i === 3 ? disabledCannons : null, laser: i === 1 ? laserFirst : i === 3 ? 1 - laserFirst : null };
     }
     if (gullHits.length) { gullAlive = false; heal[gullHits.includes(firstSubmitter) ? firstSubmitter : gullHits[0]] += 15; }
     // disparo del submarino hacia el jugador elegido: lo para su tiburón si está en ese carril; si no, da al barco
@@ -676,6 +710,7 @@ function resolveRound(room) {
         cann[k][l] = Math.max(0, before - cdmg[k][l]);
         if (before > 0 && cann[k][l] === 0 && hitBy[k][l] !== null) heal[hitBy[k][l]] += 5; // romper un cañón rival cura 5
         cann[k][l] = Math.min(25, cann[k][l] + crepair[k][l]);
+        if (monkeyDisabledCannons[k].includes(l)) cann[k][l] = 0;
       }
     }
     for (const k of [0, 1]) if (heal[k] > 0 && room.hp[k].ship > 0) room.hp[k].ship = Math.min(room.maxShipHp[k], room.hp[k].ship + heal[k]);
@@ -693,7 +728,7 @@ function resolveRound(room) {
   P.forEach((p, k) => {
     room.hist[k].push({ attack: p.attack, defense: p.defense });
     if (room.hist[k].length > 10) room.hist[k].shift();
-    p.attack = null; p.defense = null; p.wave = null; p.block = null; p.heli = false; p.troops = false; p.dome = false; p.food = false; p.sword = false; p.infernal = false; p.dragon = false; p.submittedAt = null;
+    p.attack = null; p.defense = null; p.wave = null; p.block = null; p.heli = false; p.troops = false; p.dome = false; p.food = false; p.sword = false; p.infernal = false; p.dragon = false; p.dragonFire = false; p.dragonStorm = false; p.submittedAt = null;
   });
   room.troopsCd = room.troopsCd.map((n) => Math.max(0, n - 1));
   room.domeCd = room.domeCd.map((n) => Math.max(0, n - 1));
@@ -701,7 +736,8 @@ function resolveRound(room) {
   room.swordCd = room.swordCd.map((n) => Math.max(0, n - 1));
   room.infernoCd = room.infernoCd.map((n) => Math.max(0, n - 1));
   room.fireCd = (room.fireCd || [0, 0]).map((n) => Math.max(0, n - 1));
-  room.dragonCd = (room.dragonCd || [0, 0]).map((n) => Math.max(0, n - 1));
+  room.dragonFireCd = (room.dragonFireCd || [0, 0]).map((n) => Math.max(0, n - 1));
+  room.dragonStormCd = (room.dragonStormCd || [0, 0]).map((n) => Math.max(0, n - 1));
   // un cañón roto se regenera con 15 de vida para la siguiente ronda
   for (const k of [0, 1]) for (let l = 0; l < 4; l++) if (cann[k][l] === 0 && warshipDisabledCannons[k] !== l) cann[k][l] = 15;
   room.round = room.leagueMatch ? 1 + Math.floor(Math.random() * 37) : room.round + 1; // en torneos y ligas las rondas son aleatorias (1-37)
@@ -715,7 +751,7 @@ function broadcast(room, event, data) {
   room.players.forEach((p) => p.stream && send(p.stream, event, data));
   room.spectators?.forEach((stream) => send(stream, event, data));
 }
-const info = (room) => ({ names: room.players.map((p) => p.name), countries: room.players.map((p) => p.country || 'un'), levels: room.players.map((p) => Number(ranking[p.sub]?.level) || 1), skins: room.players.map((p) => (p.bot ? null : activeSkin(ranking[p.sub]))), maxShipHp: room.players.map(maxShipHealthForPlayer), blockRound: room.round % 10 === 0, warship: isWarshipRound(room), island: isIslandRound(room), hp: room.hp, cannons: room.cannons, round: room.round, over: room.over, tutorial: room.tutorial, inputMs: room.tutorial ? null : INPUT_MS, troopsCd: room.troopsCd || [0, 0], domeCd: room.domeCd || [0, 0], foodCd: room.foodCd || [0, 0], swordCd: room.swordCd || [0, 0], swordfish: room.players.map((p) => !p.bot && Boolean(ranking[p.sub]?.swordfish)), infernoCd: room.infernoCd || [0, 0], infernal: room.players.map((p) => !p.bot && Boolean(ranking[p.sub]?.infernal)), fireCd: room.fireCd || [0, 0], fireOn: room.fireOn || [false, false], fireballs: room.players.map((p) => !p.bot && Boolean(ranking[p.sub]?.fireballs)), dragonCd: room.dragonCd || [0, 0], dragons: room.players.map(dragonsOf), lifebuoys: room.players.map((p) => !p.bot && Boolean(ranking[p.sub]?.lifebuoy)) });
+const info = (room) => ({ names: room.players.map((p) => p.name), countries: room.players.map((p) => p.country || 'un'), levels: room.players.map((p) => Number(ranking[p.sub]?.level) || 1), skins: room.players.map((p) => (p.bot ? null : activeSkin(ranking[p.sub]))), maxShipHp: room.maxShipHp, blockRound: room.round % 10 === 0, warship: isWarshipRound(room), island: isIslandRound(room), hp: room.hp, cannons: room.cannons, round: room.round, over: room.over, tutorial: room.tutorial, inputMs: room.tutorial ? null : INPUT_MS, troopsCd: room.troopsCd || [0, 0], domeCd: room.domeCd || [0, 0], foodCd: room.foodCd || [0, 0], swordCd: room.swordCd || [0, 0], swordfish: room.players.map((p) => !p.bot && Boolean(ranking[p.sub]?.swordfish)), infernoCd: room.infernoCd || [0, 0], infernal: room.players.map((p) => !p.bot && Boolean(ranking[p.sub]?.infernal)), fireCd: room.fireCd || [0, 0], fireOn: room.fireOn || [false, false], fireballs: room.players.map((p) => !p.bot && Boolean(ranking[p.sub]?.fireballs)), dragonCd: [0, 1].map((k) => Math.max(room.dragonFireCd?.[k] || 0, room.dragonStormCd?.[k] || 0)), dragonFireCd: room.dragonFireCd || [0, 0], dragonStormCd: room.dragonStormCd || [0, 0], dragons: room.players.map(dragonsOf), lifebuoys: room.players.map((p) => !p.bot && Boolean(ranking[p.sub]?.lifebuoy)) });
 
 // Secuencia aleatoria usando solo cañones que funcionan
 const workingSeq = (room, k) => {
@@ -976,7 +1012,7 @@ function armTimer(room, delay) {
 }
 
 const stateFor = (room, k) => ({
-  ...info(room), submitted: !!room.players[k].attack, heli: !!room.players[k].heli, troops: !!room.players[k].troops, dome: !!room.players[k].dome, food: !!room.players[k].food, sword: !!room.players[k].sword, infernalSent: !!room.players[k].infernal, dragonSent: !!room.players[k].dragon,
+  ...info(room), submitted: !!room.players[k].attack, heli: !!room.players[k].heli, troops: !!room.players[k].troops, dome: !!room.players[k].dome, food: !!room.players[k].food, sword: !!room.players[k].sword, infernalSent: !!room.players[k].infernal, fireDragonSent: !!room.players[k].dragonFire, stormDragonSent: !!room.players[k].dragonStorm,
   inputMs: room.tutorial ? null : Math.max(1000, Math.min(INPUT_MS, room.deadline - Date.now())),
 });
 
@@ -1143,8 +1179,13 @@ const server = http.createServer(async (req, res) => {
     const user = identify(await body(req));
     if (!user) return json(res, 401, { error: 'Inicia sesión con Google' });
     const entry = ranking[user.sub];
-    if (!entry?.viking) return json(res, 403, { error: 'Compra el barco vikingo en la tienda' });
-    entry.vikingTier = activeSkin(entry) ? null : skinTier(entry.level);
+    if (!entry?.viking && !entry?.pinta) return json(res, 403, { error: 'Desbloquea una skin especial para cambiar el barco' });
+    const options = [null];
+    if (entry.viking) options.push('viking');
+    if (entry.pinta) options.push('pinta');
+    const current = options.indexOf(activeSkin(entry));
+    entry.skinSelection = options[(current + 1) % options.length];
+    if (entry.skinSelection === 'viking') entry.vikingTier = skinTier(entry.level);
     persistRanking([user.sub]);
     return json(res, 200, profileView(entry, hasShopAccess(user)));
   }
@@ -1160,7 +1201,7 @@ const server = http.createServer(async (req, res) => {
     if (!storeAccess && (Number(entry.coins) || 0) < item.price) return json(res, 402, { error: `Necesitas ${item.price} monedas` });
     entry.coins = storeAccess ? Number(entry.coins) || 0 : Number(entry.coins) - item.price;
     entry[b.item] = true;
-    if (b.item === 'viking') entry.vikingTier = skinTier(entry.level); // recién comprado se equipa
+    if (b.item === 'viking') { entry.vikingTier = skinTier(entry.level); entry.skinSelection = 'viking'; } // recién comprado se equipa
     persistRanking([user.sub]);
     return json(res, 200, profileView(entry, storeAccess));
   }
@@ -1177,7 +1218,7 @@ const server = http.createServer(async (req, res) => {
     entry[prize] = true;
     entry.roulettePrize = prize;
     entry.roulettePrizes = [...new Set([...(Array.isArray(entry.roulettePrizes) ? entry.roulettePrizes : []), prize])];
-    if (prize === 'viking') entry.vikingTier = skinTier(entry.level);
+    if (prize === 'viking') { entry.vikingTier = skinTier(entry.level); entry.skinSelection = 'viking'; }
     persistRanking([user.sub]);
     return json(res, 200, { prize, odds, profile: profileView(entry, storeAccess) });
   }
@@ -1309,8 +1350,8 @@ const server = http.createServer(async (req, res) => {
     me.rematch = true;
     if (room.players.every((p) => p.rematch || p.bot)) {
       resetState(room);
-      room.players.forEach((p) => { p.rematch = false; p.attack = null; p.defense = null; p.wave = null; p.block = null; p.heli = false; p.troops = false; p.dome = false; p.food = false; p.sword = false; p.infernal = false; p.dragon = false; p.submittedAt = null; });
-      room.troopsCd = [0, 0]; room.domeCd = [0, 0]; room.foodCd = [0, 0]; room.swordCd = [0, 0]; room.infernoCd = [0, 0]; room.fireCd = [0, 0]; room.fireOn = [false, false]; room.dragonCd = [0, 0];
+      room.players.forEach((p) => { p.rematch = false; p.attack = null; p.defense = null; p.wave = null; p.block = null; p.heli = false; p.troops = false; p.dome = false; p.food = false; p.sword = false; p.infernal = false; p.dragon = false; p.dragonFire = false; p.dragonStorm = false; p.submittedAt = null; });
+      room.troopsCd = [0, 0]; room.domeCd = [0, 0]; room.foodCd = [0, 0]; room.swordCd = [0, 0]; room.infernoCd = [0, 0]; room.fireCd = [0, 0]; room.fireOn = [false, false]; room.dragonFireCd = [0, 0]; room.dragonStormCd = [0, 0];
       armTimer(room, INPUT_MS);
       broadcast(room, 'rematch', {});
       room.players.forEach((p, k) => p.stream && send(p.stream, 'state', stateFor(room, k)));
@@ -1384,15 +1425,19 @@ const server = http.createServer(async (req, res) => {
     return json(res, 200, { ok: true });
   }
   if (req.method === 'POST' && url.pathname === '/api/dragon') {
-    const { room: code, pid, key } = await body(req);
+    const { room: code, pid, key, dragon } = await body(req);
     const room = rooms.get(String(code));
     const me = room?.players[pid];
     if (!me || me.key !== key || room.players.length < 2 || room.over || room.tutorial) return json(res, 400, { error: 'Inválido' });
     const d = dragonsOf(me);
-    if (!d.fire && !d.storm) return json(res, 403, { error: 'Compra un dragón en la tienda' });
-    if ((room.dragonCd?.[pid] || 0) > 0) return json(res, 409, { error: 'Tus dragones aún están descansando' });
-    me.dragon = true;
-    return json(res, 200, { ok: true });
+    if (dragon !== 'fire' && dragon !== 'storm') return json(res, 400, { error: 'Selecciona un dragón válido' });
+    if (!d[dragon]) return json(res, 403, { error: `Compra el dragón de ${dragon === 'fire' ? 'fuego' : 'rayos'} en la tienda` });
+    const cooldown = dragon === 'fire' ? 'dragonFireCd' : 'dragonStormCd';
+    const sent = dragon === 'fire' ? 'dragonFire' : 'dragonStorm';
+    room[cooldown] ||= [0, 0];
+    if ((room[cooldown][pid] || 0) > 0 || me[sent]) return json(res, 409, { error: `El dragón de ${dragon === 'fire' ? 'fuego' : 'rayos'} aún está descansando` });
+    me[sent] = true;
+    return json(res, 200, { ok: true, dragon });
   }
   if (req.method === 'POST' && url.pathname === '/api/fire') {
     const { room: code, pid, key } = await body(req);

@@ -512,17 +512,24 @@ test('la isla de los monos (solo ronda 9): mono fijo por carril, cae de un dispa
   for (const ev of events) {
     assert.equal(ev.gull, null); assert.equal(ev.squid, null); assert.equal(ev.log, null); assert.equal(ev.medkit, null); assert.equal(ev.sub, null);
     assert.deepEqual((ev.coconuts || []).map((c) => c.id), ev.monkeys.map((m) => m.id));
-    for (const c of ev.coconuts || []) coconut[c.target] += c.dmg;
+    for (const c of ev.coconuts || []) {
+      coconut[c.target] += c.dmg;
+      if (c.lane !== null) assert.equal(ev.cannons[c.target][c.lane], 0);
+    }
   }
   const t = (step, from) => events[step].shots.find((s) => s.from === from);
-  // jugador 0: carril 1 mata al mono 0, el siguiente disparo por el carril 1 atraviesa la isla y da al barco (sin tiburón)
+  // El primer disparo puede abatir al mono; los cocos posteriores pueden dejar inutilizado ese cañón.
   assert.equal(t(0, 0).target, 'monkey'); assert.equal(t(0, 0).coin, 1); assert.equal(t(0, 0).monkey, 0);
-  assert.equal(t(1, 0).target, 'ship');
-  assert.equal(t(2, 0).target, 'monkey'); assert.equal(t(3, 0).target, 'ship');
-  assert.equal(t(0, 1).target, 'monkey'); assert.equal(t(1, 1).target, 'monkey');
-  assert.equal(t(2, 1).target, 'ship'); assert.equal(t(3, 1).target, 'ship');
-  assert.equal(events[3].monkeys.length, 0);
+  assert.ok(events.flatMap((ev) => ev.shots).every((shot) => ['broken', 'monkey', 'ship'].includes(shot.target)));
+  const disabled = [new Set(), new Set()];
+  for (const c of events.flatMap((ev) => ev.coconuts || [])) if (c.lane !== null) {
+    assert.ok(!disabled[c.target].has(c.lane), 'cada coco bloquea una torreta distinta mientras haya torretas activas');
+    disabled[c.target].add(c.lane);
+  }
+  for (let player = 0; player < 2; player++) for (const lane of disabled[player]) assert.equal(room.cannons[player][lane], 15, 'las torretas se reactivan al terminar la ronda de los monos');
   assert.equal(room.hp[0].shark, 50); assert.equal(room.hp[1].shark, 50);
-  assert.equal(room.hp[0].ship, 105 - coconut[0] - 14);
-  assert.equal(room.hp[1].ship, 105 - coconut[1] - 14);
+  for (let player = 0; player < 2; player++) {
+    const shipHits = events.flatMap((ev) => ev.shots).filter((shot) => shot.target === 'ship' && shot.owner === player).length;
+    assert.equal(room.hp[player].ship, 105 - coconut[player] - 7 * shipHits);
+  }
 });
