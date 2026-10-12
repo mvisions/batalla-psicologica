@@ -336,7 +336,96 @@ export function createScene(container) {
       const crossV = new THREE.Mesh(new THREE.BoxGeometry(0.11, height * 0.34, 0.025), sailCrossMat); crossV.position.set(x + 0.12, DY + height * 0.58, 0.1); santaSkin.add(crossV);
       const crossH = new THREE.Mesh(new THREE.BoxGeometry(width * 0.4, 0.11, 0.025), sailCrossMat); crossH.position.set(x + 0.12, DY + height * 0.58, 0.1); santaSkin.add(crossH);
     }
+    const christmasLights = [];
+    const tree = new THREE.Group(); tree.position.set(4.15, DY + 0.1, 0); santaSkin.add(tree);
+    const treeTrunk = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.18, 0.55, 8), mastMat); treeTrunk.position.y = 0.28; tree.add(treeTrunk);
+    const treeGreen = new THREE.MeshStandardMaterial({ color: 0x176b3a, roughness: 0.8 });
+    for (const [y, radius, height] of [[0.72, 0.66, 1.05], [1.22, 0.5, 0.92], [1.65, 0.34, 0.75]]) {
+      const tier = new THREE.Mesh(new THREE.ConeGeometry(radius, height, 9), treeGreen); tier.position.y = y; tree.add(tier);
+    }
+    const treeStar = new THREE.Mesh(new THREE.OctahedronGeometry(0.22), new THREE.MeshStandardMaterial({ color: 0xffdc55, emissive: 0xe99b09, emissiveIntensity: 1.2, metalness: 0.45, roughness: 0.25 }));
+    treeStar.position.y = 2.1; tree.add(treeStar);
+    const lightMats = [0xff3333, 0x35e875, 0x52b8ff, 0xffdc55].map((color) => new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 1.6, roughness: 0.22 }));
+    for (let index = 0; index < 18; index++) {
+      const y = 0.48 + index * 0.088, radius = 0.66 - Math.max(0, y - 0.72) * 0.36;
+      const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.105, 9, 7), lightMats[index % lightMats.length]);
+      bulb.position.set(Math.cos(index * 1.8) * radius, y, Math.sin(index * 1.8) * radius); tree.add(bulb); christmasLights.push(bulb);
+    }
+    for (const [x, color] of [[-4.9, 0xc62828], [-3.95, 0x2166a5], [5.0, 0xc62828]]) {
+      const gift = new THREE.Mesh(new THREE.BoxGeometry(0.58, 0.52, 0.52), new THREE.MeshStandardMaterial({ color, roughness: 0.38, metalness: 0.08 }));
+      gift.position.set(x, DY + 0.34, 0); santaSkin.add(gift);
+      const ribbon = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.54, 0.55), treeStar.material); ribbon.position.copy(gift.position); santaSkin.add(ribbon);
+    }
+    for (const side of [-1, 1]) {
+      const bulbs = [];
+      for (let index = 0; index < 17; index++) {
+        const x = -5.4 + index * 0.68, bulb = new THREE.Mesh(new THREE.SphereGeometry(0.09, 8, 6), lightMats[(index + side + 1) % lightMats.length]);
+        bulb.position.set(x, DY + 0.42, side * 1.18); santaSkin.add(bulb); bulbs.push(bulb);
+      }
+      christmasLights.push(...bulbs);
+    }
     santaSkin.visible = false; wrap.add(santaSkin);
+
+    const reindeerSkin = new THREE.Group();
+    const winterTrim = new THREE.MeshStandardMaterial({ color: 0xe5c878, roughness: 0.3, metalness: 0.6 });
+    for (const side of [-1, 1]) {
+      const rail = new THREE.Mesh(new THREE.BoxGeometry(11.5, 0.12, 0.08), winterTrim); rail.position.set(0, DY + 0.34, side * 1.2); reindeerSkin.add(rail);
+      for (let index = 0; index < 11; index++) {
+        const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.11, 8, 6), lightMats[(index + (side > 0 ? 2 : 0)) % lightMats.length]);
+        bulb.position.set(-5.3 + index * 1.06, DY + 0.48, side * 1.25); reindeerSkin.add(bulb); christmasLights.push(bulb);
+      }
+    }
+    const reindeerBrown = new THREE.MeshStandardMaterial({ color: 0x9a572f, roughness: 0.75 });
+    const reindeerCream = new THREE.MeshStandardMaterial({ color: 0xf2dfbe, roughness: 0.82 });
+    for (const [index, x] of [-3.1, 0, 3.1].entries()) {
+      const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.25, 0.72, 4, 8), reindeerBrown); body.rotation.z = Math.PI / 2; body.position.set(x, DY + 0.85, 0.08); reindeerSkin.add(body);
+      const head = new THREE.Mesh(new THREE.SphereGeometry(0.28, 12, 8), reindeerBrown); head.position.set(x + 0.43, DY + 1.12, 0.08); reindeerSkin.add(head);
+      const nose = new THREE.Mesh(new THREE.SphereGeometry(0.13, 10, 8), new THREE.MeshStandardMaterial({ color: index === 0 ? 0xef3434 : 0x8d4830, emissive: index === 0 ? 0x5e0909 : 0x000000, emissiveIntensity: 0.7 }));
+      nose.position.set(x + 0.66, DY + 1.12, 0.08); reindeerSkin.add(nose);
+      for (const sign of [-1, 1]) {
+        const antler = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.055, 0.55, 6), reindeerCream); antler.position.set(x + 0.33, DY + 1.52, 0.08 + sign * 0.18); antler.rotation.z = -0.35; reindeerSkin.add(antler);
+        const tine = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.035, 0.32, 6), reindeerCream); tine.position.set(x + 0.48, DY + 1.7, 0.08 + sign * 0.18); tine.rotation.z = 0.3; reindeerSkin.add(tine);
+      }
+    }
+    reindeerSkin.visible = false; wrap.add(reindeerSkin);
+
+    const boneSkin = new THREE.Group();
+    const boneWhite = new THREE.MeshStandardMaterial({ color: 0xe7e0ca, roughness: 0.7, emissive: 0x34372e, emissiveIntensity: 0.28 });
+    const boneShadow = new THREE.MeshStandardMaterial({ color: 0x303540, roughness: 0.78, metalness: 0.08 });
+    for (const side of [-1, 1]) {
+      const rail = new THREE.Mesh(new THREE.BoxGeometry(11.5, 0.16, 0.14), boneWhite); rail.position.set(0, DY + 0.28, side * 1.19); boneSkin.add(rail);
+      for (let index = 0; index < 8; index++) {
+        const rib = new THREE.Mesh(new THREE.TorusGeometry(0.43, 0.075, 8, 14, Math.PI), boneWhite);
+        rib.rotation.set(Math.PI / 2, 0, Math.PI); rib.position.set(-4.6 + index * 1.25, DY + 0.5, side * 1.1); boneSkin.add(rib);
+      }
+    }
+    for (const x of [-5.65, 5.65]) {
+      const skull = new THREE.Group(); skull.position.set(x, DY + 0.42, 0); skull.rotation.z = x < 0 ? -Math.PI / 2 : Math.PI / 2; boneSkin.add(skull);
+      const cranium = new THREE.Mesh(new THREE.SphereGeometry(0.52, 16, 12), boneWhite); cranium.scale.set(1.2, 0.8, 0.84); skull.add(cranium);
+      for (const side of [-1, 1]) {
+        const eye = new THREE.Mesh(new THREE.SphereGeometry(0.14, 10, 8), boneShadow); eye.position.set(0.22, 0.1, side * 0.22); skull.add(eye);
+        const tooth = new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.23, 6), boneWhite); tooth.position.set(-0.28, -0.39, side * 0.11); tooth.rotation.z = Math.PI; skull.add(tooth);
+      }
+    }
+    for (const x of [-4.2, 4.2]) {
+      const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.1, 3.2, 9), boneWhite); mast.position.set(x, DY + 1.6, 0); boneSkin.add(mast);
+      const sail = new THREE.Mesh(new THREE.PlaneGeometry(1.5, 2.0), boneShadow); sail.position.set(x + 0.22, DY + 1.92, 0.08); boneSkin.add(sail);
+      const cross = new THREE.Group(); cross.position.copy(sail.position);
+      for (const angle of [-0.62, 0.62]) {
+        const bone = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.075, 0.9, 8), boneWhite); bone.rotation.z = angle; cross.add(bone);
+        for (const end of [-1, 1]) {
+          const knob = new THREE.Mesh(new THREE.SphereGeometry(0.11, 8, 6), boneWhite); knob.position.set(Math.sin(angle) * end * 0.47, Math.cos(angle) * end * 0.47, 0); cross.add(knob);
+        }
+      }
+      boneSkin.add(cross);
+    }
+    boneSkin.visible = false; wrap.add(boneSkin);
+    frameHooks.push((dt, time) => {
+      for (const [index, bulb] of christmasLights.entries()) {
+        const material = bulb.material;
+        material.emissiveIntensity = 0.65 + (Math.sin(time * 5.5 + index * 0.8) + 1) * 0.75;
+      }
+    });
 
     const iceSkin = new THREE.Group();
     const iceCrystal = new THREE.MeshPhysicalMaterial({ color: 0xa8eaff, roughness: 0.18, metalness: 0.08, clearcoat: 0.9, transparent: true, opacity: 0.9, emissive: 0x287b9b, emissiveIntensity: 0.24 });
@@ -659,7 +748,7 @@ export function createScene(container) {
     if (who === 'op') g.rotation.y = Math.PI;
     scene.add(g);
     applyModelShadows(g);
-    return { g, wrap, hullMat, steel, turrets, radar, flag, flagBase, buoy, flagHome: flag.position.clone(), flagMast: V(0, DY + 4.95 * Math.cos(0.55), -sign * 4.95 * Math.sin(0.55)), pintaFlagMast: V(0, 4.65, 0), modern, oars, sail, skins: { dragon: dragonSkin, gondola: gondolaSkin, santa: santaSkin, ice: iceSkin, lava: lavaSkin, gold: goldSkin, viking: vikingSkin, pinta: pintaSkin }, palette, base, red, ratio: 1, smokeAcc: 0, puffAcc: 0, phase: who === 'me' ? 0 : 2, hitT: 0, off: 0 };
+    return { g, wrap, hullMat, steel, turrets, radar, flag, flagBase, buoy, flagHome: flag.position.clone(), flagMast: V(0, DY + 4.95 * Math.cos(0.55), -sign * 4.95 * Math.sin(0.55)), pintaFlagMast: V(0, 4.65, 0), modern, oars, sail, skins: { dragon: dragonSkin, gondola: gondolaSkin, santa: santaSkin, reindeer: reindeerSkin, bone: boneSkin, ice: iceSkin, lava: lavaSkin, gold: goldSkin, viking: vikingSkin, pinta: pintaSkin }, palette, base, red, ratio: 1, smokeAcc: 0, puffAcc: 0, phase: who === 'me' ? 0 : 2, hitT: 0, off: 0 };
   }
 
   // ---------- Tiburones ----------
@@ -795,8 +884,11 @@ export function createScene(container) {
     const ship = ships[who];
     if (!ship) return;
     const currentLevel = Number(level) || 1;
-    const style = skin === 'pinta' ? { skin: 'pinta', hull: 0x71391d, steel: 0xd0a45a, turret: 0x554840, emissive: 0x000000, intensity: 0 }
+    const style = skin === 'bone' ? { skin: 'bone', hull: 0x343743, steel: 0xe7e0ca, turret: 0xbbb4a0, emissive: 0x7bdde0, intensity: 0.12 }
+      : skin === 'reindeer' ? { skin: 'reindeer', hull: 0x1c5c3a, steel: 0xe5c878, turret: 0xb52a32, emissive: 0x176b3a, intensity: 0.12 }
+        : skin === 'pinta' ? { skin: 'pinta', hull: 0x71391d, steel: 0xd0a45a, turret: 0x554840, emissive: 0x000000, intensity: 0 }
       : skin === 'viking' ? { skin: 'viking', hull: 0x5d3a1e, steel: 0x8d6e4c, turret: 0x9e8062, emissive: 0x000000, intensity: 0 }
+      : skin === 'santa' ? { skin: 'santa', hull: 0x8f2028, steel: 0xe5c878, turret: 0x176b3a, emissive: 0x9d1020, intensity: 0.1 }
       : currentLevel >= 30 ? { skin: 'gold', hull: 0xc79b35, steel: 0xffd778, turret: 0xf6c75a, emissive: 0x5b3d09, intensity: 0.16 }
       : currentLevel >= 25 ? { skin: 'lava', hull: 0x352024, steel: 0x743b2b, turret: 0x9d4f2b, emissive: 0xff3300, intensity: 0.46 }
         : currentLevel >= 20 ? { skin: 'ice', hull: 0xa8dce9, steel: 0xe7fbff, turret: 0xbee5f1, emissive: 0x297994, intensity: 0.17 }
@@ -805,10 +897,10 @@ export function createScene(container) {
               : currentLevel >= 5 ? { skin: 'dragon', hull: 0x77333a, steel: 0xc99f4b, turret: 0xc4a259, emissive: 0x240607, intensity: 0.08 }
                 : { skin: null, hull: 0x7d8a96, steel: 0x8e99a1, turret: 0xa4afb6, emissive: 0x000000, intensity: 0 };
     for (const [name, group] of Object.entries(ship.skins)) group.visible = name === style.skin;
-    const viking = style.skin === 'viking', pinta = style.skin === 'pinta';
-    ship.modern.visible = !viking && !pinta;
-    ship.flag.position.copy(viking ? ship.flagMast : pinta ? ship.pintaFlagMast : ship.flagHome);
-    ship.flag.scale.setScalar(viking || pinta ? 0.75 : 1);
+    const viking = style.skin === 'viking', pinta = style.skin === 'pinta', bone = style.skin === 'bone';
+    ship.modern.visible = !viking && !pinta && !bone;
+    ship.flag.position.copy(viking ? ship.flagMast : pinta || bone ? ship.pintaFlagMast : ship.flagHome);
+    ship.flag.scale.setScalar(viking || pinta || bone ? 0.75 : 1);
     ship.palette.hull.set(style.hull);
     ship.palette.steel.set(style.steel);
     ship.palette.turret.set(style.turret);
@@ -948,7 +1040,7 @@ export function createScene(container) {
   // Tiempo según la ronda: lluvia cada 5, oleaje cada 6 y ballena extra cada 7
   let stormOn = false, roughOn = false, whaleOn = false, snowOn = false, lightningOn = false, fogOn = false, snowAmount = 0;
   let riverOn = false, mudOn = false;
-  function setWeather(round) {
+  function setWeather(round, state = {}) {
     const rv = round >= 20 || (round >= 5 && round <= 10);
     if (rv !== riverOn) {
       riverOn = rv;
@@ -961,20 +1053,26 @@ export function createScene(container) {
       const from = waterMat.uniforms.uMud.value, to = md ? 1 : 0;
       tween(1800, (t) => { waterMat.uniforms.uMud.value = from + (to - from) * t; }, easeInOut);
     }
-    const st = round % 5 === 0 && round !== 15, ro = round % 6 === 0, wh = round % 7 === 0;
-    const sn = round === 15, bolt = round === 25, fg = round === 35;
-    if (wh !== whaleOn) { whaleOn = wh; wh ? whaleArrive() : whaleLeave(); }
     const special = !api.isTutorial?.(), warOn = special && [11, 22, 33].includes(round), isleOn = special && round === 9;
+    const currentState = state.round === round ? state : {};
+    const justiceOn = special && Boolean(currentState.justice), santaOn = special && Boolean(currentState.santa), halloweenOn = special && Boolean(currentState.halloween);
+    const calmEvent = warOn || isleOn || justiceOn || santaOn || halloweenOn;
+    const st = !calmEvent && round % 5 === 0 && round !== 15, ro = !calmEvent && round % 6 === 0, wh = !calmEvent && round % 7 === 0;
+    const sn = !calmEvent && round === 15, bolt = !calmEvent && round === 25, fg = !calmEvent && round === 35;
+    if (wh !== whaleOn) { whaleOn = wh; wh ? whaleArrive() : whaleLeave(); }
     warOn ? warshipArrive() : warshipLeave();
     isleOn ? islandShow() : islandLeave();
-    if (warOn || isleOn) setCalm(true);
+    animateEventPresence('justice', justiceOn);
+    animateEventPresence('santa', santaOn);
+    animateEventPresence('halloween', halloweenOn);
+    if (calmEvent) setCalm(true);
     if (st !== stormOn) {
       stormOn = st;
       const from = storm, to = st ? 1 : 0;
       tween(2200, (t) => { storm = from + (to - from) * t; }, easeInOut);
       for (const w of ['me', 'op']) st ? sharkLeave(w) : !calmOn && sharkReturn(w);
     }
-    if (!warOn && !isleOn) setCalm(false);
+    if (!calmEvent) setCalm(false);
     if (ro !== roughOn) {
       roughOn = ro;
       const from = rough, to = ro ? 1 : 0;
@@ -2442,6 +2540,167 @@ export function createScene(container) {
     for (let k = 0; k < 8; k++) spawn({ pos: m.root.getWorldPosition(new THREE.Vector3()).add(V(0, 0.5, 0)), tex: smokeTex, vel: V(rnd(-1, 1), rnd(0.5, 1.5), rnd(-1, 1)), life: 1, s0: 0.6, s1: 1.8, color: 0xf0f0f0, op: 0.8 });
     m.root.visible = false; m.root.position.set(LANE_X[id], y0, 0.4); m.rig.rotation.x = 0;
   }
+  const justiceShip = (() => {
+    const g = new THREE.Group();
+    const wood = new THREE.MeshStandardMaterial({ color: 0x57351f, roughness: 0.78 });
+    const darkWood = new THREE.MeshStandardMaterial({ color: 0x30221b, roughness: 0.82 });
+    const gold = new THREE.MeshStandardMaterial({ color: 0xc59a4b, metalness: 0.58, roughness: 0.32 });
+    const sail = new THREE.MeshStandardMaterial({ color: 0xd9c8a3, side: THREE.DoubleSide, roughness: 0.88 });
+    const hullShape = new THREE.Shape();
+    hullShape.moveTo(-8, -2.15); hullShape.lineTo(6.5, -2.15); hullShape.quadraticCurveTo(8.2, -1.9, 8.1, 0);
+    hullShape.quadraticCurveTo(8.2, 1.9, 6.5, 2.15); hullShape.lineTo(-8, 2.15); hullShape.lineTo(-8, -2.15);
+    const hull = new THREE.Mesh(new THREE.ExtrudeGeometry(hullShape, { depth: 1.25, bevelEnabled: true, bevelThickness: 0.2, bevelSize: 0.18, bevelSegments: 3 }).rotateX(-Math.PI / 2), wood);
+    hull.position.y = 0.15; g.add(hull);
+    const deck = new THREE.Mesh(new THREE.BoxGeometry(13.5, 0.18, 3.7), gold); deck.position.set(-0.1, 0.9, 0); g.add(deck);
+    for (const [x, height, width] of [[-4.5, 4.1, 2.5], [0, 6.3, 3.5], [4.0, 4.7, 2.8]]) {
+      const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.2, height, 12), darkWood); mast.position.set(x, 0.95 + height / 2, 0); g.add(mast);
+      const yard = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, width + 0.5, 8), gold); yard.rotation.z = Math.PI / 2; yard.position.set(x, 0.95 + height * 0.68, 0.05); g.add(yard);
+      const sailMesh = new THREE.Mesh(new THREE.PlaneGeometry(width, height * 0.49), sail); sailMesh.position.set(x, 0.98 + height * 0.54, 0.18); g.add(sailMesh);
+      for (const side of [-1, 1]) {
+        const rope = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, height * 0.78, 5), gold);
+        rope.position.set(x + side * (width / 2 + 0.1), 0.95 + height * 0.42, 0.12); rope.rotation.z = side * -0.08; g.add(rope);
+      }
+    }
+    for (const side of [-1, 1]) for (const x of [-6.3, -4.4, -2.5, -0.6, 1.3, 3.2, 5.1]) {
+      const gun = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.16, 1.2, 10), darkWood); gun.rotation.x = Math.PI / 2;
+      gun.position.set(x, 1.15, side * 2.1); g.add(gun);
+      const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.11, 0.8, 10), new THREE.MeshStandardMaterial({ color: 0x343a3a, metalness: 0.75, roughness: 0.32 }));
+      barrel.rotation.x = Math.PI / 2; barrel.position.set(x, 1.2, side * 2.62); g.add(barrel);
+    }
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.08, 2.0, 8), darkWood); pole.position.set(0, 7.3, 0); g.add(pole);
+    const flagTex = canvasTex(256, 160, (ctx, width, height) => {
+      ctx.fillStyle = '#173b37'; ctx.fillRect(0, 0, width, height);
+      ctx.strokeStyle = '#e4c76b'; ctx.lineWidth = 8; ctx.strokeRect(6, 6, width - 12, height - 12);
+      ctx.strokeStyle = '#f3e7c5'; ctx.lineWidth = 14; ctx.lineCap = 'round';
+      for (const angle of [-0.68, 0.68]) {
+        const x0 = width / 2 - Math.sin(angle) * 48, y0 = height / 2 + Math.cos(angle) * 48;
+        const x1 = width / 2 + Math.sin(angle) * 48, y1 = height / 2 - Math.cos(angle) * 48;
+        ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+        for (const end of [-1, 1]) {
+          ctx.beginPath(); ctx.moveTo(x0 + (end < 0 ? 0 : x1 - x0) - 12, y0 + (end < 0 ? 0 : y1 - y0)); ctx.lineTo(x0 + (end < 0 ? 0 : x1 - x0) + 12, y0 + (end < 0 ? 0 : y1 - y0)); ctx.stroke();
+        }
+      }
+    });
+    const flag = new THREE.Mesh(new THREE.PlaneGeometry(1.8, 1.1), new THREE.MeshStandardMaterial({ map: flagTex, side: THREE.DoubleSide }));
+    flag.position.set(0.9, 7.7, 0); g.add(flag);
+    g.visible = false; g.position.set(-36, -1.5, 0); scene.add(g); applyModelShadows(g);
+    return { g, present: false, job: null };
+  })();
+  const santaScene = (() => {
+    const g = new THREE.Group(), sleigh = new THREE.Group(); g.add(sleigh);
+    const red = new THREE.MeshStandardMaterial({ color: 0xb51f2b, roughness: 0.44, metalness: 0.08 });
+    const trim = new THREE.MeshStandardMaterial({ color: 0xf1d181, metalness: 0.45, roughness: 0.3 });
+    const fur = new THREE.MeshStandardMaterial({ color: 0xf5efe3, roughness: 0.9 });
+    const body = new THREE.Mesh(new THREE.BoxGeometry(3.6, 0.75, 1.8), red); body.position.set(-2, 0.9, 0); sleigh.add(body);
+    const front = new THREE.Mesh(new THREE.SphereGeometry(1, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), trim); front.scale.set(1.5, 0.5, 1.05); front.position.set(-2, 1.3, 0); sleigh.add(front);
+    for (const side of [-1, 1]) {
+      const rail = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3([V(-4.1, 0.22, side * 0.8), V(-3.7, 0.05, side * 0.8), V(-1.5, 0.05, side * 0.8), V(-0.8, 0.48, side * 0.8)]), 24, 0.08, 8, false), trim);
+      sleigh.add(rail);
+    }
+    const santaBody = new THREE.Mesh(new THREE.SphereGeometry(0.72, 16, 12), red); santaBody.scale.set(0.8, 1.1, 0.9); santaBody.position.set(-2.1, 2.0, 0); sleigh.add(santaBody);
+    const face = new THREE.Mesh(new THREE.SphereGeometry(0.46, 16, 12), new THREE.MeshStandardMaterial({ color: 0xf1c9a4, roughness: 0.8 }));
+    face.position.set(-1.7, 2.75, 0); sleigh.add(face);
+    const beard = new THREE.Mesh(new THREE.ConeGeometry(0.48, 0.85, 12), fur); beard.position.set(-1.65, 2.2, 0); beard.rotation.z = -Math.PI / 2; sleigh.add(beard);
+    const hat = new THREE.Mesh(new THREE.ConeGeometry(0.42, 0.9, 12), red); hat.position.set(-1.72, 3.35, 0); hat.rotation.z = -0.5; sleigh.add(hat);
+    const pom = new THREE.Mesh(new THREE.SphereGeometry(0.14, 10, 8), fur); pom.position.set(-2.13, 3.73, 0); sleigh.add(pom);
+    const deer = [];
+    const brown = new THREE.MeshStandardMaterial({ color: 0x92562e, roughness: 0.78 });
+    for (let index = 0; index < 4; index++) {
+      const x = 1.2 + index * 2.35, rig = new THREE.Group(); rig.position.set(x, 0.4, index % 2 ? -0.8 : 0.8); g.add(rig);
+      const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.32, 0.95, 4, 10), brown); torso.rotation.z = Math.PI / 2; torso.position.y = 0.85; rig.add(torso);
+      const head = new THREE.Mesh(new THREE.SphereGeometry(0.34, 14, 10), brown); head.position.set(0.55, 1.3, 0); rig.add(head);
+      const nose = new THREE.Mesh(new THREE.SphereGeometry(0.16, 10, 8), new THREE.MeshStandardMaterial({ color: index === 0 ? 0xf53131 : 0x8f4d2c, emissive: index === 0 ? 0x7a1111 : 0, emissiveIntensity: 1 }));
+      nose.position.set(0.82, 1.26, 0); rig.add(nose);
+      for (const side of [-1, 1]) {
+        const antler = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.055, 0.72, 6), trim); antler.position.set(0.46, 1.77, side * 0.22); antler.rotation.z = -0.25; rig.add(antler);
+        for (const branch of [-1, 1]) {
+          const tine = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.035, 0.38, 6), trim);
+          tine.position.set(0.56 + branch * 0.14, 2.0, side * 0.25); tine.rotation.z = branch * -0.65; rig.add(tine);
+        }
+      }
+      deer.push(rig);
+    }
+    for (let index = 0; index < 5; index++) {
+      const link = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 2.0, 6), trim);
+      link.rotation.z = Math.PI / 2; link.position.set(index * 2.2, 0.72, 0); g.add(link);
+    }
+    g.visible = false; g.position.set(-34, 2.6, 0); scene.add(g); applyModelShadows(g);
+    return { g, deer, present: false, job: null };
+  })();
+  const halloweenPumpkin = (() => {
+    const g = new THREE.Group();
+    const orange = new THREE.MeshStandardMaterial({ color: 0xf07816, roughness: 0.55, emissive: 0x501700, emissiveIntensity: 0.22 });
+    for (let index = 0; index < 9; index++) {
+      const lobe = new THREE.Mesh(new THREE.SphereGeometry(1.45, 18, 14), orange);
+      lobe.scale.set(0.34, 1.0, 0.91); lobe.position.set(Math.sin(index * Math.PI * 2 / 9) * 0.35, 0, Math.cos(index * Math.PI * 2 / 9) * 0.35); g.add(lobe);
+    }
+    const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.28, 0.8, 8), new THREE.MeshStandardMaterial({ color: 0x315b2f, roughness: 0.82 }));
+    stem.position.set(0, 1.55, 0); stem.rotation.z = -0.15; g.add(stem);
+    const leaf = new THREE.Mesh(new THREE.SphereGeometry(0.5, 12, 8), new THREE.MeshStandardMaterial({ color: 0x3b8a3c, roughness: 0.7 }));
+    leaf.scale.set(1, 0.15, 0.42); leaf.position.set(0.42, 1.65, 0); g.add(leaf);
+    const faceMat = new THREE.MeshBasicMaterial({ color: 0x21130e });
+    for (const side of [-1, 1]) {
+      const eye = new THREE.Mesh(new THREE.ConeGeometry(0.45, 0.68, 3), faceMat); eye.position.set(side * 0.58, 0.28, 1.17); eye.rotation.x = Math.PI / 2; eye.rotation.z = side * -0.1; g.add(eye);
+    }
+    const mouthShape = new THREE.Shape();
+    mouthShape.moveTo(-0.85, 0.02); mouthShape.lineTo(-0.55, -0.42); mouthShape.lineTo(-0.24, -0.08); mouthShape.lineTo(0, -0.48);
+    mouthShape.lineTo(0.28, -0.1); mouthShape.lineTo(0.58, -0.4); mouthShape.lineTo(0.84, 0.02); mouthShape.lineTo(0.74, -0.55);
+    mouthShape.lineTo(-0.72, -0.55); mouthShape.closePath();
+    const mouth = new THREE.Mesh(new THREE.ShapeGeometry(mouthShape), faceMat); mouth.position.set(0, -0.35, 1.21); g.add(mouth);
+    const glow = new THREE.PointLight(0xffa126, 2.5, 8); glow.position.set(0, -0.1, 1.55); g.add(glow);
+    g.visible = false; g.position.set(0, 7.5, 0); scene.add(g); applyModelShadows(g);
+    return { g, present: false, job: null, glow };
+  })();
+  frameHooks.push((dt, time) => {
+    if (justiceShip.present) justiceShip.g.rotation.z = Math.sin(time * 0.7) * 0.012;
+    if (santaScene.present) santaScene.deer.forEach((deer, index) => { deer.position.y = 0.4 + Math.sin(time * 5 + index) * 0.1; });
+    if (halloweenPumpkin.present) {
+      halloweenPumpkin.g.rotation.y = Math.sin(time * 0.5) * 0.08;
+      halloweenPumpkin.g.rotation.x = Math.sin(time * 2.2) * 0.025;
+      halloweenPumpkin.glow.intensity = 2 + Math.sin(time * 7) * 0.65;
+    }
+  });
+
+  const animateEventPresence = (event, on) => {
+    const state = event === 'justice' ? justiceShip : event === 'santa' ? santaScene : halloweenPumpkin;
+    if (on === state.present) return state.job;
+    state.present = on;
+    const prev = state.job;
+    state.job = (async () => {
+      if (prev) await prev;
+      if (event === 'justice') {
+        if (on) { state.g.visible = true; state.g.position.set(-36, -1.5, 0); shake(0.1, 1); await tween(2300, (t) => { state.g.position.x = -36 * (1 - easeOut(t)); }); }
+        else { await tween(1700, (t) => { state.g.position.x = 36 * easeIn(t); }); state.g.visible = false; }
+      } else if (event === 'santa') {
+        if (on) { state.g.visible = true; state.g.position.set(-34, 2.6, 0); await tween(2600, (t) => { state.g.position.x = -34 * (1 - easeOut(t)); state.g.position.y = 2.6 + Math.sin(t * Math.PI) * 0.55; }); }
+        else { await tween(1700, (t) => { state.g.position.x = 34 * easeIn(t); state.g.position.y = 2.6 + t * 3; }); state.g.visible = false; }
+      } else if (on) {
+        state.g.visible = true; state.g.position.set(0, 7.5, 0);
+        await tween(1700, (t) => { state.g.position.y = 7.5 - t * 3.1; });
+      } else {
+        await tween(1300, (t) => { state.g.position.y = 4.4 + t * 4; }); state.g.visible = false;
+      }
+    })();
+    return state.job;
+  };
+  async function justiceVolley(target, damage, medkitTarget, healed) {
+    const origin = V(0, 2.4, 0), destination = shipPoint(target);
+    const ball = new THREE.Mesh(new THREE.SphereGeometry(0.28, 12, 10), new THREE.MeshStandardMaterial({ color: 0x282c2e, metalness: 0.65, roughness: 0.3, emissive: 0x1b1005 }));
+    ball.position.copy(origin); scene.add(ball);
+    const mid = origin.clone().lerp(destination, 0.5); mid.y += 3.2;
+    await tween(900, (t) => { ball.position.copy(bezier(origin, mid, destination, t)); ball.rotation.x += 0.18; });
+    scene.remove(ball); sparks(destination, 15, 3.8, 0xffc66d); hitShip(target); shake(0.12, 0.25);
+    const medkitPoint = shipPoint(medkitTarget);
+    sparks(medkitPoint, 12, 2.8, 0x69f0ae);
+    if (healed) labelAt(medkitPoint.clone().add(V(0, 1.8, 0)), `<small style="color:#69f0ae">+${healed} ❤️</small>`);
+    if (damage) labelAt(destination.clone().add(V(0, 1.8, 0)), `<small style="color:#ff7043">-${damage} 💣</small>`);
+  }
+  function pumpkinHit(who, coins) {
+    const p = halloweenPumpkin.g.getWorldPosition(new THREE.Vector3()).add(V(0, 0.2, 1.1));
+    sparks(p, 20, 4, 0xffb347); flashLight(p, 7, 0xff9e3d); shake(0.1, 0.2);
+    labelAt(p.clone().add(V(0, 1.2, 0)), `<small style="color:#ffd54f">+${coins} 🪙${who === 'op' ? ' rival' : ''}</small>`);
+  }
+  function holidayLabel(html) { labelAt(V(0, 8.5, 0), html, 4000); }
   function labelAt(p, html, ms = 2900) {
     const { x, y } = toScreen(p);
     const el = document.createElement('div');
@@ -2450,6 +2709,10 @@ export function createScene(container) {
   }
   function monkeyLabel(id, html) { labelAt(V(LANE_X[id], 3.6, 0.4), html); }
   function warshipLabel(html) { labelAt(V(0, 6, 0), html); }
+  function eventLabel(event, html) {
+    const p = event === 'justice' ? V(0, 8.8, 0) : event === 'santa' ? V(0, 7, 0) : V(0, 6.5, 0);
+    labelAt(p, html, 3400);
+  }
 
   // Animales asustados: se van sin paraguas y vuelven al acabar la ronda especial
   let calmOn = false;
@@ -2465,7 +2728,7 @@ export function createScene(container) {
     const x = xu !== undefined ? xu * UNIT : LANE_X[lane - 1], y = fromSub ? 0.9 : 1.3;
     const startX = fromOctopus && fromX !== undefined ? fromX * UNIT : x;
     const startZ = fromSub ? dir * 1.0 : fromOctopus ? 0 : -dir * MUZZLE_Z;
-    const endZ = target === 'warship' ? -dir * 1.67 : target === 'monkey' ? 0.4 - dir * 0.9 : ['collision', 'whale', 'sub', 'ice', 'octopus', 'medkit', 'bucket', 'gull', 'log'].includes(target) ? 0 : target === 'squid' ? zOf(owner) * 11 : target === 'shark' ? zOf(owner) * FIN_Z : zOf(owner) * HIT_SHIP_Z;
+    const endZ = target === 'warship' ? -dir * 1.67 : target === 'monkey' ? 0.4 - dir * 0.9 : ['justice', 'santa', 'pumpkin', 'collision', 'whale', 'sub', 'ice', 'octopus', 'medkit', 'bucket', 'gull', 'log'].includes(target) ? 0 : target === 'squid' ? zOf(owner) * 11 : target === 'shark' ? zOf(owner) * FIN_Z : zOf(owner) * HIT_SHIP_Z;
     const finalZ = target === 'miss' ? zOf(owner) * OUT_Z : endZ;
     const flight = ((Math.abs(endZ - startZ) + (target === 'whale' ? Math.abs(zOf(owner) * HIT_SHIP_Z - endZ) : 0)) / SPEED) * 1000;
 
@@ -2524,6 +2787,9 @@ export function createScene(container) {
     else if (b.target === 'squid') squidBlock();
     else if (b.target === 'ice') { clash(V(b.x, 0.9, 0)); iceBreak(b.ice); }
     else if (b.target === 'warship') warshipStick(b.x, b.dir);
+    else if (b.target === 'pumpkin') pumpkinHit(b.owner, 10);
+    else if (b.target === 'justice') { sparks(p, 14, 3.5, 0xffd166); flashLight(p, 6, 0xffd166); shake(0.08, 0.16); }
+    else if (b.target === 'santa') { sparks(p, 12, 3, 0xf9d788); }
     else if (b.target === 'monkey') { sparks(p, 20, 6); flashLight(p, 14); }
     else clash(p);
   }
@@ -2895,6 +3161,6 @@ export function createScene(container) {
     return best;
   }
 
-  Object.assign(api, { lightningStrike, setHealth, setCannons, setCannonLabels, setShipLevel, setLifebuoy, pickFlag, subMove, subLeave, iceShow, iceClear, octopusShow, octopusSpin, octopusLeave, medkitShow, medkitLeave, bucketShow, bucketLeave, gullFly, gullLeave, logShow, logLeave, squidShow, squidLeave, heliSupport, troopShip, swordfishAttack, setDragons, dragonAttack, warshipArrive, warshipLeave, warshipVolley, warshipLabel, setWarshipHealth, islandShow, islandLeave, monkeyThrow, monkeyKill, monkeyLabel, setDome, domeBlock, feedShark, dud, labelCannon, moveFin, moveShip, fire, label, trackLabel, trackPoint, trackShip, setWeather, setFlag, setInsets, SHIP_Z });
+  Object.assign(api, { lightningStrike, setHealth, setCannons, setCannonLabels, setShipLevel, setLifebuoy, pickFlag, subMove, subLeave, iceShow, iceClear, octopusShow, octopusSpin, octopusLeave, medkitShow, medkitLeave, bucketShow, bucketLeave, gullFly, gullLeave, logShow, logLeave, squidShow, squidLeave, heliSupport, troopShip, swordfishAttack, setDragons, dragonAttack, warshipArrive, warshipLeave, warshipVolley, warshipLabel, setWarshipHealth, islandShow, islandLeave, monkeyThrow, monkeyKill, monkeyLabel, justiceArrive: () => animateEventPresence('justice', true), justiceLeave: () => animateEventPresence('justice', false), justiceVolley, santaArrive: () => animateEventPresence('santa', true), santaLeave: () => animateEventPresence('santa', false), halloweenArrive: () => animateEventPresence('halloween', true), halloweenLeave: () => animateEventPresence('halloween', false), holidayLabel, eventLabel, pumpkinHit, setDome, domeBlock, feedShark, dud, labelCannon, moveFin, moveShip, fire, label, trackLabel, trackPoint, trackShip, setWeather, setFlag, setInsets, SHIP_Z });
   return api;
 }

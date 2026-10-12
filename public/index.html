@@ -397,6 +397,18 @@
           <p>Vuela a la derecha de tu barco. Cada 6 rondas electrocuta los 4 cañones rivales: −25% a cada uno.</p>
           <button id="buyStormDragon" type="button">Comprar</button>
         </div>
+        <div class="shop-item">
+          <svg viewBox="0 0 96 64" aria-hidden="true"><path d="M48 7 C27 7 18 23 22 42 C26 56 70 56 74 42 C78 23 67 7 48 7 Z" fill="#ece8d8" stroke="#8b8c85" stroke-width="3"/><circle cx="38" cy="29" r="7" fill="#20252d"/><circle cx="59" cy="29" r="7" fill="#20252d"/><path d="M36 43 L43 38 L48 45 L54 38 L61 43" fill="none" stroke="#20252d" stroke-width="5" stroke-linecap="round"/><path d="M37 8 L48 1 L59 8" fill="none" stroke="#d8d0b8" stroke-width="5"/></svg>
+          <h4>Skin de huesos</h4>
+          <p>Un barco espectral con casco y adornos de hueso.</p>
+          <button id="buyBone" type="button">Comprar</button>
+        </div>
+        <div class="shop-item">
+          <svg viewBox="0 0 96 64" aria-hidden="true"><path d="M48 5 L24 45 H72 Z" fill="#176b3a" stroke="#b6e3bd" stroke-width="3"/><path d="M48 2 V53 M27 34 H69 M34 22 H62" stroke="#f1d08a" stroke-width="2"/><circle cx="37" cy="31" r="4" fill="#e53935"/><circle cx="57" cy="38" r="4" fill="#ffd54f"/><circle cx="49" cy="20" r="4" fill="#43a5ff"/><path d="M39 52 H57 L63 59 H33 Z" fill="#c62828" stroke="#f3d8a6" stroke-width="2"/></svg>
+          <h4>Skins de Navidad</h4>
+          <p>Dos barcos navideños con luces de colores y árbol decorado.</p>
+          <button id="buyChristmas" type="button">Comprar</button>
+        </div>
         <div class="shop-item roulette-item">
           <svg viewBox="0 0 96 64" aria-hidden="true"><g transform="translate(48 32)"><circle r="29" fill="#3b2400"/><path d="M0 0 L0 -26 A26 26 0 0 1 22.5 -13 Z" fill="#e53935"/><path d="M0 0 L22.5 -13 A26 26 0 0 1 22.5 13 Z" fill="#fdd835"/><path d="M0 0 L22.5 13 A26 26 0 0 1 0 26 Z" fill="#43a047"/><path d="M0 0 L0 26 A26 26 0 0 1 -22.5 13 Z" fill="#1e88e5"/><path d="M0 0 L-22.5 13 A26 26 0 0 1 -22.5 -13 Z" fill="#8e24aa"/><path d="M0 0 L-22.5 -13 A26 26 0 0 1 0 -26 Z" fill="#fb8c00"/><circle r="6" fill="#ffd54f" stroke="#3b2400" stroke-width="2"/></g><path d="M48 0 L54 10 L42 10 Z" fill="#fff" stroke="#3b2400" stroke-width="1.5"/></svg>
           <h4>Ruleta</h4>
@@ -545,17 +557,22 @@ const apiUrl = (route) => `${API_BASE_URL}${route.startsWith('/') ? route : `/${
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 const SHOT_MS = 5000; // 4 disparos x 5 s = 20 s por tanda
 let room, pid, key, isBot = false, names = ['', ''], playing = false, lastHp = null, lastMaxShipHp = [100, 100], curRound = 1, blockRound = false, heliAsked = false;
+let justiceRound = false, santaRound = false, halloweenRound = false;
 let lastRound = null, endAt = 0, queue = Promise.resolve();
 let tutorialMode = false, tutorialStep = null, tutorialUnlimited = false;
 let celebrating = false, leagueRoundName = '';
 let isLeague = false, leagueCode = null, leaguePid = null, leagueKey = null, leaguePollTimer = null;
 let activeEvents = null, spectatorAbort = null, spectatorMode = false, spectatorLeague = null, watchedRoom = null;
 let matchmaking = null, matchmakingPollTimer = null;
-const isRain = () => curRound % 5 === 0 && curRound !== 15;
-const isSwell = () => curRound % 6 === 0;
 const isWarship = () => !tutorialMode && [11, 22, 33].includes(curRound);
 const isIsland = () => !tutorialMode && curRound === 9;
-const noDefense = () => isRain() || isWarship() || isIsland(); // sin tiburones no hay defensa que elegir
+const isJustice = () => !tutorialMode && justiceRound;
+const isSanta = () => !tutorialMode && santaRound;
+const isHalloween = () => !tutorialMode && halloweenRound;
+const isCalmRound = () => isWarship() || isIsland() || isJustice() || isSanta() || isHalloween();
+const isRain = () => !isCalmRound() && curRound % 5 === 0 && curRound !== 15;
+const isSwell = () => !isCalmRound() && curRound % 6 === 0;
+const noDefense = () => isRain() || isWarship() || isIsland() || isJustice() || isSanta() || isHalloween(); // sin tiburones no hay defensa que elegir
 navigator.serviceWorker?.register('./sw.js').catch(() => {});
 // El servidor gratuito de Render se duerme: se despierta nada más abrir el juego
 {
@@ -660,6 +677,31 @@ function sfx(kind) {
     [392, 349, 311, 261].forEach((f, k) => tone(f, f * 0.99, 0.4, 0.28, k * 0.28));
   } else if (kind === 'heal') {
     [523, 659, 784, 1047].forEach((f, k) => tone(f, f * 1.01, 0.25, 0.3, k * 0.09));
+  } else if (kind === 'justice') {
+    [196, 247, 294, 392].forEach((f, k) => tone(f, f * 1.01, 0.65, 0.18, k * 0.16));
+    tone(98, 98, 1.8, 0.24); filtered('lowpass', 800, 250, 1.1, 0.12);
+  } else if (kind === 'halloween') {
+    [392, 370, 311, 233].forEach((f, k) => tone(f, f * 0.995, 0.65, 0.18, k * 0.14));
+    tone(1046, 230, 0.8, 0.12, 0.18); filtered('bandpass', 950, 300, 0.6, 0.18);
+  } else if (kind === 'christmas') {
+    const jingleBells = [659, 659, 659, 659, 659, 659, 659, 784, 523, 587, 659, 698, 698, 698, 698, 698, 659, 659, 659, 659, 587, 587, 659, 587, 784];
+    jingleBells.forEach((frequency, index) => {
+      const at = index * 0.19;
+      tone(frequency, frequency * 1.01, 0.2, 0.14, at);
+      tone(2520 + (index % 3) * 180, 1880, 0.13, 0.055, at + 0.025);
+    });
+    for (let index = 0; index < 3; index++) {
+      const at = 0.6 + index * 0.65;
+      const duration = 0.36, voice = ac.createOscillator(), envelope = ac.createGain();
+      voice.type = 'sawtooth'; voice.frequency.setValueAtTime(128 - index * 8, t + at); voice.frequency.exponentialRampToValueAtTime(110 - index * 7, t + at + duration);
+      for (const [frequency, volume] of [[480, 0.65], [880, 0.22]]) {
+        const formant = ac.createBiquadFilter(), level = ac.createGain();
+        formant.type = 'bandpass'; formant.frequency.value = frequency; formant.Q.value = 1.4;
+        level.gain.value = volume; voice.connect(formant); formant.connect(level); level.connect(envelope);
+      }
+      envelope.gain.setValueAtTime(0.001, t + at); envelope.gain.exponentialRampToValueAtTime(0.16, t + at + 0.045); envelope.gain.exponentialRampToValueAtTime(0.001, t + at + duration);
+      envelope.connect(out); voice.start(t + at); voice.stop(t + at + duration);
+    }
   } else {
     filtered('lowpass', 1400, 120, 1.1, 0.9); tone(90, 30, 1.1, 1);
   }
@@ -771,6 +813,8 @@ $('skinBtn').onclick = async () => {
 };
 $('buyFireDragon').onclick = () => buyItem('fireDragon', 'buyFireDragon', 'el dragón de fuego', 1500, '¡Dragón de fuego comprado! Volará junto a tu barco; lánzalo con el botón del dragón.');
 $('buyStormDragon').onclick = () => buyItem('stormDragon', 'buyStormDragon', 'el dragón de rayos', 1500, '¡Dragón de rayos comprado! Volará junto a tu barco; lánzalo con el botón del dragón.');
+$('buyBone').onclick = () => buyItem('bone', 'buyBone', 'la skin de huesos', 10000, '¡Skin de huesos comprada y equipada!');
+$('buyChristmas').onclick = () => buyItem('christmas', 'buyChristmas', 'las skins de Navidad', 12000, '¡Skins de Navidad compradas! Puedes alternarlas con el botón de skins.');
 const PRIZES = {
   swordfish: { icon: '🐟', color: '#1e88e5', short: 'Pez espada', name: 'Pez espada', note: 'Ya tienes su botón en la partida: cada 4 rondas embiste a la ballena rival (−10).' },
   viking: { icon: '⛵', color: '#8d5524', short: 'Vikingo', name: 'Barco vikingo', note: 'Tu barco ya es un drakkar. Cámbialo con su botón en la partida.' },
@@ -778,6 +822,8 @@ const PRIZES = {
   fireballs: { icon: '☄️', color: '#fb8c00', short: 'Balas fuego', name: 'Balas de fuego', note: 'Ya tienes su botón: tus balas arden y quitan 3 más de vida.' },
   fireDragon: { icon: '🐉', color: '#c62828', name: 'Dragón de fuego', note: 'Ya vuela junto a tu barco. Lánzalo con el botón del dragón.' },
   stormDragon: { icon: '⚡', color: '#3949ab', name: 'Dragón de rayos', note: 'Ya vuela junto a tu barco. Lánzalo con el botón del dragón.' },
+  bone: { icon: '💀', color: '#d6d0b9', name: 'Skin de huesos', note: 'Skin de barco de huesos desbloqueada y equipada. Puedes alternarla con el botón de skins.' },
+  christmas: { icon: '🎄', color: '#1b8a55', name: 'Skins de Navidad', note: 'Has desbloqueado los dos barcos navideños. Puedes alternarlos con el botón de skins.' },
   lifebuoy: { icon: '🛟', color: '#eceff1', short: 'Salvavidas', name: 'Salvavidas', note: 'Tu barco luce ya un salvavidas en la popa, para siempre.' },
 };
 let wheelOdds = [], wheelRot = 0, wheelSpinning = false;
@@ -1058,7 +1104,7 @@ function renderCoins(profile) {
   $('shopCoins').textContent = coins;
   $('meCoins').textContent = `🪙 ${coins}`;
   $('meCoins').classList.remove('hidden');
-  for (const [id, owned, price] of [['buySwordfish', !!profile.swordfish, 150], ['buyInfernal', !!profile.infernal, 450], ['buyViking', !!profile.viking, 250], ['buyFire', !!profile.fireballs, 500], ['buyFireDragon', !!profile.fireDragon, 1500], ['buyStormDragon', !!profile.stormDragon, 1500]]) {
+  for (const [id, owned, price] of [['buySwordfish', !!profile.swordfish, 150], ['buyInfernal', !!profile.infernal, 450], ['buyViking', !!profile.viking, 250], ['buyFire', !!profile.fireballs, 500], ['buyFireDragon', !!profile.fireDragon, 1500], ['buyStormDragon', !!profile.stormDragon, 1500], ['buyBone', !!profile.bone, 10000], ['buyChristmas', !!profile.christmas, 12000]]) {
     const buy = $(id);
     buy.disabled = owned || (!profile.storeAccess && coins < price);
     buy.textContent = owned ? '✔ Comprado' : profile.storeAccess ? 'GRATIS' : `🪙 ${price}`;
@@ -1357,19 +1403,22 @@ $('tutorialClose').onclick = () => {
 function badge(n) {
   const el = $('x2');
   const lines = [];
-  setMusicMood(n % 4 === 0 || n % 5 === 0 || n >= 35 ? 'tense' : 'calm');
-  if (n % 4 === 0 || n >= 36) lines.push(`RONDA ${n} x2`);
-  if (n % 5 === 0 && n !== 15) lines.push('LLUVIA · ICEBERGS');
-  if (n % 6 === 0) lines.push('OLEAJE');
-  if (n % 7 === 0) lines.push('BALLENA EXTRA');
-  const specialRound = !tutorialMode && [9, 11, 22, 33].includes(n); // barco de guerra o isla: no hay más animales ni objetos
+  const specialRound = !tutorialMode && ([9, 11, 22, 33].includes(n) || isJustice() || isSanta() || isHalloween());
+  setMusicMood(!specialRound && (n % 4 === 0 || n % 5 === 0 || n >= 35) ? 'tense' : 'calm');
+  if (!specialRound && (n % 4 === 0 || n >= 36)) lines.push(`RONDA ${n} x2`);
+  if (!specialRound && n % 5 === 0 && n !== 15) lines.push('LLUVIA · ICEBERGS');
+  if (!specialRound && n % 6 === 0) lines.push('OLEAJE');
+  if (!specialRound && n % 7 === 0) lines.push('BALLENA EXTRA');
   if (n % 3 === 0 && !specialRound) lines.push('SUBMARINO');
-  if (n === 15) lines.push('NIEVE');
-  if (n === 25) lines.push('RAYOS');
-  if (n === 35) lines.push('NIEBLA');
+  if (!specialRound && n === 15) lines.push('NIEVE');
+  if (!specialRound && n === 25) lines.push('RAYOS');
+  if (!specialRound && n === 35) lines.push('NIEBLA');
   if (n % 10 === 0) lines.push('BLOQUEO DE CAÑONES');
   if (!tutorialMode && [11, 22, 33].includes(n)) lines.push('☠️ BARCO DE GUERRA PIRATA');
   if (!tutorialMode && n === 9) lines.push('🏝️ ISLA DE LOS MONOS');
+  if (isJustice()) lines.push('⚔️ BARCO DE LA JUSTICIA');
+  if (isSanta()) lines.push('🎅 SANTA Y LOS RENOS');
+  if (isHalloween()) lines.push('🎃 CALABAZA FLOTANTE');
   el.style.display = lines.length ? 'block' : 'none';
   el.style.textAlign = 'center';
   el.innerHTML = lines.join('<br>');
@@ -1380,13 +1429,16 @@ const promptMsg = () => {
   if (isRain()) notes.push('Llueve: los tiburones se han ido y aparecen icebergs; cada bala que da a uno lo destruye');
   if (isSwell()) notes.push('Mar agitado: elige también el oleaje de tu barco');
   if (blockRound) notes.push('Elige cuatro cañones rivales para bloquear, en el orden de los disparos');
-  if (curRound === 15) notes.push('Nieva sobre el mar');
-  if (curRound === 25) notes.push('Caen rayos sobre el campo de batalla');
-  if (curRound === 35) notes.push('La niebla cubre el mar');
-  if (curRound % 7 === 0 && !isWarship() && !isIsland()) notes.push('La orca extra rebota las balas contra tu propio barco');
+  if (!isCalmRound() && curRound === 15) notes.push('Nieva sobre el mar');
+  if (!isCalmRound() && curRound === 25) notes.push('Caen rayos sobre el campo de batalla');
+  if (!isCalmRound() && curRound === 35) notes.push('La niebla cubre el mar');
+  if (curRound % 7 === 0 && !isCalmRound()) notes.push('La orca extra rebota las balas contra tu propio barco');
   if (isWarship()) notes.push('☠️ El barco de guerra ataca a ambos barcos (−20% de vida). Tiene 56 de vida compartida: entre los dos podéis hundirlo; quien dé el último impacto gana 250 monedas. Cada dragón también da +250 monedas');
   if (isIsland()) notes.push('🏝️ Isla de los monos: cada mono (carril 1-4) te lanza cocos; dispárale para tumbarlo y ganar 1 moneda; si ya no está, tu bala pasa y da al barco rival. 🐉 Tus dragones atacan a los monos: +50 monedas por dragón');
-  if (curRound % 3 === 0 && !isWarship() && !isIsland()) notes.push('Un submarino cruza el mar: si tu bala le da, recuperas 5 y repara 5 el cañón que disparó');
+  if (isJustice()) notes.push('⚔️ El Barco de la Justicia dispara al jugador con más vida y cura con botiquines al que tiene menos. Cada impacto que le des te da 15 monedas');
+  if (isSanta()) notes.push('🎅 Santa entrega una skin navideña distinta a cada barco');
+  if (isHalloween()) notes.push('🎃 La calabaza no causa daño: cada disparo que la alcance da 10 monedas y los dos jugadores reciben la skin de huesos');
+  if (curRound % 3 === 0 && !isCalmRound()) notes.push('Un submarino cruza el mar: si tu bala le da, recuperas 5 y repara 5 el cañón que disparó');
   return notes.length ? notes.join(' · ') : 'Toca los cañones (ataque) y los círculos de agua (defensa)';
 };
 // Prepara los controles para una nueva ronda
@@ -1518,7 +1570,7 @@ function connect() {
     if (playing) return; // una reconexión durante la animación no debe romperla
     tutorialUnlimited = !!s.tutorial; heliAsked = !!s.heli; troopsCd = s.troopsCd || [0, 0]; troopsSent = !!s.troops; domeCd = s.domeCd || [0, 0]; domeSent = !!s.dome; foodCd = s.foodCd || [0, 0]; foodSent = !!s.food; swordCd = s.swordCd || [0, 0]; swordSent = !!s.sword; swordOwned = s.swordfish || [false, false]; infernoCd = s.infernoCd || [0, 0]; infernoSent = !!s.infernalSent; infernoOwned = s.infernal || [false, false]; fireCd = s.fireCd || [0, 0]; fireOn = s.fireOn || [false, false]; fireOwned = s.fireballs || [false, false]; dragonFireCd = s.dragonFireCd || [0, 0]; dragonStormCd = s.dragonStormCd || [0, 0]; fireDragonSent = !!s.fireDragonSent; stormDragonSent = !!s.stormDragonSent; setDragonsOwned(s.dragons);
     if (tutorialMode && !tutorialStep) setTutorialStep(s.submitted ? 'watch' : 'attack');
-    inputMs = s.inputMs; curRound = s.round; blockRound = !!s.blockRound; $('round').textContent = s.round; badge(s.round); setNames(s.names, s.countries, s.levels, s.skins, s.lifebuoys); setHp(s.hp, s.maxShipHp); setCannons(s.cannons); scene.setWeather(s.round); setupForm();
+    inputMs = s.inputMs; curRound = s.round; blockRound = !!s.blockRound; justiceRound = !!s.justice; santaRound = !!s.santa; halloweenRound = !!s.halloween; $('round').textContent = s.round; badge(s.round); setNames(s.names, s.countries, s.levels, s.skins, s.lifebuoys); setHp(s.hp, s.maxShipHp); setCannons(s.cannons); scene.setWeather(s.round, s); setupForm();
     $('invite').classList.add('hidden');
     updateResign(s.over);
     if (s.over) {
@@ -1625,9 +1677,10 @@ function updateTroops() {
   stormDragon.disabled = !stormReady;
   stormDragon.title = stormDragonSent ? 'Dragón de rayos en camino' : stormCdLeft ? `Dragón de rayos listo en ${stormCdLeft} ${stormCdLeft === 1 ? 'ronda' : 'rondas'}` : 'Lanzar el dragón de rayos: −25% a cada cañón rival';
   const sk = $('skinBtn'), selectedSkin = myProfile?.skin;
-  sk.classList.toggle('hidden', b.classList.contains('hidden') || !(myProfile?.viking || myProfile?.pinta));
+  sk.classList.toggle('hidden', b.classList.contains('hidden') || !(myProfile?.viking || myProfile?.pinta || myProfile?.santa || myProfile?.reindeer || myProfile?.bone));
   sk.classList.toggle('on', !!selectedSkin);
-  sk.title = selectedSkin ? `Barco ${selectedSkin === 'pinta' ? 'La Pinta' : 'vikingo'} puesto; toca para cambiar de skin` : 'Cambiar al siguiente barco desbloqueado';
+  const skinNames = { pinta: 'La Pinta', viking: 'vikingo', santa: 'Navidad', reindeer: 'Navidad', bone: 'huesos' };
+  sk.title = selectedSkin ? `Barco ${skinNames[selectedSkin] || selectedSkin} puesto; toca para cambiar de skin` : 'Cambiar al siguiente barco desbloqueado';
   sk.setAttribute('aria-pressed', String(!!selectedSkin));
   b.title = troopsSent ? 'Dron enviado' : left > 0 ? `Dron listo en ${left} ${left === 1 ? 'ronda' : 'rondas'}` : 'Mandar el dron contra el cañón más débil del rival';
 }
@@ -1920,8 +1973,8 @@ async function playRound(r, replay = false) {
     try { scene.moveShip('me', 0); scene.moveShip('op', 0); } catch {}
     if (replay || spectatorMode) return;
     setHp(r.hp, r.maxShipHp); setCannons(r.cannons);
-    curRound = r.round; blockRound = r.round % 10 === 0; $('round').textContent = r.round;
-    if (r.winner === null) { $('msg').textContent = promptMsg(); setupForm(); scene.setWeather(r.round); showInputs(true); countdown(); }
+    curRound = r.round; blockRound = r.round % 10 === 0; justiceRound = !!r.justice; santaRound = !!r.santa; halloweenRound = !!r.halloween; $('round').textContent = r.round;
+    if (r.winner === null) { $('msg').textContent = promptMsg(); setupForm(); scene.setWeather(r.round, r); showInputs(true); countdown(); }
   }
 }
 async function playRoundInner(r, replay = false) {
@@ -1933,16 +1986,26 @@ async function playRoundInner(r, replay = false) {
   showInputs(false); $('lastRound').classList.add('hidden');
   const me = pid, op = 1 - pid;
   const pre = replay ? lastRound : { hp: lastHp, can: lastCan, maxShipHp: lastMaxShipHp };
-  if (replay) { setHp(pre.hp, pre.maxShipHp); setCannons(pre.can); scene.setWeather(r.round - 1); }
+  if (replay) {
+    const replayRound = r.round - 1, event = r.events?.[0] || {};
+    setHp(pre.hp, pre.maxShipHp); setCannons(pre.can);
+    scene.setWeather(replayRound, { ...r, round: replayRound, justice: !!event.justice, santa: !!event.santa, halloween: !!event.halloween });
+  }
   const side = (n) => (n === me ? 'me' : 'op');
   if (r.levels) { scene.setShipLevel('me', r.levels[me], r.skins?.[me]); scene.setShipLevel('op', r.levels[op], r.skins?.[op]); showLevel('me', r.levels[me]); showLevel('op', r.levels[op]); } if (r.lifebuoys) { scene.setLifebuoy('me', r.lifebuoys[me]); scene.setLifebuoy('op', r.lifebuoys[op]); }
-  const impactSfx = (t) => (t === 'ship' || t === 'whale' ? 'bomb' : t === 'shark' ? 'splash' : t === 'gull' ? 'gull' : 'clash');
+  const impactSfx = (t) => (t === 'ship' || t === 'whale' ? 'bomb' : t === 'justice' ? 'justice' : t === 'pumpkin' ? 'halloween' : t === 'santa' ? 'christmas' : t === 'shark' ? 'splash' : t === 'gull' ? 'gull' : 'clash');
   let subOn = false, octopusOn = false, medkitOn = false, gullOn = false, squidOn = false, logOn = false, bucketOn = false;
   const ev0 = r.events[0];
-  if (ev0?.warship || ev0?.monkeys) { // el barco de guerra o la isla tienen que estar en su sitio antes del primer disparo
+  if (ev0?.warship || ev0?.monkeys || ev0?.justice || ev0?.santa || ev0?.halloween) {
     const faces = []; for (const m of ev0.monkeys || []) faces[m.id] = side(m.target);
-    await guard(Promise.all([ev0.warship ? scene.warshipArrive() : null, ev0.monkeys ? scene.islandShow(faces) : null]), 9000);
+    await guard(Promise.all([
+      ev0.warship ? scene.warshipArrive() : null, ev0.monkeys ? scene.islandShow(faces) : null,
+      ev0.justice ? scene.justiceArrive() : null, ev0.santa ? scene.santaArrive() : null, ev0.halloween ? scene.halloweenArrive() : null,
+    ]), 9000);
     if (ev0.warship) scene.setWarshipHealth(ev0.warship.hpBefore, ev0.warship.maxHp);
+    if (ev0.justice) { sfx('justice'); scene.eventLabel('justice', '<small style="color:#ffd54f">⚔️ BARCO DE LA JUSTICIA</small>'); }
+    if (ev0.santa) { sfx('christmas'); scene.holidayLabel('<small style="color:#ffdf75">🎅 ¡Regalos para los dos barcos!</small>'); }
+    if (ev0.halloween) { sfx('halloween'); scene.eventLabel('halloween', '<small style="color:#ffb347">🎃 ¡Skin de huesos desbloqueada!</small>'); }
   }
   for (const ev of r.events) {
     const slotEnd = Date.now() + SHOT_MS;
@@ -1969,6 +2032,9 @@ async function playRoundInner(r, replay = false) {
       sfx('shot');
       await f.done;
       if (s.target !== 'miss') sfx(impactSfx(s.target));
+      if (s.coin && (s.target === 'justice' || s.target === 'pumpkin') && s.from === me) sfx('coins');
+      if (s.target === 'justice' && s.coin) scene.eventLabel('justice', `<small style="color:#ffd54f">⚔️ +${s.coin} 🪙${s.from === me ? '' : ' rival'}</small>`);
+      if (s.target === 'pumpkin' && s.coin) scene.pumpkinHit(side(s.from), s.coin);
       if (s.target === 'monkey') {
         scene.monkeyKill(s.monkey);
         scene.monkeyLabel(s.monkey, s.from === me ? '<small style="color:#ffd54f">🐒 +1 🪙</small>' : '<small style="color:#ffab91">🐒 +1 🪙 rival</small>');
@@ -1984,6 +2050,11 @@ async function playRoundInner(r, replay = false) {
       }
     });
     for (const c of ev.coconuts || []) impacts.push(scene.monkeyThrow(c.id, side(c.target)));
+    if (ev.justice) impacts.push(scene.justiceVolley(side(ev.justice.target), ev.justice.cannonDamage, side(ev.justice.medkitTarget), ev.justice.medkitHeal));
+    if (ev.santa) {
+      const skinForMe = ev.santa.skins[me], skinForOp = ev.santa.skins[op];
+      scene.holidayLabel(`<small style="color:#ffdf75">🎁 ${skinForMe === 'santa' ? 'Barco navideño' : 'Barco de renos'} para ti · regalo para el rival</small>`);
+    }
     if (ev.warship) {
       sfx('bomb');
       impacts.push(scene.warshipVolley([0, 1].filter((k) => ev.warship.dmg[k] > 0).map(side), ev.warship.laser == null ? null : side(ev.warship.laser), ev.warship.targetCannons));
@@ -2065,14 +2136,14 @@ async function playRoundInner(r, replay = false) {
   playing = false; updateTroops(); scene.setDome('me', 0); scene.setDome('op', 0);
   scene.moveShip('me', 0); scene.moveShip('op', 0);
   if (replay) { // la repetición no cambia el estado de la partida
-    scene.setWeather(curRound); badge(curRound); $('msg').textContent = promptMsg();
+    scene.setWeather(curRound, { round: curRound, justice: justiceRound, santa: santaRound, halloween: halloweenRound }); badge(curRound); $('msg').textContent = promptMsg();
     $('lastRound').classList.remove('hidden');
     if (submitted) $('msg').textContent = 'Esperando al rival...';
     else { showInputs(true); inputMs = Math.max(3000, endAt - Date.now()); countdown(); }
     renderWave();
     return;
   }
-  curRound = r.round;
+  curRound = r.round; justiceRound = !!r.justice; santaRound = !!r.santa; halloweenRound = !!r.halloween;
   blockRound = r.round % 10 === 0;
   $('round').textContent = r.round;
   badge(r.winner !== null ? 1 : r.round);
@@ -2103,8 +2174,8 @@ async function playRoundInner(r, replay = false) {
     $('msg').textContent = r.winner === 'draw' ? 'Empate' : r.winner === me ? `¡Ganaste, ${names[me]}!${r.resigned === op ? ' Tu rival se retiró' : ''}` : `Perdiste. Ganó ${names[op]}`;
   } else {
     $('msg').textContent = promptMsg();
-    setupForm(); scene.setWeather(r.round); showLastRound(r, me, op); updateTroops();
-    if (googleOn && r.events.some((ev) => ev.shots.some((x) => x.coin && x.from === me) || ev.dragon?.some((d) => d.bonus && d.owner === me) || (ev.warship?.rewards?.[me] || 0) > 0)) loadProfile(); // monedas de monos, dragones o barco de guerra
+    setupForm(); scene.setWeather(r.round, r); showLastRound(r, me, op); updateTroops();
+    if (googleOn && r.events.some((ev) => ev.santa || ev.halloween || ev.shots.some((x) => x.coin && x.from === me) || ev.dragon?.some((d) => d.bonus && d.owner === me) || (ev.warship?.rewards?.[me] || 0) > 0)) loadProfile();
     showInputs(true);
     countdown();
   }

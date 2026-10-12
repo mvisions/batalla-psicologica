@@ -11,6 +11,8 @@ function setup({ round = 1, a, b, hp0 }) {
   room.round = round;
   room.medkitMatch = false;
   room.wildlife = false;
+  room.justiceRound = 100; room.santaRound = 101; room.halloweenRound = 102;
+  room.justiceUsed = false; room.santaUsed = false; room.halloweenUsed = false;
   if (hp0) room.hp[0].ship = hp0;
   const [p0, p1] = room.players;
   Object.assign(p0, { attack: a.attack, defense: a.defense, wave: a.wave });
@@ -18,6 +20,69 @@ function setup({ round = 1, a, b, hp0 }) {
   return room;
 }
 const seq = (n) => [n, n, n, n];
+
+test('el Barco de la Justicia selecciona los extremos de vida y no duplica eventos normales', () => {
+  const room = setup({ round: 6, hp0: 80, a: { attack: seq(1), defense: seq(4), wave: seq(0) }, b: { attack: seq(4), defense: seq(1), wave: seq(0) } });
+  room.hp[1].ship = 90;
+  room.justiceRound = 6;
+  room.players.forEach((player) => { player.bot = true; });
+
+  const { events } = resolveRound(room);
+
+  assert.ok(events.every((event) => event.justice));
+  assert.deepEqual(events[0].justice, { target: 1, cannonDamage: 15, medkitTarget: 1, medkitHeal: 25 });
+  let previousHp = [80, 90];
+  for (const event of events) {
+    const { target, cannonDamage, medkitTarget, medkitHeal } = event.justice;
+    assert.equal(previousHp[target], Math.max(...previousHp));
+    const afterCannon = [...previousHp]; afterCannon[target] -= cannonDamage;
+    assert.equal(afterCannon[medkitTarget], Math.min(...afterCannon));
+    assert.ok(cannonDamage <= 15 && medkitHeal <= 25);
+    previousHp = event.hp.map((health) => health.ship);
+  }
+  assert.equal(events[0].swell, false);
+  assert.equal(events[0].whale, null);
+  assert.ok(room.hp.every((health) => health.ship > 0));
+  assert.equal(room.justiceUsed, true);
+});
+
+test('cada partida sortea tres eventos en rondas distintas y fuera de las rondas fijas', () => {
+  for (let attempt = 0; attempt < 50; attempt++) {
+    const room = makeRoom({ name: 'A', sub: `event-test-${attempt}` }, false);
+    const rounds = [room.justiceRound, room.santaRound, room.halloweenRound];
+    assert.equal(new Set(rounds).size, 3);
+    assert.ok(rounds.every((round) => round >= 3 && round <= 18 && ![9, 10, 11, 15].includes(round)));
+  }
+});
+
+test('Santa concede una skin distinta a cada jugador en una única ronda', () => {
+  const room = setup({ round: 12, a: { attack: seq(1), defense: seq(4) }, b: { attack: seq(4), defense: seq(1) } });
+  room.santaRound = 12;
+  room.players.forEach((player) => { player.bot = true; });
+
+  const { events } = resolveRound(room);
+
+  assert.deepEqual(events[0].santa.skins, room.santaSkins);
+  assert.ok(events.every((event) => !event.swell && event.shots.every((shot) => shot.target === 'santa')));
+  assert.equal(room.santaUsed, true);
+  assert.deepEqual(room.hp.map((health) => health.ship), room.maxShipHp);
+});
+
+test('Halloween paga 10 monedas por impacto a la calabaza y no hace daño a los barcos', () => {
+  const room = setup({ round: 15, a: { attack: seq(1), defense: seq(4) }, b: { attack: seq(4), defense: seq(1) } });
+  room.halloweenRound = 15;
+  room.players.forEach((player) => { player.bot = true; });
+
+  const { events } = resolveRound(room);
+
+  const shots = events.flatMap((event) => event.shots);
+  assert.ok(events[0].halloween);
+  assert.ok(shots.length > 0);
+  assert.ok(shots.every((shot) => shot.target === 'pumpkin' && shot.coin === 10));
+  assert.ok(events.every((event) => !event.swell && event.shots.every((shot) => shot.damage === 0)));
+  assert.deepEqual(room.hp.map((health) => health.ship), room.maxShipHp);
+  assert.equal(room.halloweenUsed, true);
+});
 
 test('dos balas por el mismo carril chocan sin darño', () => {
   const room = setup({ a: { attack: seq(1), defense: seq(4) }, b: { attack: seq(1), defense: seq(4) } });

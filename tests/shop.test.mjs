@@ -84,7 +84,7 @@ test('msabanda@gmail.com puede obtener gratis todos los artículos de la tienda 
     assert.equal(profile.body.roulette.price, 0);
     assert.ok(profile.body.shop.every((item) => item.price === 0));
 
-    for (const item of ['swordfish', 'infernal', 'viking', 'fireballs', 'fireDragon', 'stormDragon']) {
+    for (const item of ['swordfish', 'infernal', 'viking', 'fireballs', 'fireDragon', 'stormDragon', 'bone', 'christmas']) {
       const bought = await post('/api/shop/buy', { session: adminSession, item });
       assert.equal(bought.status, 200, `${item} should be free to the verified account`);
       assert.equal(bought.body[item], true);
@@ -100,6 +100,8 @@ test('msabanda@gmail.com puede obtener gratis todos los artículos de la tienda 
 
     const regular = await post('/api/profile', { session: regularSession });
     assert.equal(regular.body.storeAccess, false);
+    assert.equal(regular.body.shop.find((item) => item.id === 'bone').price, 10000);
+    assert.equal(regular.body.shop.find((item) => item.id === 'christmas').price, 12000);
     assert.equal((await post('/api/shop/buy', { session: regularSession, item: 'infernal' })).status, 402);
   } finally {
     child.kill();
@@ -522,13 +524,14 @@ test('la ruleta cuesta 350 por tirada y permite reclamar cada premio disponible 
   assert.ok(Math.abs(odds.reduce((s, o) => s + o.pct, 0) - 100) < 1e-9);
   assert.ok(pct.swordfish > pct.viking && pct.viking > pct.infernal && pct.infernal > pct.fireballs && pct.fireballs > pct.fireDragon);
   assert.equal(pct.fireDragon, pct.stormDragon);
+  assert.ok(pct.bone > pct.christmas && pct.christmas > 0);
   assert.equal(spinRoulette({}, 0), 'swordfish');
   assert.equal(spinRoulette({}, 0.999), 'lifebuoy');
   assert.ok(!rouletteOdds({ swordfish: true }).some((o) => o.id === 'swordfish'));
-  assert.deepEqual(rouletteOdds({ swordfish: true, infernal: true, viking: true, fireballs: true, fireDragon: true, stormDragon: true }).map((o) => [o.id, o.pct]), [['lifebuoy', 100]]);
+  assert.deepEqual(rouletteOdds({ swordfish: true, infernal: true, viking: true, fireballs: true, fireDragon: true, stormDragon: true, bone: true, santa: true, reindeer: true }).map((o) => [o.id, o.pct]), [['lifebuoy', 100]]);
   assert.ok(Math.abs(rouletteOdds({ lifebuoy: true }).reduce((s, o) => s + o.pct, 0) - 100) < 1e-9);
-  assert.deepEqual(rouletteOdds({ lifebuoy: true, swordfish: true, infernal: true, viking: true, fireballs: true, fireDragon: true, stormDragon: true }), []);
-  assert.equal(spinRoulette({ lifebuoy: true, swordfish: true, infernal: true, viking: true, fireballs: true, fireDragon: true, stormDragon: true }), null);
+  assert.deepEqual(rouletteOdds({ lifebuoy: true, swordfish: true, infernal: true, viking: true, fireballs: true, fireDragon: true, stormDragon: true, bone: true, santa: true, reindeer: true }), []);
+  assert.equal(spinRoulette({ lifebuoy: true, swordfish: true, infernal: true, viking: true, fireballs: true, fireDragon: true, stormDragon: true, bone: true, santa: true, reindeer: true }), null);
 
   const port = await unusedPort();
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'bp-roulette-'));
@@ -556,7 +559,7 @@ test('la ruleta cuesta 350 por tirada y permite reclamar cada premio disponible 
     assert.equal(before.roulette.used, false);
     assert.equal((await post('/api/roulette', { name: 'Beto' })).status, 402);
 
-    const ids = ['swordfish', 'infernal', 'viking', 'fireballs', 'fireDragon', 'stormDragon', 'lifebuoy'];
+    const ids = ['swordfish', 'infernal', 'viking', 'fireballs', 'fireDragon', 'stormDragon', 'bone', 'christmas', 'lifebuoy'];
     const prizes = new Set();
     let currentProfile = before;
     while (!currentProfile.roulette.used) {
@@ -570,13 +573,13 @@ test('la ruleta cuesta 350 por tirada y permite reclamar cada premio disponible 
       assert.equal(spin.body.profile.coins, currentProfile.coins - 350);
       currentProfile = spin.body.profile;
     }
-    assert.equal(prizes.size, 7);
-    assert.equal(currentProfile.coins, 3600 - 7 * 350);
+    assert.equal(prizes.size, 9);
+    assert.equal(currentProfile.coins, 3600 - 9 * 350);
     assert.equal(currentProfile.roulette.used, true);
     assert.equal(currentProfile.roulette.remaining, 0);
     assert.equal((await post('/api/roulette', { name: 'Ana' })).status, 409);
     const storedAna = JSON.parse(fs.readFileSync(path.join(dataDir, 'profiles.json'), 'utf8'))['n:ana'];
-    assert.equal(storedAna.roulettePrizes.length, 7);
+    assert.equal(storedAna.roulettePrizes.length, 9);
 
     const a = (await post('/api/create', { name: 'Ana', mode: 'pvp' })).body;
     const b = (await post('/api/join', { name: 'Beto', token: a.token })).body;

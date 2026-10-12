@@ -149,13 +149,13 @@ function applyBotStartLevels() { // nivel inicial de los bots del torneo (Ronald
 applyBotStartLevels();
 const pointsPerWin = (level) => (level >= 15 ? 10 : 50); // a partir del nivel 15 cada victoria da menos puntos
 const DAILY_WINS = 3, DAILY_COINS = 10;
-const SHOP = { swordfish: { name: 'Pez espada', price: 150 }, infernal: { name: 'Ataque infernal', price: 450 }, viking: { name: 'Barco vikingo', price: 250 }, fireballs: { name: 'Balas de fuego', price: 500 }, fireDragon: { name: 'Dragón de fuego', price: 1500 }, stormDragon: { name: 'Dragón de rayos', price: 1500 } };
+const SHOP = { swordfish: { name: 'Pez espada', price: 150 }, infernal: { name: 'Ataque infernal', price: 450 }, viking: { name: 'Barco vikingo', price: 250 }, fireballs: { name: 'Balas de fuego', price: 500 }, fireDragon: { name: 'Dragón de fuego', price: 1500 }, stormDragon: { name: 'Dragón de rayos', price: 1500 }, bone: { name: 'Skin de huesos', price: 10000 }, christmas: { name: 'Skins de Navidad', price: 12000 } };
 const SHOP_ACCESS_EMAIL = 'msabanda@gmail.com';
 const hasShopAccess = (user) => user?.emailVerified === true && String(user.email || '').trim().toLowerCase() === SHOP_ACCESS_EMAIL;
 // La ruleta permite una tirada por cada premio disponible, sin repetir artículos ni salvavidas.
 const ROULETTE_PRICE = 350, LIFEBUOY_PCT = 25;
 function rouletteOdds(entry) {
-  const items = Object.entries(SHOP).filter(([id]) => !entry?.[id]);
+  const items = Object.entries(SHOP).filter(([id]) => !(id === 'christmas' ? entry?.santa && entry?.reindeer : entry?.[id]));
   const lifebuoyAvailable = !entry?.lifebuoy;
   if (!items.length && !lifebuoyAvailable) return [];
   const total = items.reduce((s, [, it]) => s + 1 / it.price, 0);
@@ -178,6 +178,9 @@ const activeSkin = (entry) => {
   if (Object.hasOwn(entry || {}, 'skinSelection')) {
     if (entry.skinSelection === 'pinta' && entry.pinta) return 'pinta';
     if (entry.skinSelection === 'viking' && entry.viking && entry.vikingTier === skinTier(entry.level)) return 'viking';
+    if (entry.skinSelection === 'santa' && entry.santa) return 'santa';
+    if (entry.skinSelection === 'reindeer' && entry.reindeer) return 'reindeer';
+    if (entry.skinSelection === 'bone' && entry.bone) return 'bone';
     return null;
   }
   return entry?.viking && entry.vikingTier === skinTier(entry.level) ? 'viking' : null;
@@ -197,7 +200,7 @@ function profileView(entry, storeAccess = false) {
   const odds = rouletteOdds(entry);
   return {
     points, wins: Number(entry.wins) || 0, level: Number(entry.level) || levelForPoints(points),
-    coins: Number(entry.coins) || 0, swordfish: Boolean(entry.swordfish), infernal: Boolean(entry.infernal), viking: Boolean(entry.viking), pinta: Boolean(entry.pinta), fireballs: Boolean(entry.fireballs), fireDragon: Boolean(entry.fireDragon), stormDragon: Boolean(entry.stormDragon), skin: activeSkin(entry),
+    coins: Number(entry.coins) || 0, swordfish: Boolean(entry.swordfish), infernal: Boolean(entry.infernal), viking: Boolean(entry.viking), pinta: Boolean(entry.pinta), santa: Boolean(entry.santa), reindeer: Boolean(entry.reindeer), christmas: Boolean(entry.santa && entry.reindeer), bone: Boolean(entry.bone), fireballs: Boolean(entry.fireballs), fireDragon: Boolean(entry.fireDragon), stormDragon: Boolean(entry.stormDragon), skin: activeSkin(entry),
     lifebuoy: Boolean(entry.lifebuoy),
     storeAccess,
     roulette: { price: storeAccess ? 0 : ROULETTE_PRICE, used: odds.length === 0, prize: entry.roulettePrize || null, remaining: odds.length, odds },
@@ -364,11 +367,45 @@ const isWarshipRound = (room) => !room.tutorial && WARSHIP_ROUNDS.includes(room.
 // isla de los monos (solo ronda 9): tapa los 4 carriles; 4 monos lanzan cocos (2 a cada barco) y cada mono abatido da 1 moneda
 const ISLAND_ROUND = 9, COCONUT_DMG = 3, MONKEY_DRAGON_BONUS = 50; // monedas por cada dragón que ataca a los monos
 const isIslandRound = (room) => !room.tutorial && room.round === ISLAND_ROUND;
+const SPECIAL_EVENT_ROUNDS = [3, 4, 5, 6, 7, 8, 12, 13, 14, 16, 17, 18];
+const JUSTICE_DMG = 15, JUSTICE_HEAL = 25, JUSTICE_SHOT_BONUS = 15, HALLOWEEN_SHOT_BONUS = 10;
+const isJusticeRound = (room) => !room.tutorial && !room.justiceUsed && room.round === room.justiceRound;
+const isSantaRound = (room) => !room.tutorial && !room.santaUsed && room.round === room.santaRound;
+const isHalloweenRound = (room) => !room.tutorial && !room.halloweenUsed && room.round === room.halloweenRound;
+const isCalmRound = (room) => isWarshipRound(room) || isIslandRound(room) || isJusticeRound(room) || isSantaRound(room) || isHalloweenRound(room);
+function randomSpecialRounds() {
+  const pool = [...SPECIAL_EVENT_ROUNDS];
+  for (let index = pool.length - 1; index > 0; index--) {
+    const swap = Math.floor(Math.random() * (index + 1));
+    [pool[index], pool[swap]] = [pool[swap], pool[index]];
+  }
+  return pool.slice(0, 3);
+}
+function grantEventSkin(player, skin) {
+  if (player.bot) return;
+  const entry = ranking[player.sub] ||= { name: player.name, streak: 0, points: 0, wins: 0, level: 1, coins: 0 };
+  entry[skin] = true;
+  entry.skinSelection = skin;
+  persistRanking([player.sub]);
+}
 const TROOP_DMG = 15, TROOP_COOLDOWN = 2; // el barquito vuelve a estar listo dos rondas después
 function resolveRound(room) {
   const medkitPosts = [-3, -1, 1, 3];
   const warship = isWarshipRound(room), island = isIslandRound(room);
-  const calm = warship || island; // solo quedan el barco de guerra o los monos: el resto de animales y objetos desaparecen
+  const justice = isJusticeRound(room), santa = isSantaRound(room), halloween = isHalloweenRound(room);
+  const calm = warship || island || justice || santa || halloween;
+  if (justice) room.justiceUsed = true;
+  if (santa) room.santaUsed = true;
+  if (halloween) room.halloweenUsed = true;
+  const santaSkins = room.santaSkins || ['santa', 'reindeer'];
+  if (santa) {
+    for (const k of [0, 1]) {
+      grantEventSkin(room.players[k], santaSkins[k]);
+      if (!room.players[k].bot) ranking[room.players[k].sub].christmas = true;
+    }
+    persistRanking(room.players.filter((player) => !player.bot).map((player) => player.sub));
+  }
+  if (halloween) for (const player of room.players) grantEventSkin(player, 'bone');
   const monkeyTarget = island ? [0, 0, 1, 1].sort(() => Math.random() - 0.5) : null;
   const monkeyAlive = [true, true, true, true];
   const medkitRound = !calm && room.medkitMatch && room.round >= 3 && (room.round - 3) % 3 === 0;
@@ -376,7 +413,7 @@ function resolveRound(room) {
   let medkitCollected = false;
   const rain = room.round % 5 === 0 && room.round !== 15; // la ronda 15 es nevada, no lluvia
   const whaleRound = !calm && room.round % 7 === 0; // ballena extra en medio del mar, en un carril al azar por disparo
-  const swell = room.round % 6 === 0; // con oleaje los barcos se desplazan: 1 derecha, 2 izquierda, 0 quieto
+  const swell = room.round % 6 === 0 && !calm; // con oleaje los barcos se desplazan: 1 derecha, 2 izquierda, 0 quieto
   const pos = [0, 0]; // desplazamiento de cada barco en unidades de medio carril
   const MOVE = [0, 1, -1];
   const [p0, p1] = room.players;
@@ -387,7 +424,7 @@ function resolveRound(room) {
   const warshipDisabledCannons = [null, null];
   const monkeyDisabledCannons = [[], []];
   const warshipHitBy = [false, false];
-  const cann = room.cannons, mult = room.round % 4 === 0 || room.round >= 36 ? 2 : 1;
+  const cann = room.cannons, mult = !calm && (room.round % 4 === 0 || room.round >= 36) ? 2 : 1;
   const hpRatio0 = (room.maxShipHp[0] + room.maxShipHp[1]) / 2 / 105, capRatio = 255 / 105; // hasta el nivel 30 el daño crece poco y los duelos se alargan; a partir de ahí crece con la vida y la duración se estabiliza
   const hpScale = Math.max(1, Math.pow(Math.min(hpRatio0, capRatio), 0.04) * Math.max(1, Math.pow(hpRatio0 / capRatio, 0.5)));
   const hull = (n) => Math.round(n * hpScale);
@@ -401,12 +438,12 @@ function resolveRound(room) {
   const logRound = wild && (room.round === 7 || (room.round >= 20 && Math.random() < 0.5)); // tronco en la ronda 7 y, desde la 20, al azar
   let bucketAlive = wild && room.round >= 8 && (room.round - 8) % 3 === 0; // desde la ronda 8 y cada 3 rondas flota un cubo en un carril al azar que se hunde de un disparo y cura 10
   const firstSubmitter = (P[0].submittedAt ?? Infinity) <= (P[1].submittedAt ?? Infinity) ? 0 : 1; // se lleva la vida de la gaviota si ambos la alcanzan
-  const heliFor = [0, 1].map((k) => room.hp[k].ship > 0 && room.hp[k].ship <= 5 && Boolean(P[k].heli || P[k].bot));
-  const troopsFor = [0, 1].map((k) => !warship && (room.troopsCd?.[k] || 0) === 0 && Boolean(P[k].troops || (P[k].bot && !room.tutorial && Math.random() < 0.5)));
+  const heliFor = [0, 1].map((k) => !calm && room.hp[k].ship > 0 && room.hp[k].ship <= 5 && Boolean(P[k].heli || P[k].bot));
+  const troopsFor = [0, 1].map((k) => !calm && (room.troopsCd?.[k] || 0) === 0 && Boolean(P[k].troops || (P[k].bot && !room.tutorial && Math.random() < 0.5)));
   room.troopsCd ||= [0, 0];
   for (const k of [0, 1]) if (troopsFor[k]) room.troopsCd[k] = TROOP_COOLDOWN;
   room.domeCd ||= [0, 0];
-  const domeFor = [0, 1].map((k) => !warship && room.domeCd[k] === 0 && Boolean(P[k].dome || (P[k].bot && !room.tutorial && Math.random() < 0.5)));
+  const domeFor = [0, 1].map((k) => !calm && room.domeCd[k] === 0 && Boolean(P[k].dome || (P[k].bot && !room.tutorial && Math.random() < 0.5)));
   const domeIdx = [null, null]; // la cúpula cubre durante toda la ronda al cañón más débil que sigue en pie
   for (const k of [0, 1]) if (domeFor[k]) {
     let weak = -1;
@@ -420,15 +457,15 @@ function resolveRound(room) {
   const swordFor = [0, 1].map((k) => !calm && room.swordCd[k] === 0 && Boolean(P[k].sword) && room.hp[1 - k].shark > 0);
   for (const k of [0, 1]) if (swordFor[k]) room.swordCd[k] = SWORD_COOLDOWN;
   room.dragonFireCd ||= [0, 0]; room.dragonStormCd ||= [0, 0];
-  const dragonFireFor = [0, 1].map((k) => !P[k].bot && dragonsOf(P[k]).fire && room.dragonFireCd[k] === 0 && Boolean(P[k].dragonFire));
-  const dragonStormFor = [0, 1].map((k) => !P[k].bot && dragonsOf(P[k]).storm && room.dragonStormCd[k] === 0 && Boolean(P[k].dragonStorm));
+  const dragonFireFor = [0, 1].map((k) => !justice && !santa && !halloween && !P[k].bot && dragonsOf(P[k]).fire && room.dragonFireCd[k] === 0 && Boolean(P[k].dragonFire));
+  const dragonStormFor = [0, 1].map((k) => !justice && !santa && !halloween && !P[k].bot && dragonsOf(P[k]).storm && room.dragonStormCd[k] === 0 && Boolean(P[k].dragonStorm));
   const dragonFor = [0, 1].map((k) => dragonFireFor[k] || dragonStormFor[k]);
   for (const k of [0, 1]) {
     if (dragonFireFor[k]) room.dragonFireCd[k] = DRAGON_COOLDOWN;
     if (dragonStormFor[k]) room.dragonStormCd[k] = DRAGON_COOLDOWN;
   }
   room.infernoCd ||= [0, 0];
-  const infernoFor = [0, 1].map((k) => !warship && room.infernoCd[k] === 0 && Boolean(P[k].infernal));
+  const infernoFor = [0, 1].map((k) => !warship && !island && !justice && !santa && room.infernoCd[k] === 0 && Boolean(P[k].infernal));
   for (const k of [0, 1]) if (infernoFor[k]) room.infernoCd[k] = INFERNO_COOLDOWN;
   // el barco de guerra reparte el 20 % de la vida de cada barco entre sus 4 andanadas (nunca hunde a nadie por sí solo)
   const warshipLeft = [0, 1].map((k) => (warship ? Math.min(Math.round(room.hp[k].ship * WARSHIP_PCT), Math.max(0, room.hp[k].ship - 1)) : 0));
@@ -565,6 +602,9 @@ function resolveRound(room) {
         ev.shots.push({ from, lane, x, target, monkey: m.id, coin: 1, ...tag });
         return;
       }
+      else if (justice) { target = 'justice'; }
+      else if (santa) { target = 'santa'; }
+      else if (halloween) { target = 'pumpkin'; }
       else if (!extra && simultaneousCollision && from === 1 && (octopusCaughtThisStep || medkitCaughtThisStep)) { target = 'collision'; }
       else if (squidHit(x) && from === squidOwner) { target = 'squid'; owner = squidOwner; squidAlive = false; ev.squid.blocked = true; }
       else if (sharkAt(from)) { target = 'shark'; owner = from; }
@@ -635,6 +675,15 @@ function resolveRound(room) {
           warshipReward = warshipRewards[from];
           if (rewarded.length) persistRanking(rewarded);
         }
+      } else if (target === 'justice' || target === 'pumpkin') {
+        const bonus = target === 'justice' ? JUSTICE_SHOT_BONUS : HALLOWEEN_SHOT_BONUS;
+        if (!P[from].bot) {
+          const entry = ranking[P[from].sub] ||= { name: P[from].name, streak: 0, points: 0, wins: 0, level: 1, coins: 0 };
+          entry.coins = (Number(entry.coins) || 0) + bonus;
+          persistRanking([P[from].sub]);
+        }
+        ev.shots.push({ from, lane, x, target, owner: from, damage: 0, coin: bonus, ...tag });
+        return;
       } else if (target === 'ship') {
         const c = nearestCannon(owner, x);
         if (!shielded(owner, c)) { dmg[owner].ship += hull(amount); cdmg[owner][c] += amount; hitBy[owner][c] = from; }
@@ -690,6 +739,24 @@ function resolveRound(room) {
       }
       ev.warship = { dmg: share, hpBefore: warshipHpBefore, hp: warshipHp, maxHp: WARSHIP_HP, sunkBy: warshipSunkBy, sunkNow: warshipSunkNow, reward: warshipReward, rewards: warshipRewards, pintaUnlocked, targetCannons: warshipTargets, disabledCannons: i === 3 ? disabledCannons : null, laser: i === 1 ? laserFirst : i === 3 ? 1 - laserFirst : null };
     }
+    if (justice) {
+      const pickExtreme = (values, highest) => {
+        const value = highest ? Math.max(...values) : Math.min(...values);
+        const candidates = values.map((candidate, index) => candidate === value ? index : -1).filter((index) => index >= 0);
+        return candidates[Math.floor(Math.random() * candidates.length)];
+      };
+      const currentHp = room.hp.map((health, k) => Math.max(0, health.ship - dmg[k].ship));
+      const target = pickExtreme(currentHp, true);
+      const cannonDamage = Math.min(JUSTICE_DMG, Math.max(0, currentHp[target] - 1));
+      dmg[target].ship += cannonDamage;
+      const afterCannon = room.hp.map((health, k) => Math.max(0, health.ship - dmg[k].ship));
+      const medkitTarget = pickExtreme(afterCannon, false);
+      const medkitHeal = Math.min(JUSTICE_HEAL, Math.max(0, room.maxShipHp[medkitTarget] - afterCannon[medkitTarget] - heal[medkitTarget]));
+      heal[medkitTarget] += medkitHeal;
+      ev.justice = { target, cannonDamage, medkitTarget, medkitHeal };
+    }
+    if (santa && i === 0) ev.santa = { skins: [...santaSkins] };
+    if (halloween && i === 0) ev.halloween = { skins: true };
     if (gullHits.length) { gullAlive = false; heal[gullHits.includes(firstSubmitter) ? firstSubmitter : gullHits[0]] += 15; }
     // disparo del submarino hacia el jugador elegido: lo para su tiburón si está en ese carril; si no, da al barco
     if (ev.sub) {
@@ -751,7 +818,7 @@ function broadcast(room, event, data) {
   room.players.forEach((p) => p.stream && send(p.stream, event, data));
   room.spectators?.forEach((stream) => send(stream, event, data));
 }
-const info = (room) => ({ names: room.players.map((p) => p.name), countries: room.players.map((p) => p.country || 'un'), levels: room.players.map((p) => Number(ranking[p.sub]?.level) || 1), skins: room.players.map((p) => (p.bot ? null : activeSkin(ranking[p.sub]))), maxShipHp: room.maxShipHp, blockRound: room.round % 10 === 0, warship: isWarshipRound(room), island: isIslandRound(room), hp: room.hp, cannons: room.cannons, round: room.round, over: room.over, tutorial: room.tutorial, inputMs: room.tutorial ? null : INPUT_MS, troopsCd: room.troopsCd || [0, 0], domeCd: room.domeCd || [0, 0], foodCd: room.foodCd || [0, 0], swordCd: room.swordCd || [0, 0], swordfish: room.players.map((p) => !p.bot && Boolean(ranking[p.sub]?.swordfish)), infernoCd: room.infernoCd || [0, 0], infernal: room.players.map((p) => !p.bot && Boolean(ranking[p.sub]?.infernal)), fireCd: room.fireCd || [0, 0], fireOn: room.fireOn || [false, false], fireballs: room.players.map((p) => !p.bot && Boolean(ranking[p.sub]?.fireballs)), dragonCd: [0, 1].map((k) => Math.max(room.dragonFireCd?.[k] || 0, room.dragonStormCd?.[k] || 0)), dragonFireCd: room.dragonFireCd || [0, 0], dragonStormCd: room.dragonStormCd || [0, 0], dragons: room.players.map(dragonsOf), lifebuoys: room.players.map((p) => !p.bot && Boolean(ranking[p.sub]?.lifebuoy)) });
+const info = (room) => ({ names: room.players.map((p) => p.name), countries: room.players.map((p) => p.country || 'un'), levels: room.players.map((p) => Number(ranking[p.sub]?.level) || 1), skins: room.players.map((p) => (p.bot ? null : activeSkin(ranking[p.sub]))), maxShipHp: room.maxShipHp, blockRound: room.round % 10 === 0, warship: isWarshipRound(room), island: isIslandRound(room), justice: isJusticeRound(room), santa: isSantaRound(room), halloween: isHalloweenRound(room), hp: room.hp, cannons: room.cannons, round: room.round, over: room.over, tutorial: room.tutorial, inputMs: room.tutorial ? null : INPUT_MS, troopsCd: room.troopsCd || [0, 0], domeCd: room.domeCd || [0, 0], foodCd: room.foodCd || [0, 0], swordCd: room.swordCd || [0, 0], swordfish: room.players.map((p) => !p.bot && Boolean(ranking[p.sub]?.swordfish)), infernoCd: room.infernoCd || [0, 0], infernal: room.players.map((p) => !p.bot && Boolean(ranking[p.sub]?.infernal)), fireCd: room.fireCd || [0, 0], fireOn: room.fireOn || [false, false], fireballs: room.players.map((p) => !p.bot && Boolean(ranking[p.sub]?.fireballs)), dragonCd: [0, 1].map((k) => Math.max(room.dragonFireCd?.[k] || 0, room.dragonStormCd?.[k] || 0)), dragonFireCd: room.dragonFireCd || [0, 0], dragonStormCd: room.dragonStormCd || [0, 0], dragons: room.players.map(dragonsOf), lifebuoys: room.players.map((p) => !p.bot && Boolean(ranking[p.sub]?.lifebuoy)) });
 
 // Secuencia aleatoria usando solo cañones que funcionan
 const workingSeq = (room, k) => {
@@ -796,6 +863,9 @@ function resetState(room) {
   room.medkitMatch = true;
   room.octopusLane = 1 + Math.floor(Math.random() * 4);
   room.octopusUsed = false;
+  [room.justiceRound, room.santaRound, room.halloweenRound] = randomSpecialRounds();
+  room.justiceUsed = false; room.santaUsed = false; room.halloweenUsed = false;
+  room.santaSkins = Math.random() < 0.5 ? ['santa', 'reindeer'] : ['reindeer', 'santa'];
   room.round = START_ROUND; room.over = false; room.hist = [[], []]; room.startedAt = Date.now();
 }
 function makeRoom(who, bot, level = 'normal', tutorial = false) {
@@ -1179,10 +1249,13 @@ const server = http.createServer(async (req, res) => {
     const user = identify(await body(req));
     if (!user) return json(res, 401, { error: 'Inicia sesión con Google' });
     const entry = ranking[user.sub];
-    if (!entry?.viking && !entry?.pinta) return json(res, 403, { error: 'Desbloquea una skin especial para cambiar el barco' });
+    if (!entry?.viking && !entry?.pinta && !entry?.santa && !entry?.reindeer && !entry?.bone) return json(res, 403, { error: 'Desbloquea una skin especial para cambiar el barco' });
     const options = [null];
     if (entry.viking) options.push('viking');
     if (entry.pinta) options.push('pinta');
+    if (entry.santa) options.push('santa');
+    if (entry.reindeer) options.push('reindeer');
+    if (entry.bone) options.push('bone');
     const current = options.indexOf(activeSkin(entry));
     entry.skinSelection = options[(current + 1) % options.length];
     if (entry.skinSelection === 'viking') entry.vikingTier = skinTier(entry.level);
@@ -1197,11 +1270,13 @@ const server = http.createServer(async (req, res) => {
     if (!Object.hasOwn(SHOP, String(b.item))) return json(res, 400, { error: 'Artículo no válido' });
     const storeAccess = hasShopAccess(user);
     const entry = ranking[user.sub] ||= { name: user.name, streak: 0, points: 0, wins: 0, level: 1, coins: 0 };
-    if (entry?.[b.item]) return json(res, 409, { error: `Ya tienes el ${item.name.toLowerCase()}` });
+    if (b.item === 'christmas' ? entry.santa && entry.reindeer : entry?.[b.item]) return json(res, 409, { error: `Ya tienes ${item.name.toLowerCase()}` });
     if (!storeAccess && (Number(entry.coins) || 0) < item.price) return json(res, 402, { error: `Necesitas ${item.price} monedas` });
     entry.coins = storeAccess ? Number(entry.coins) || 0 : Number(entry.coins) - item.price;
     entry[b.item] = true;
     if (b.item === 'viking') { entry.vikingTier = skinTier(entry.level); entry.skinSelection = 'viking'; } // recién comprado se equipa
+    if (b.item === 'bone') entry.skinSelection = 'bone';
+    if (b.item === 'christmas') { entry.santa = true; entry.reindeer = true; entry.skinSelection = 'santa'; }
     persistRanking([user.sub]);
     return json(res, 200, profileView(entry, storeAccess));
   }
@@ -1219,6 +1294,8 @@ const server = http.createServer(async (req, res) => {
     entry.roulettePrize = prize;
     entry.roulettePrizes = [...new Set([...(Array.isArray(entry.roulettePrizes) ? entry.roulettePrizes : []), prize])];
     if (prize === 'viking') { entry.vikingTier = skinTier(entry.level); entry.skinSelection = 'viking'; }
+    if (prize === 'bone') entry.skinSelection = 'bone';
+    if (prize === 'christmas') { entry.santa = true; entry.reindeer = true; entry.skinSelection = 'santa'; }
     persistRanking([user.sub]);
     return json(res, 200, { prize, odds, profile: profileView(entry, storeAccess) });
   }
@@ -1469,7 +1546,7 @@ const server = http.createServer(async (req, res) => {
     const me = room?.players[pid];
     if (!me || me.key !== key || room.players.length < 2 || room.over) return json(res, 400, { error: 'Inválido' });
     if (!valid(attack) || !valid(defense)) return json(res, 400, { error: 'Secuencia inválida' });
-    if (room.round % 6 === 0 && !validWave(wave)) return json(res, 400, { error: 'Oleaje inválido' });
+    if (room.round % 6 === 0 && !isCalmRound(room) && !validWave(wave)) return json(res, 400, { error: 'Oleaje inválido' });
     if (room.round % 10 === 0 && !valid(block)) return json(res, 400, { error: 'Secuencia de bloqueo inválida' });
     if (me.attack) return json(res, 409, { error: 'Ya enviaste' });
     me.submittedAt = Date.now();
